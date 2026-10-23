@@ -389,14 +389,24 @@
 
         /* ---------- Friends ---------- */
 
-        function buildStory(name, emoji, isMe) {
-            return $(isMe ? "<button>" : "<div>", {
+        // `author` is the full stored name ("😎 Gô"); only needed for the admin delete button
+        function buildStory(name, emoji, isMe, author) {
+            const $story = $(isMe ? "<button>" : "<div>", {
                 class: "story" + (isMe ? " is-active" : ""),
                 title: isMe ? "Đổi tên" : name
             })
                 .attr(isMe ? { type: "button", id: "myStory" } : {})
                 .append($("<span>", { class: "ring" }).append($("<span>", { class: "avatar avatar-lg", text: emoji })))
                 .append($("<span>", { class: "story-name", text: name }));
+
+            if (!isMe && isAdmin) {
+                $story.append(
+                    $("<button>", { type: "button", class: "story-delete", title: `Xoá người dùng ${name}`, "aria-label": `Xoá người dùng ${name}` })
+                        .attr("data-author", author)
+                        .append($("<i>", { class: "fa-solid fa-xmark" }))
+                );
+            }
+            return $story;
         }
 
         function renderFriends() {
@@ -406,7 +416,7 @@
             $list.append(me ? buildStory(nameOf(me), emojiOf(me), true) : buildStory("Bạn", "＋", true));
 
             knownAuthors.forEach((name) => {
-                if (name && name !== me) $list.append(buildStory(nameOf(name), emojiOf(name), false));
+                if (name && name !== me) $list.append(buildStory(nameOf(name), emojiOf(name), false, name));
             });
 
             const total = new Set([...knownAuthors, me].filter(Boolean)).size;
@@ -512,8 +522,58 @@
                 // storage unavailable — admin state lasts for this tab only
             }
             renderAdmin();
+            renderFriends();
             refreshPermissions();
         }
+
+        /* ---------- Delete user (admin) ---------- */
+
+        // Removes everything tied to an author name: their posts (with all comments under them),
+        // their comments on other posts, and their likes.
+        async function deleteUser(author) {
+            const photosRef = collection(db, "photos");
+            const commentsRef = collection(db, "comments");
+
+            // 1. Their posts, together with every comment under those posts
+            const posts = await getDocs(query(photosRef, where("auth", "==", author)));
+            await Promise.all(posts.docs.map(async (postSnap) => {
+                const postComments = await getDocs(query(commentsRef, where("postId", "==", postSnap.id)));
+                await Promise.all(postComments.docs.map((c) => deleteDoc(c.ref)));
+                await deleteDoc(postSnap.ref);
+            }));
+
+            // 2. Their comments on other people's posts, 3. their likes (posts from step 1 are gone already)
+            const [comments, liked] = await Promise.all([
+                getDocs(query(commentsRef, where("author", "==", author))),
+                getDocs(query(photosRef, where("likes", "array-contains", author)))
+            ]);
+            await Promise.all([
+                ...comments.docs.map((c) => deleteDoc(c.ref)),
+                ...liked.docs.map((p) => updateDoc(p.ref, { likes: arrayRemove(author) }))
+            ]);
+
+            return { posts: posts.size, comments: comments.size, likes: liked.size };
+        }
+
+        $("#friendsList").on("click", ".story-delete", async function () {
+            if (!isAdmin) return;
+
+            const author = $(this).attr("data-author");
+            const name = nameOf(author);
+            if (!confirm(`Xoá người dùng "${name}"?\n\nToàn bộ bài viết, bình luận và lượt thích của người này sẽ bị xoá vĩnh viễn.`)) return;
+
+            const $story = $(this).closest(".story").addClass("is-busy");
+            try {
+                const result = await deleteUser(author);
+                knownAuthors.delete(author);
+                showToast(`Đã xoá ${name}: ${result.posts} bài, ${result.comments} bình luận, ${result.likes} lượt thích`);
+                await loadFeed();
+            } catch (err) {
+                console.error(err);
+                $story.removeClass("is-busy");
+                showToast(errorMessage(err));
+            }
+        });
 
         $("#btnAdmin").on("click", function () {
             if (isAdmin) {

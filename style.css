@@ -219,12 +219,39 @@ body.no-scroll {
 }
 
 .story {
+    position: relative;
     flex: 0 0 auto;
     width: 66px;
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 6px;
+}
+
+.story.is-busy {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+.story-delete {
+    position: absolute;
+    top: 0;
+    right: 2px;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--card);
+    border-radius: 50%;
+    background-color: var(--like);
+    color: #fff;
+    font-size: 10px;
+    transition: transform 0.15s;
+}
+
+.story-delete:hover {
+    transform: scale(1.15);
 }
 
 .story .ring {
