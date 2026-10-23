@@ -210,12 +210,6 @@ img {
     background: #eef6ff;
 }
 
-.notify-new-posts {
-    color: var(--primary);
-    font-weight: 600;
-    border-bottom: 1px solid var(--border-soft);
-}
-
 .notify-avatar {
     flex-shrink: 0;
 }
@@ -224,6 +218,12 @@ img {
     flex: 1;
     min-width: 0;
     overflow-wrap: anywhere;
+}
+
+.notify-post {
+    display: block;
+    color: var(--text);
+    font-style: italic;
 }
 
 .notify-time {

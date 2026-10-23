@@ -30,10 +30,6 @@
                     </button>
                     <div class="notify-dropdown" id="notifyDropdown" style="display:none">
                         <div class="notify-head">Thông báo</div>
-                        <button type="button" class="notify-item notify-new-posts" id="notifyNewPosts" style="display:none">
-                            <i class="fa-solid fa-rotate-right notify-icon"></i>
-                            <span class="notify-text"></span>
-                        </button>
                         <ul class="notify-list" id="notifyList"></ul>
                         <p class="notify-empty" id="notifyEmpty">Chưa có thông báo nào</p>
                     </div>
@@ -1869,25 +1865,30 @@
 
         // Only events after the page was opened are notified (likes carry no timestamp)
         const pageOpenedAt = Date.now();
-        let newPostCount = 0;
         let unreadCount = 0;
 
         function renderNotifyBadge() {
-            const total = newPostCount + unreadCount;
-            $("#notifyBadge").text(total > 9 ? "9+" : total).toggle(total > 0);
-            $("#btnNotify").toggleClass("has-new", total > 0);
-            $("#notifyNewPosts").toggle(newPostCount > 0)
-                .find(".notify-text").text(`${newPostCount} bài viết mới — nhấn để tải lại`);
-            $("#notifyEmpty").toggle(!newPostCount && !$("#notifyList").children().length);
+            $("#notifyBadge").text(unreadCount > 9 ? "9+" : unreadCount).toggle(unreadCount > 0);
+            $("#btnNotify").toggleClass("has-new", unreadCount > 0);
+            $("#notifyEmpty").toggle(!$("#notifyList").children().length);
         }
 
-        function addNotification(icon, who, action, postId, ms) {
+        // Posts have no title, so the caption (shortened) stands in for it
+        function postTitle(caption) {
+            const text = $.trim(caption || "");
+            if (!text) return "(bài viết không có mô tả)";
+            return text.length > 60 ? `${text.slice(0, 60)}…` : text;
+        }
+
+        // kind "post" reloads the page on click; other kinds scroll to the post
+        function addNotification({ kind, icon, who, action, caption, postId, ms }) {
             const $item = $("<li>").append(
-                $("<button>", { type: "button", class: "notify-item is-unread", "data-post-id": postId }).append(
+                $("<button>", { type: "button", class: "notify-item is-unread", "data-post-id": postId, "data-kind": kind }).append(
                     fillAvatar($("<span>", { class: "avatar avatar-md notify-avatar" }), who, emojiOf(who)),
                     $("<span>", { class: "notify-text" }).append(
                         $("<strong>", { text: nameOf(who) }),
                         document.createTextNode(` ${action}`),
+                        $("<span>", { class: "notify-post", text: `“${postTitle(caption)}”` }),
                         $("<span>", { class: "notify-time", text: timeAgo(ms) })
                     ),
                     $("<i>", { class: `${icon} notify-icon` })
@@ -1903,17 +1904,25 @@
             (snapshot) => {
                 snapshot.docChanges().forEach((change) => {
                     if (change.type !== "added") return;
+                    const data = change.doc.data();
                     // Own posts are already shown by loadFeed() after posting
-                    if (change.doc.data().auth === currentAuthor()) return;
-                    newPostCount++;
+                    if (data.auth === currentAuthor()) return;
+                    addNotification({
+                        kind: "post",
+                        icon: "fa-solid fa-rotate-right",
+                        who: data.auth,
+                        action: "đã đăng bài viết mới — nhấn để tải lại",
+                        caption: data.comment,
+                        postId: change.doc.id,
+                        ms: toMillis(data.createdAt)
+                    });
                 });
-                renderNotifyBadge();
             },
             (err) => console.error(err)
         );
 
         // Likes and comments on the current user's posts; re-subscribed when the name changes
-        let myPostLikes = new Map(); // postId -> likes array
+        let myPosts = new Map(); // postId -> { likes, caption }
         let unsubMyPosts = null;
         let unsubMyComments = null;
 
@@ -1921,7 +1930,7 @@
             if (unsubMyPosts) unsubMyPosts();
             if (unsubMyComments) unsubMyComments();
             unsubMyPosts = unsubMyComments = null;
-            myPostLikes = new Map();
+            myPosts = new Map();
 
             const me = currentAuthor();
             if (!me) return;
@@ -1933,17 +1942,26 @@
                     snapshot.docChanges().forEach((change) => {
                         const id = change.doc.id;
                         if (change.type === "removed") {
-                            myPostLikes.delete(id);
+                            myPosts.delete(id);
                             return;
                         }
-                        const likes = change.doc.data().likes || [];
-                        const before = myPostLikes.get(id) || [];
-                        myPostLikes.set(id, likes);
+                        const data = change.doc.data();
+                        const likes = data.likes || [];
+                        const before = myPosts.get(id)?.likes || [];
+                        myPosts.set(id, { likes, caption: data.comment });
                         // First snapshot is the baseline; new posts start with no likes
                         if (isFirstSnapshot || change.type !== "modified") return;
                         likes
                             .filter((name) => !before.includes(name) && name !== me)
-                            .forEach((name) => addNotification("fa-solid fa-heart is-like", name, "đã thích bài viết của bạn", id, Date.now()));
+                            .forEach((name) => addNotification({
+                                kind: "like",
+                                icon: "fa-solid fa-heart is-like",
+                                who: name,
+                                action: "đã thích bài viết của bạn",
+                                caption: data.comment,
+                                postId: id,
+                                ms: Date.now()
+                            }));
                     });
                     isFirstSnapshot = false;
                 },
@@ -1956,8 +1974,16 @@
                     snapshot.docChanges().forEach((change) => {
                         if (change.type !== "added") return;
                         const data = change.doc.data();
-                        if (data.author === me || !myPostLikes.has(data.postId)) return;
-                        addNotification("fa-regular fa-comment", data.author, `đã bình luận: "${data.text}"`, data.postId, toMillis(data.createdAt));
+                        if (data.author === me || !myPosts.has(data.postId)) return;
+                        addNotification({
+                            kind: "comment",
+                            icon: "fa-regular fa-comment",
+                            who: data.author,
+                            action: `đã bình luận: "${data.text}" vào bài viết`,
+                            caption: myPosts.get(data.postId).caption,
+                            postId: data.postId,
+                            ms: toMillis(data.createdAt)
+                        });
                     });
                 },
                 (err) => console.error(err)
@@ -1978,7 +2004,7 @@
             }
             $dropdown.show();
             $(this).attr("aria-expanded", "true");
-            // Opening the list marks like/comment items as read; new posts stay until reload
+            // Opening the list clears the badge; items keep their unread style until clicked
             unreadCount = 0;
             renderNotifyBadge();
         });
@@ -1989,10 +2015,12 @@
             if (e.key === "Escape") closeNotify();
         });
 
-        $("#notifyNewPosts").on("click", () => location.reload());
-
         $("#notifyList").on("click", ".notify-item", function () {
             $(this).removeClass("is-unread");
+            if ($(this).attr("data-kind") === "post") {
+                location.reload();
+                return;
+            }
             closeNotify();
             const $post = $(`#feed .post[data-id="${$(this).attr("data-post-id")}"]`);
             if (!$post.length) {
