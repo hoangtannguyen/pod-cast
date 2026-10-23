@@ -23,10 +23,21 @@
                     <i class="fa-regular fa-user"></i>
                     <span id="friendCount">0</span>
                 </div>
-                <button type="button" class="admin-btn admin-btn-icon notify-btn" id="btnNotify" title="Thông báo" aria-label="Thông báo bài viết mới">
-                    <i class="fa-regular fa-bell"></i>
-                    <span class="notify-badge" id="notifyBadge" style="display:none">0</span>
-                </button>
+                <div class="notify-wrap">
+                    <button type="button" class="admin-btn admin-btn-icon notify-btn" id="btnNotify" title="Thông báo" aria-label="Thông báo" aria-haspopup="true" aria-expanded="false">
+                        <i class="fa-regular fa-bell"></i>
+                        <span class="notify-badge" id="notifyBadge" style="display:none">0</span>
+                    </button>
+                    <div class="notify-dropdown" id="notifyDropdown" style="display:none">
+                        <div class="notify-head">Thông báo</div>
+                        <button type="button" class="notify-item notify-new-posts" id="notifyNewPosts" style="display:none">
+                            <i class="fa-solid fa-rotate-right notify-icon"></i>
+                            <span class="notify-text"></span>
+                        </button>
+                        <ul class="notify-list" id="notifyList"></ul>
+                        <p class="notify-empty" id="notifyEmpty">Chưa có thông báo nào</p>
+                    </div>
+                </div>
                 <button type="button" class="admin-btn admin-btn-icon" id="btnStats" title="Dung lượng" aria-label="Xem dung lượng" style="display:none">
                     <i class="fa-solid fa-chart-pie"></i>
                 </button>
@@ -661,6 +672,7 @@
 
                 author = next;
                 saveProfile(author);
+                watchMyActivity();
                 setProfilePhoto(avatarUrl ? { url: avatarUrl } : null);
                 closeProfileModal();
                 renderFriends();
@@ -1853,12 +1865,41 @@
         renderAdmin();
         renderFriends();
         loadUsers();
-        /* ---------- New post notification ---------- */
+        /* ---------- Notifications ---------- */
 
-        // Only listen to posts created after the page was opened, so the initial snapshot is empty
+        // Only events after the page was opened are notified (likes carry no timestamp)
+        const pageOpenedAt = Date.now();
         let newPostCount = 0;
+        let unreadCount = 0;
+
+        function renderNotifyBadge() {
+            const total = newPostCount + unreadCount;
+            $("#notifyBadge").text(total > 9 ? "9+" : total).toggle(total > 0);
+            $("#btnNotify").toggleClass("has-new", total > 0);
+            $("#notifyNewPosts").toggle(newPostCount > 0)
+                .find(".notify-text").text(`${newPostCount} bài viết mới — nhấn để tải lại`);
+            $("#notifyEmpty").toggle(!newPostCount && !$("#notifyList").children().length);
+        }
+
+        function addNotification(icon, who, action, postId, ms) {
+            const $item = $("<li>").append(
+                $("<button>", { type: "button", class: "notify-item is-unread", "data-post-id": postId }).append(
+                    fillAvatar($("<span>", { class: "avatar avatar-md notify-avatar" }), who, emojiOf(who)),
+                    $("<span>", { class: "notify-text" }).append(
+                        $("<strong>", { text: nameOf(who) }),
+                        document.createTextNode(` ${action}`),
+                        $("<span>", { class: "notify-time", text: timeAgo(ms) })
+                    ),
+                    $("<i>", { class: `${icon} notify-icon` })
+                )
+            );
+            $("#notifyList").prepend($item);
+            unreadCount++;
+            renderNotifyBadge();
+        }
+
         onSnapshot(
-            query(collection(db, "photos"), where("createdAt", ">", Date.now())),
+            query(collection(db, "photos"), where("createdAt", ">", pageOpenedAt)),
             (snapshot) => {
                 snapshot.docChanges().forEach((change) => {
                     if (change.type !== "added") return;
@@ -1866,14 +1907,103 @@
                     if (change.doc.data().auth === currentAuthor()) return;
                     newPostCount++;
                 });
-                if (!newPostCount) return;
-                $("#notifyBadge").text(newPostCount > 9 ? "9+" : newPostCount).show();
-                $("#btnNotify").addClass("has-new").attr("title", `${newPostCount} bài viết mới — nhấn để tải lại`);
+                renderNotifyBadge();
             },
             (err) => console.error(err)
         );
 
-        $("#btnNotify").on("click", () => location.reload());
+        // Likes and comments on the current user's posts; re-subscribed when the name changes
+        let myPostLikes = new Map(); // postId -> likes array
+        let unsubMyPosts = null;
+        let unsubMyComments = null;
+
+        function watchMyActivity() {
+            if (unsubMyPosts) unsubMyPosts();
+            if (unsubMyComments) unsubMyComments();
+            unsubMyPosts = unsubMyComments = null;
+            myPostLikes = new Map();
+
+            const me = currentAuthor();
+            if (!me) return;
+
+            let isFirstSnapshot = true;
+            unsubMyPosts = onSnapshot(
+                query(collection(db, "photos"), where("auth", "==", me)),
+                (snapshot) => {
+                    snapshot.docChanges().forEach((change) => {
+                        const id = change.doc.id;
+                        if (change.type === "removed") {
+                            myPostLikes.delete(id);
+                            return;
+                        }
+                        const likes = change.doc.data().likes || [];
+                        const before = myPostLikes.get(id) || [];
+                        myPostLikes.set(id, likes);
+                        // First snapshot is the baseline; new posts start with no likes
+                        if (isFirstSnapshot || change.type !== "modified") return;
+                        likes
+                            .filter((name) => !before.includes(name) && name !== me)
+                            .forEach((name) => addNotification("fa-solid fa-heart is-like", name, "đã thích bài viết của bạn", id, Date.now()));
+                    });
+                    isFirstSnapshot = false;
+                },
+                (err) => console.error(err)
+            );
+
+            unsubMyComments = onSnapshot(
+                query(collection(db, "comments"), where("createdAt", ">", pageOpenedAt)),
+                (snapshot) => {
+                    snapshot.docChanges().forEach((change) => {
+                        if (change.type !== "added") return;
+                        const data = change.doc.data();
+                        if (data.author === me || !myPostLikes.has(data.postId)) return;
+                        addNotification("fa-regular fa-comment", data.author, `đã bình luận: "${data.text}"`, data.postId, toMillis(data.createdAt));
+                    });
+                },
+                (err) => console.error(err)
+            );
+        }
+
+        function closeNotify() {
+            $("#notifyDropdown").hide();
+            $("#btnNotify").attr("aria-expanded", "false");
+        }
+
+        $("#btnNotify").on("click", function (e) {
+            e.stopPropagation();
+            const $dropdown = $("#notifyDropdown");
+            if ($dropdown.is(":visible")) {
+                closeNotify();
+                return;
+            }
+            $dropdown.show();
+            $(this).attr("aria-expanded", "true");
+            // Opening the list marks like/comment items as read; new posts stay until reload
+            unreadCount = 0;
+            renderNotifyBadge();
+        });
+
+        $("#notifyDropdown").on("click", (e) => e.stopPropagation());
+        $(document).on("click", closeNotify);
+        $(document).on("keydown", (e) => {
+            if (e.key === "Escape") closeNotify();
+        });
+
+        $("#notifyNewPosts").on("click", () => location.reload());
+
+        $("#notifyList").on("click", ".notify-item", function () {
+            $(this).removeClass("is-unread");
+            closeNotify();
+            const $post = $(`#feed .post[data-id="${$(this).attr("data-post-id")}"]`);
+            if (!$post.length) {
+                showToast("Bài viết chưa được tải trong bảng tin");
+                return;
+            }
+            $post[0].scrollIntoView({ behavior: "smooth", block: "center" });
+            loadComments($post);
+        });
+
+        watchMyActivity();
 
         loadFeed();
         if (!currentAuthor()) openProfileModal();

@@ -157,6 +157,98 @@ img {
     text-align: center;
 }
 
+.notify-wrap {
+    position: relative;
+}
+
+.notify-dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 30;
+    width: min(340px, calc(100vw - 32px));
+    max-height: 420px;
+    overflow-y: auto;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.notify-head {
+    padding: 12px 14px;
+    font-weight: 700;
+    border-bottom: 1px solid var(--border-soft);
+}
+
+.notify-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.notify-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 10px 14px;
+    border: 0;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    font-size: 14px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.notify-item:hover {
+    background: var(--bg);
+}
+
+.notify-item.is-unread {
+    background: #eef6ff;
+}
+
+.notify-new-posts {
+    color: var(--primary);
+    font-weight: 600;
+    border-bottom: 1px solid var(--border-soft);
+}
+
+.notify-avatar {
+    flex-shrink: 0;
+}
+
+.notify-text {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.notify-time {
+    display: block;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.notify-icon {
+    flex-shrink: 0;
+    color: var(--muted);
+}
+
+.notify-icon.is-like {
+    color: var(--like);
+}
+
+.notify-empty {
+    margin: 0;
+    padding: 20px 14px;
+    color: var(--muted);
+    font-size: 14px;
+    text-align: center;
+}
+
 /* Narrow phones: icon-only admin button so the header fits */
 @media (max-width: 400px) {
     #adminLabel {
