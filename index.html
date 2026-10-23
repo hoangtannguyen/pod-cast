@@ -1,0 +1,1552 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <title>VibeGram 📸 | Share Your Vibes</title>
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📷</text></svg>">
+</head>
+
+<body>
+    <header class="topbar">
+        <div class="topbar-inner">
+            <h1 class="logo">VibeGram</h1>
+            <div class="topbar-actions">
+                <div class="topbar-meta" title="Số thành viên">
+                    <i class="fa-regular fa-user"></i>
+                    <span id="friendCount">0</span>
+                </div>
+                <button type="button" class="admin-btn admin-btn-icon" id="btnStats" title="Dung lượng" aria-label="Xem dung lượng" style="display:none">
+                    <i class="fa-solid fa-chart-pie"></i>
+                </button>
+                <button type="button" class="admin-btn" id="btnAdmin" title="Đăng nhập admin">
+                    <i class="fa-solid fa-user-shield"></i>
+                    <span id="adminLabel">Admin</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- Friends (stories) -->
+        <section class="stories" id="friendsList" aria-label="Bạn bè"></section>
+
+        <!-- New post form -->
+        <section class="composer card" id="newPostForm">
+            <div class="composer-head">
+                <span class="ring"><span class="avatar avatar-sm" id="selectedAvatar"></span></span>
+                <button type="button" class="composer-author" id="btnProfile" aria-label="Đổi tên người đăng">
+                    <span class="composer-label">Đăng bài viết của mình 💛</span>
+                    <span class="composer-name">
+                        <span id="authorName">Nhập tên của bạn</span>
+                        <i class="fa-solid fa-pen"></i>
+                    </span>
+                </button>
+            </div>
+
+            <textarea id="comment" placeholder="Bạn đang nghĩ gì? ✨" rows="2" maxlength="2000"></textarea>
+
+            <div class="media-grid" id="composerMedia" style="display:none"></div>
+
+            <div class="composer-actions">
+                <input type="file" id="mediaFiles" accept="image/*,video/*" multiple hidden>
+                <div class="composer-tools">
+                    <label for="mediaFiles" class="btn-ghost">
+                        <i class="fa-regular fa-images"></i>
+                        <span>Ảnh/Video <span id="mediaCount"></span></span>
+                    </label>
+                    <button type="button" class="btn-ghost btn-emoji" data-target="#comment" aria-label="Chèn emoji">
+                        <i class="fa-regular fa-face-smile"></i>
+                        <span>Emoji</span>
+                    </button>
+                </div>
+                <button type="button" class="btn-primary" id="btnPost">
+                    <i class="fa-solid fa-paper-plane"></i>
+                    <span>Đăng</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- Feed -->
+        <section class="feed" id="feed"></section>
+        <div class="spinner" id="feedLoader" style="display:none"></div>
+        <div class="feed-end" id="feedEnd" style="display:none">Bạn đã xem hết bài viết 🎉</div>
+        <button type="button" class="btn-ghost feed-retry" id="feedRetry" style="display:none">
+            <i class="fa-solid fa-rotate-right"></i>
+            <span>Tải thêm</span>
+        </button>
+        <!-- Reaching this element loads the next page -->
+        <div id="feedSentinel" aria-hidden="true"></div>
+    </main>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <!-- Profile popup -->
+    <div class="modal" id="profileModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="profileTitle">
+        <form class="modal-card" id="profileForm">
+            <h2 class="modal-title" id="profileTitle">Bạn là ai? 👋</h2>
+            <p class="modal-desc">Nhập tên để đăng bài, thích và bình luận.</p>
+            <div class="emoji-picker" id="emojiPicker" role="radiogroup" aria-label="Chọn avatar"></div>
+            <input type="text" id="profileName" class="modal-input" placeholder="Tên của bạn" maxlength="30" autocomplete="nickname">
+            <div class="modal-actions">
+                <button type="button" class="btn-ghost" id="profileCancel">Để sau</button>
+                <button type="submit" class="btn-primary" id="profileSave" disabled>Lưu</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Emoji picker (shared by the composer and every comment box) -->
+    <div class="emoji-popover" id="emojiPopover" style="display:none" role="dialog" aria-label="Chọn emoji"></div>
+
+    <!-- Admin login popup -->
+    <div class="modal" id="adminModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="adminTitle">
+        <form class="modal-card" id="adminForm">
+            <h2 class="modal-title" id="adminTitle">Đăng nhập admin 🔐</h2>
+            <p class="modal-desc">Admin có quyền xoá mọi bài viết và bình luận.</p>
+            <input type="text" id="adminUser" class="modal-input" placeholder="Tài khoản" autocomplete="username">
+            <input type="password" id="adminPass" class="modal-input" placeholder="Mật khẩu" autocomplete="current-password">
+            <p class="modal-error" id="adminError" style="display:none"></p>
+            <div class="modal-actions">
+                <button type="button" class="btn-ghost modal-close">Huỷ</button>
+                <button type="submit" class="btn-primary">Đăng nhập</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Storage stats popup (admin only) -->
+    <div class="modal" id="statsModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="statsTitle">
+        <div class="modal-card stats-card">
+            <h2 class="modal-title" id="statsTitle">Dung lượng 📊</h2>
+            <div class="stats-body" id="statsBody"></div>
+            <p class="stats-note">
+                Số liệu do app tự ước tính từ dữ liệu đọc được. Số chính xác xem tại
+                <a href="https://console.firebase.google.com/project/mini-photo-app-891a5/firestore" target="_blank" rel="noopener">Firebase Console</a>
+                và <a href="https://console.cloudinary.com/" target="_blank" rel="noopener">Cloudinary</a>.
+            </p>
+            <div class="modal-actions">
+                <button type="button" class="btn-ghost" id="statsRefresh">Làm mới</button>
+                <button type="button" class="btn-primary modal-close">Đóng</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Media viewer -->
+    <div class="lightbox" id="lightbox" style="display:none" role="dialog" aria-modal="true" aria-label="Xem ảnh/video">
+        <button type="button" class="lightbox-btn lightbox-close" aria-label="Đóng"><i class="fa-solid fa-xmark"></i></button>
+        <button type="button" class="lightbox-btn lightbox-prev" aria-label="Trước"><i class="fa-solid fa-chevron-left"></i></button>
+        <div class="lightbox-stage" id="lightboxStage"></div>
+        <button type="button" class="lightbox-btn lightbox-next" aria-label="Sau"><i class="fa-solid fa-chevron-right"></i></button>
+        <span class="lightbox-counter" id="lightboxCounter"></span>
+    </div>
+
+    <template id="postTemplate">
+        <article class="post card">
+            <header class="post-head">
+                <div class="post-author">
+                    <span class="ring"><span class="avatar avatar-md post-avatar"></span></span>
+                    <div>
+                        <div class="post-name"></div>
+                        <div class="post-meta">
+                            <span class="post-time"></span>
+                            <span class="post-edited" style="display:none">· đã chỉnh sửa</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="post-tools">
+                    <button type="button" class="icon-btn btn-edit" aria-label="Sửa bài viết" title="Sửa bài viết">
+                        <i class="fa-regular fa-pen-to-square"></i>
+                    </button>
+                    <button type="button" class="icon-btn btn-delete" aria-label="Xoá bài viết" title="Xoá bài viết">
+                        <i class="fa-regular fa-trash-can"></i>
+                    </button>
+                </div>
+            </header>
+
+            <div class="post-media">
+                <div class="media-track"></div>
+                <button type="button" class="media-nav media-prev" aria-label="Ảnh trước">
+                    <i class="fa-solid fa-chevron-left"></i>
+                </button>
+                <button type="button" class="media-nav media-next" aria-label="Ảnh sau">
+                    <i class="fa-solid fa-chevron-right"></i>
+                </button>
+                <span class="media-counter"></span>
+                <div class="media-dots"></div>
+                <i class="fa-solid fa-heart heart-pop" aria-hidden="true"></i>
+            </div>
+
+            <div class="post-actions">
+                <button type="button" class="icon-btn btn-like" aria-label="Thích" aria-pressed="false">
+                    <i class="fa-regular fa-heart"></i>
+                </button>
+                <button type="button" class="icon-btn btn-comment-focus" aria-label="Bình luận">
+                    <i class="fa-regular fa-comment"></i>
+                </button>
+            </div>
+
+            <div class="post-body">
+                <div class="post-likes"></div>
+                <p class="post-caption"><strong class="post-caption-author"></strong><span class="post-caption-text"></span></p>
+                <form class="edit-form post-edit-form" style="display:none">
+                    <div class="media-grid edit-media"></div>
+                    <label class="btn-ghost edit-add-media">
+                        <i class="fa-regular fa-images"></i>
+                        <span>Thêm ảnh/video</span>
+                        <input type="file" class="edit-files" accept="image/*,video/*" multiple hidden>
+                    </label>
+                    <textarea class="edit-input" rows="3" maxlength="2000"></textarea>
+                    <div class="edit-actions">
+                        <button type="button" class="link-btn btn-edit-cancel">Huỷ</button>
+                        <button type="submit" class="link-btn btn-send btn-edit-save">Lưu</button>
+                    </div>
+                </form>
+                <div class="post-comments" style="display:none">
+                    <div class="comments-list"></div>
+                    <button type="button" class="link-btn btn-more-comments" style="display:none"></button>
+                </div>
+            </div>
+
+            <form class="comment-form">
+                <button type="button" class="btn-emoji comment-emoji" aria-label="Chèn emoji">
+                    <i class="fa-regular fa-face-smile"></i>
+                </button>
+                <input type="text" class="comment-input" placeholder="Thêm bình luận..." maxlength="500">
+                <button type="submit" class="link-btn btn-send" disabled>Đăng</button>
+            </form>
+        </article>
+    </template>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"
+        integrity="sha384-1H217gwSVyLSIfaLxHbE7dRb3v4mYCKbpQvzx0cegeju1MVsGrX5xXxAvs/HgeFs"
+        crossorigin="anonymous"></script>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import {
+            getFirestore,
+            collection,
+            addDoc,
+            getDocs,
+            query,
+            orderBy,
+            deleteDoc,
+            doc,
+            where,
+            updateDoc,
+            arrayUnion,
+            arrayRemove,
+            limit,
+            startAfter,
+        } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey : "AIzaSyAn6U45kKfYSWfrFhMcwIP6_N7VC9KO5FQ" , 
+            authDomain : "mini-photo-app-891a5.firebaseapp.com" , 
+            projectId : "mini-photo-app-891a5" , 
+            storageBucket : "mini-photo-app-891a5.firebasestorage.app" , 
+            messagingSenderId : "539133097244" , 
+            appId : "1:539133097244:web:ca8540eeee7749f77036d9" , 
+            measurementId : "G-H5H3C0F5MV" 
+        };
+
+        // "auto" lets Cloudinary accept both images and videos
+        const CLOUDINARY_UPLOAD_URL = "https://api.cloudinary.com/v1_1/dsmp2jfcr/auto/upload";
+        const CLOUDINARY_PRESET = "photo-mini";
+
+        const MAX_IMAGE_MB = 10;
+        const MAX_VIDEO_MB = 100;
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        const PROFILE_KEY = "friendgram:author";
+        const ADMIN_KEY = "friendgram:admin";
+        // SHA-256 of "username:password" — the plain password is never stored in code.
+        // UI-level check only: Firestore Rules do not enforce it.
+        const ADMIN_HASH = "850cb1df2b608f49a62536364613648d504f1b7a19c7704ca46e65702f84df74";
+        const AVATAR_EMOJIS = ["😎", "🧑‍💻", "👩‍🎨", "🧑‍🚀", "👩‍🌾", "🐱", "🦊", "🌸"];
+
+        // postId -> array of author names who liked the post
+        const likesByPost = {};
+        // authors seen in the feed, used for the friends bar
+        const knownAuthors = new Set();
+
+        /* ---------- Helpers ---------- */
+
+        function loadProfile() {
+            try {
+                return localStorage.getItem(PROFILE_KEY) || "";
+            } catch (e) {
+                return "";
+            }
+        }
+
+        function saveProfile(value) {
+            try {
+                localStorage.setItem(PROFILE_KEY, value);
+            } catch (e) {
+                // storage unavailable (private mode) — keep the name for this tab only
+            }
+        }
+
+        let author = loadProfile();
+
+        function currentAuthor() {
+            return author;
+        }
+
+        function loadAdmin() {
+            try {
+                return localStorage.getItem(ADMIN_KEY) === "1";
+            } catch (e) {
+                return false;
+            }
+        }
+
+        let isAdmin = loadAdmin();
+
+        function canDeletePost(postAuthor) {
+            return isAdmin || (!!postAuthor && postAuthor === currentAuthor());
+        }
+
+        function canDeleteComment(commentAuthor) {
+            return isAdmin || commentAuthor === currentAuthor();
+        }
+
+        // Editing follows the same rule as deleting: admin, or the owner
+        function canEditPost(postAuthor) {
+            return canDeletePost(postAuthor);
+        }
+
+        function canEditComment(commentAuthor) {
+            return canDeleteComment(commentAuthor);
+        }
+
+        async function sha256(text) {
+            const buffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+            return [...new Uint8Array(buffer)].map((b) => b.toString(16).padStart(2, "0")).join("");
+        }
+
+        // Returns false and opens the profile popup when no name has been entered yet
+        function requireAuthor() {
+            if (currentAuthor()) return true;
+            openProfileModal();
+            return false;
+        }
+
+        function emojiOf(author) {
+            return (author || "").split(" ")[0] || "🙂";
+        }
+
+        function nameOf(author) {
+            return (author || "").split(" ").slice(1).join(" ") || author || "Anonymous";
+        }
+
+        function toMillis(value) {
+            if (value?.toMillis) return value.toMillis();
+            if (typeof value === "number") return value;
+            const time = new Date(value).getTime();
+            return isNaN(time) ? 0 : time;
+        }
+
+        function timeAgo(ms) {
+            if (!ms) return "";
+            const seconds = Math.floor((Date.now() - ms) / 1000);
+            if (seconds < 60) return "Vừa xong";
+            const minutes = Math.floor(seconds / 60);
+            if (minutes < 60) return `${minutes} phút trước`;
+            const hours = Math.floor(minutes / 60);
+            if (hours < 24) return `${hours} giờ trước`;
+            const days = Math.floor(hours / 24);
+            if (days < 7) return `${days} ngày trước`;
+            return new Date(ms).toLocaleDateString("vi-VN");
+        }
+
+        function errorMessage(err) {
+            if (err?.code === "permission-denied") {
+                return "Firestore từ chối truy cập — kiểm tra Security Rules.";
+            }
+            return err?.message || "Có lỗi xảy ra, thử lại sau.";
+        }
+
+        function showToast(message) {
+            const $toast = $("#toast").text(message).addClass("is-show");
+            clearTimeout(showToast.timer);
+            showToast.timer = setTimeout(() => $toast.removeClass("is-show"), 2500);
+        }
+
+        function renderState(icon, title, desc) {
+            return $("<div>", { class: "feed-state" }).append(
+                $("<i>", { class: icon }),
+                $("<h3>", { text: title }),
+                $("<p>", { text: desc })
+            );
+        }
+
+        /* ---------- Friends ---------- */
+
+        function buildStory(name, emoji, isMe) {
+            return $(isMe ? "<button>" : "<div>", {
+                class: "story" + (isMe ? " is-active" : ""),
+                title: isMe ? "Đổi tên" : name
+            })
+                .attr(isMe ? { type: "button", id: "myStory" } : {})
+                .append($("<span>", { class: "ring" }).append($("<span>", { class: "avatar avatar-lg", text: emoji })))
+                .append($("<span>", { class: "story-name", text: name }));
+        }
+
+        function renderFriends() {
+            const me = currentAuthor();
+            const $list = $("#friendsList").empty();
+
+            $list.append(me ? buildStory(nameOf(me), emojiOf(me), true) : buildStory("Bạn", "＋", true));
+
+            knownAuthors.forEach((name) => {
+                if (name && name !== me) $list.append(buildStory(nameOf(name), emojiOf(name), false));
+            });
+
+            const total = new Set([...knownAuthors, me].filter(Boolean)).size;
+            $("#friendCount").text(total);
+            $("#selectedAvatar").text(me ? emojiOf(me) : "🙂");
+            $("#authorName").text(me ? nameOf(me) : "Nhập tên của bạn");
+        }
+
+        $("#friendsList").on("click", "#myStory", openProfileModal);
+        $("#btnProfile").on("click", openProfileModal);
+
+        /* ---------- Profile popup ---------- */
+
+        function selectEmoji(emoji) {
+            $("#emojiPicker .emoji-option").each(function () {
+                const selected = $(this).attr("data-emoji") === emoji;
+                $(this).toggleClass("is-selected", selected).attr("aria-checked", selected);
+            });
+        }
+
+        function openProfileModal() {
+            const $picker = $("#emojiPicker").empty();
+            AVATAR_EMOJIS.forEach((emoji) => {
+                $("<button>", { type: "button", class: "emoji-option", role: "radio", text: emoji })
+                    .attr("data-emoji", emoji)
+                    .appendTo($picker);
+            });
+
+            const me = currentAuthor();
+            selectEmoji(me ? emojiOf(me) : AVATAR_EMOJIS[0]);
+            $("#profileName").val(me ? nameOf(me) : "").trigger("input");
+            $("#profileModal").fadeIn(150);
+            $("#profileName").trigger("focus");
+        }
+
+        function closeProfileModal() {
+            $("#profileModal").fadeOut(150);
+        }
+
+        $("#emojiPicker").on("click", ".emoji-option", function () {
+            selectEmoji($(this).attr("data-emoji"));
+        });
+
+        $("#profileName").on("input", function () {
+            $("#profileSave").prop("disabled", !$.trim($(this).val()));
+        });
+
+        $("#profileForm").on("submit", function (e) {
+            e.preventDefault();
+            const name = $.trim($("#profileName").val()).replace(/\s+/g, " ");
+            if (!name) return;
+
+            const emoji = $("#emojiPicker .is-selected").attr("data-emoji") || AVATAR_EMOJIS[0];
+            author = `${emoji} ${name}`;
+            saveProfile(author);
+            closeProfileModal();
+            renderFriends();
+            refreshPermissions();
+            showToast(`Xin chào, ${name}! 👋`);
+        });
+
+        $("#profileCancel").on("click", closeProfileModal);
+
+        $(".modal").on("click", function (e) {
+            if (e.target === this) $(this).fadeOut(150);
+        });
+
+        $(".modal-close").on("click", function () {
+            $(this).closest(".modal").fadeOut(150);
+        });
+
+        $(document).on("keydown", function (e) {
+            if (e.key === "Escape") $(".modal:visible").fadeOut(150);
+        });
+
+        /* ---------- Admin ---------- */
+
+        // Re-apply like state and edit/delete buttons after the user or admin state changes
+        function refreshPermissions() {
+            $("#feed .post").each(function () {
+                const $post = $(this);
+                renderLikes($post);
+                $post.find(".post-tools").toggle(canEditPost($post.attr("data-auth")));
+                closePostEdit($post);
+                loadComments($post);
+            });
+        }
+
+        function renderAdmin() {
+            $("#btnAdmin")
+                .toggleClass("is-admin", isAdmin)
+                .attr("title", isAdmin ? "Đăng xuất admin" : "Đăng nhập admin");
+            $("#adminLabel").text(isAdmin ? "Đăng xuất" : "Admin");
+            $("#btnStats").toggle(isAdmin);
+            if (!isAdmin) $("#statsModal").hide();
+        }
+
+        function setAdmin(value) {
+            isAdmin = value;
+            try {
+                value ? localStorage.setItem(ADMIN_KEY, "1") : localStorage.removeItem(ADMIN_KEY);
+            } catch (e) {
+                // storage unavailable — admin state lasts for this tab only
+            }
+            renderAdmin();
+            refreshPermissions();
+        }
+
+        $("#btnAdmin").on("click", function () {
+            if (isAdmin) {
+                if (!confirm("Đăng xuất admin?")) return;
+                setAdmin(false);
+                showToast("Đã đăng xuất admin");
+                return;
+            }
+
+            $("#adminUser, #adminPass").val("");
+            $("#adminError").hide();
+            $("#adminModal").fadeIn(150);
+            $("#adminUser").trigger("focus");
+        });
+
+        $("#adminForm").on("submit", async function (e) {
+            e.preventDefault();
+            const user = $.trim($("#adminUser").val());
+            const pass = $("#adminPass").val();
+
+            let hash;
+            try {
+                hash = await sha256(`${user}:${pass}`);
+            } catch (err) {
+                console.error(err);
+                $("#adminError").text("Trình duyệt không hỗ trợ mã hoá (cần https hoặc localhost).").show();
+                return;
+            }
+
+            if (hash !== ADMIN_HASH) {
+                $("#adminError").text("Sai tài khoản hoặc mật khẩu.").show();
+                $("#adminPass").val("").trigger("focus");
+                return;
+            }
+
+            $("#adminPass").val("");
+            $("#adminModal").fadeOut(150);
+            setAdmin(true);
+            showToast("Đã đăng nhập admin 🔐");
+        });
+
+        /* ---------- Storage stats (admin) ---------- */
+
+        // Spark plan Firestore storage quota
+        const FIRESTORE_FREE_BYTES = 1024 ** 3;
+        // Cloudinary free plan: 25 credits/month, 1 credit = 1 GB storage (credits are shared with
+        // bandwidth and transformations, so 25 GB is the ceiling when storage uses all of them)
+        const CLOUDINARY_FREE_BYTES = 25 * 1024 ** 3;
+
+        // Rough Firestore size: document id + JSON of its fields + fixed per-document overhead
+        function docBytes(id, data) {
+            return new TextEncoder().encode(id + JSON.stringify(data)).length + 32;
+        }
+
+        function formatBytes(bytes) {
+            if (bytes < 1024) return `${bytes} B`;
+            const units = ["KB", "MB", "GB"];
+            let value = bytes;
+            let i = -1;
+            do {
+                value /= 1024;
+                i++;
+            } while (value >= 1024 && i < units.length - 1);
+            return `${value.toFixed(value < 10 ? 2 : 1)} ${units[i]}`;
+        }
+
+        // Size of a file uploaded before `bytes` was stored, read from the CDN response header
+        async function remoteSize(url) {
+            try {
+                const response = await fetch(url, { method: "HEAD" });
+                const length = Number(response.headers.get("content-length"));
+                return response.ok && length > 0 ? length : null;
+            } catch (err) {
+                return null;
+            }
+        }
+
+        function statBlock(icon, title, value, lines, percent) {
+            const $block = $("<div>", { class: "stat" }).append(
+                $("<div>", { class: "stat-head" }).append(
+                    $("<i>", { class: icon }),
+                    $("<strong>", { text: title }),
+                    $("<span>", { class: "stat-value", text: value })
+                )
+            );
+            lines.filter(Boolean).forEach((line) => $block.append($("<p>", { class: "stat-line", text: line })));
+
+            if (percent !== null) {
+                $block.append(
+                    $("<div>", { class: "stat-bar" }).append($("<span>").css("width", `${Math.max(percent, 0.5)}%`)),
+                    $("<p>", { class: "stat-line", text: `Đã dùng ${percent < 0.01 ? "< 0.01" : percent.toFixed(2)}% quota miễn phí` })
+                );
+            }
+            return $block;
+        }
+
+        async function loadStats() {
+            if (!isAdmin) return;
+            const $body = $("#statsBody").html('<div class="spinner"></div>');
+
+            try {
+                const [photos, comments] = await Promise.all([
+                    getDocs(collection(db, "photos")),
+                    getDocs(collection(db, "comments"))
+                ]);
+
+                let firestoreBytes = 0;
+                const media = [];
+                photos.forEach((docSnap) => {
+                    firestoreBytes += docBytes(docSnap.id, docSnap.data());
+                    media.push(...postMedia(docSnap.data()));
+                });
+                comments.forEach((docSnap) => {
+                    firestoreBytes += docBytes(docSnap.id, docSnap.data());
+                });
+
+                const sizes = await Promise.all(media.map((item) => item.bytes || remoteSize(item.url)));
+                const mediaBytes = sizes.reduce((sum, size) => sum + (size || 0), 0);
+                const unknown = sizes.filter((size) => !size).length;
+                const videos = media.filter((item) => item.type === "video").length;
+                const percent = Math.min(100, (firestoreBytes / FIRESTORE_FREE_BYTES) * 100);
+                const mediaPercent = Math.min(100, (mediaBytes / CLOUDINARY_FREE_BYTES) * 100);
+
+                $body.empty().append(
+                    statBlock("fa-solid fa-database", "Firestore", `${formatBytes(firestoreBytes)} / 1 GB`,
+                        [`${photos.size} bài viết · ${comments.size} bình luận`], percent),
+                    statBlock("fa-regular fa-images", "Ảnh & video (Cloudinary)", `${formatBytes(mediaBytes)} / 25 GB`,
+                        [
+                            `${media.length - videos} ảnh · ${videos} video`,
+                            unknown ? `${unknown} file không đọc được dung lượng` : null,
+                            "25 credit/tháng dùng chung cho lưu trữ, băng thông và xử lý ảnh — 25 GB là mức tối đa nếu chỉ dùng để lưu trữ."
+                        ], mediaPercent)
+                );
+            } catch (err) {
+                console.error(err);
+                $body.empty().append(renderState("fa-solid fa-triangle-exclamation", "Không tải được số liệu", errorMessage(err)));
+            }
+        }
+
+        $("#btnStats").on("click", function () {
+            $("#statsModal").fadeIn(150);
+            loadStats();
+        });
+
+        $("#statsRefresh").on("click", loadStats);
+
+        /* ---------- Media viewer (lightbox) ---------- */
+
+        let lightbox = { media: [], index: 0 };
+        let touchStartX = null;
+
+        function renderLightbox() {
+            const { media, index } = lightbox;
+            const item = media[index];
+            const $stage = $("#lightboxStage").empty();
+
+            if (item.type === "video") {
+                $stage.append($("<video>", { src: item.url }).attr({ controls: "", playsinline: "", autoplay: "" }));
+            } else {
+                $stage.append($("<img>", { src: item.url, alt: "" }));
+            }
+
+            $("#lightboxCounter").text(media.length > 1 ? `${index + 1}/${media.length}` : "");
+            $(".lightbox-prev").toggle(index > 0);
+            $(".lightbox-next").toggle(index < media.length - 1);
+        }
+
+        function openLightbox(media, index) {
+            if (!media.length) return;
+            $("#feed video").each(function () { this.pause(); });
+            lightbox = { media: media, index: index };
+            renderLightbox();
+            $("#lightbox").fadeIn(150);
+            $("body").addClass("no-scroll");
+        }
+
+        function closeLightbox() {
+            $("#lightbox").fadeOut(150, () => $("#lightboxStage").empty());
+            $("body").removeClass("no-scroll");
+        }
+
+        function stepLightbox(direction) {
+            const next = lightbox.index + direction;
+            if (next < 0 || next >= lightbox.media.length) return;
+            lightbox.index = next;
+            renderLightbox();
+        }
+
+        $("#lightbox")
+            .on("click", function (e) {
+                if (e.target === this || e.target.id === "lightboxStage") closeLightbox();
+            })
+            .on("click", ".lightbox-close", closeLightbox)
+            .on("click", ".lightbox-prev", () => stepLightbox(-1))
+            .on("click", ".lightbox-next", () => stepLightbox(1))
+            .on("touchstart", function (e) {
+                touchStartX = e.originalEvent.touches[0].clientX;
+            })
+            .on("touchend", function (e) {
+                if (touchStartX === null) return;
+                const dx = e.originalEvent.changedTouches[0].clientX - touchStartX;
+                touchStartX = null;
+                if (Math.abs(dx) > 50) stepLightbox(dx < 0 ? 1 : -1);
+            });
+
+        $(document).on("keydown", function (e) {
+            if (!$("#lightbox").is(":visible")) return;
+            if (e.key === "Escape") closeLightbox();
+            if (e.key === "ArrowLeft") stepLightbox(-1);
+            if (e.key === "ArrowRight") stepLightbox(1);
+        });
+
+        /* ---------- Emoji picker ---------- */
+
+        const QUICK_EMOJIS = [
+            "😀", "😂", "🤣", "😊", "😍", "🥰", "😘", "😎",
+            "🤩", "🥳", "😭", "😢", "😡", "😱", "🤔", "🙄",
+            "😴", "🤗", "😅", "😇", "👍", "👎", "👏", "🙏",
+            "💪", "🤝", "👌", "✌️", "❤️", "💛", "💔", "🔥",
+            "✨", "🎉", "💯", "🌸", "🌈", "☀️", "🍕", "📸"
+        ];
+
+        let $emojiTarget = null;
+
+        function insertAtCursor(el, text) {
+            const start = el.selectionStart ?? el.value.length;
+            const end = el.selectionEnd ?? el.value.length;
+            const next = el.value.slice(0, start) + text + el.value.slice(end);
+            if (el.maxLength > 0 && next.length > el.maxLength) return;
+
+            el.value = next;
+            const caret = start + text.length;
+            el.setSelectionRange(caret, caret);
+            $(el).trigger("input").trigger("focus");
+        }
+
+        function closeEmojiPopover() {
+            $("#emojiPopover").hide();
+            $emojiTarget = null;
+        }
+
+        function openEmojiPopover($button, $target) {
+            const $popover = $("#emojiPopover");
+            if (!$popover.children().length) {
+                QUICK_EMOJIS.forEach((emoji) => {
+                    $("<button>", { type: "button", class: "emoji-item", text: emoji }).appendTo($popover);
+                });
+            }
+
+            $emojiTarget = $target;
+            $popover.show();
+
+            // Place under the button, flip above when there is no room, keep inside the viewport
+            const offset = $button.offset();
+            const width = $popover.outerWidth();
+            const height = $popover.outerHeight();
+            const $win = $(window);
+            let top = offset.top + $button.outerHeight() + 6;
+            if (top + height > $win.scrollTop() + $win.height()) top = offset.top - height - 6;
+            const left = Math.max(8, Math.min(offset.left, $win.width() - width - 8));
+
+            $popover.css({ top: top, left: left });
+        }
+
+        $(document).on("click", ".btn-emoji", function (e) {
+            e.stopPropagation();
+            const $button = $(this);
+            const $target = $button.data("target")
+                ? $($button.data("target"))
+                : $button.closest(".comment-form").find(".comment-input");
+
+            if ($("#emojiPopover").is(":visible") && $emojiTarget && $emojiTarget.is($target)) {
+                closeEmojiPopover();
+                return;
+            }
+            openEmojiPopover($button, $target);
+        });
+
+        $("#emojiPopover").on("click", ".emoji-item", function (e) {
+            e.stopPropagation();
+            if ($emojiTarget) insertAtCursor($emojiTarget[0], $(this).text());
+        });
+
+        $(document).on("click", function (e) {
+            if (!$(e.target).closest("#emojiPopover").length) closeEmojiPopover();
+        });
+
+        $(document).on("keydown", function (e) {
+            if (e.key === "Escape") closeEmojiPopover();
+        });
+
+        $(window).on("resize", closeEmojiPopover);
+
+        /* ---------- Composer ---------- */
+
+        /* ---------- Media (images & videos) ---------- */
+
+        // A media item is { url, type: "image" | "video" }; items picked locally also carry `file`
+        // and use a blob: URL for preview until they are uploaded.
+
+        function mediaTypeOf(file) {
+            if (file.type.startsWith("image/")) return "image";
+            if (file.type.startsWith("video/")) return "video";
+            return null;
+        }
+
+        // Turn picked files into media items, skipping wrong types and oversized files
+        function pickMedia(files) {
+            const items = [];
+            const skipped = [];
+
+            $.each(files, function (_, file) {
+                const type = mediaTypeOf(file);
+                if (!type) {
+                    skipped.push(`${file.name}: không phải ảnh/video`);
+                    return;
+                }
+                const maxMb = type === "video" ? MAX_VIDEO_MB : MAX_IMAGE_MB;
+                if (file.size > maxMb * 1024 * 1024) {
+                    skipped.push(`${file.name}: quá ${maxMb}MB`);
+                    return;
+                }
+                items.push({ file: file, type: type, url: URL.createObjectURL(file) });
+            });
+
+            if (skipped.length === 1) showToast(skipped[0]);
+            if (skipped.length > 1) showToast(`Bỏ qua ${skipped.length} file (sai định dạng hoặc quá dung lượng)`);
+            return items;
+        }
+
+        function releaseMedia(items) {
+            items.forEach((item) => {
+                if (item.file) URL.revokeObjectURL(item.url);
+            });
+        }
+
+        function renderMediaGrid($grid, items) {
+            $grid.empty().toggle(items.length > 0);
+
+            items.forEach((item, index) => {
+                const $thumb = $("<div>", { class: "media-thumb" });
+                if (item.type === "video") {
+                    $thumb.append(
+                        $("<video>", { src: item.url, preload: "metadata" }).prop("muted", true),
+                        $("<i>", { class: "fa-solid fa-play media-thumb-badge" })
+                    );
+                } else {
+                    $thumb.append($("<img>", { src: item.url, alt: "" }));
+                }
+                $thumb.append(
+                    $("<button>", { type: "button", class: "media-remove", "data-index": index, "aria-label": "Bỏ file này" })
+                        .append($("<i>", { class: "fa-solid fa-xmark" }))
+                );
+                $grid.append($thumb);
+            });
+        }
+
+        async function uploadMedia(file) {
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("upload_preset", CLOUDINARY_PRESET);
+
+            const response = await fetch(CLOUDINARY_UPLOAD_URL, { method: "POST", body: formData });
+            const data = await response.json();
+
+            if (!response.ok || !data.secure_url) {
+                throw new Error(data.error?.message || `Upload "${file.name}" thất bại`);
+            }
+            return {
+                url: data.secure_url,
+                type: data.resource_type === "video" ? "video" : "image",
+                bytes: data.bytes || 0 // kept for the admin storage stats
+            };
+        }
+
+        // Upload new files in parallel, keep already-uploaded items as is, preserve order
+        async function uploadMediaItems(items, onProgress) {
+            const total = items.filter((item) => item.file).length;
+            let done = 0;
+            onProgress(done, total);
+
+            return Promise.all(items.map(async (item) => {
+                if (!item.file) return { ...item };
+                const uploaded = await uploadMedia(item.file);
+                onProgress(++done, total);
+                return uploaded;
+            }));
+        }
+
+        // Posts created before multi-media support only have `imageUrl`
+        function postMedia(data) {
+            if (Array.isArray(data.media) && data.media.length) return data.media;
+            return data.imageUrl ? [{ url: data.imageUrl, type: "image" }] : [];
+        }
+
+        /* ---------- Composer ---------- */
+
+        let composerMedia = [];
+
+        function setPosting(isPosting, label) {
+            $("#btnPost")
+                .prop("disabled", isPosting)
+                .find("i")
+                .toggleClass("fa-paper-plane", !isPosting)
+                .toggleClass("fa-circle-notch fa-spin", isPosting);
+            $("#btnPost > span").text(label || "Đăng");
+        }
+
+        function renderComposerMedia() {
+            renderMediaGrid($("#composerMedia"), composerMedia);
+            $("#mediaCount").text(composerMedia.length ? `(${composerMedia.length})` : "");
+        }
+
+        function resetComposer() {
+            $("#comment").val("").css("height", "");
+            releaseMedia(composerMedia);
+            composerMedia = [];
+            renderComposerMedia();
+        }
+
+        $("#mediaFiles").on("change", function () {
+            composerMedia = composerMedia.concat(pickMedia(this.files));
+            $(this).val("");
+            renderComposerMedia();
+        });
+
+        $("#composerMedia").on("click", ".media-remove", function () {
+            releaseMedia(composerMedia.splice(+$(this).attr("data-index"), 1));
+            renderComposerMedia();
+        });
+
+        $("#comment").on("input", function () {
+            this.style.height = "auto";
+            this.style.height = this.scrollHeight + "px";
+        });
+
+        $("#btnPost").on("click", async function () {
+            const comment = $.trim($("#comment").val());
+
+            if (!requireAuthor()) return;
+            if (!composerMedia.length || !comment) {
+                showToast("Chọn ảnh/video và nhập nội dung nhé!");
+                return;
+            }
+
+            setPosting(true);
+            try {
+                const media = await uploadMediaItems(composerMedia, (done, total) => setPosting(true, `Đang tải ${done}/${total}`));
+                await addDoc(collection(db, "photos"), {
+                    media: media,
+                    comment: comment,
+                    auth: currentAuthor(),
+                    likes: [],
+                    createdAt: Date.now()
+                });
+                resetComposer();
+                showToast("Đã đăng bài ✨");
+                await loadFeed();
+            } catch (err) {
+                console.error(err);
+                showToast(errorMessage(err));
+            } finally {
+                setPosting(false);
+            }
+        });
+
+        /* ---------- Feed ---------- */
+
+        function buildPost(id, data) {
+            const $post = $($("#postTemplate").html()).attr({ "data-id": id, "data-auth": data.auth || "" });
+            const createdAt = toMillis(data.createdAt);
+
+            $post.find(".post-tools").toggle(canEditPost(data.auth));
+            $post.find(".post-edited").toggle(!!data.editedAt);
+            $post.find(".post-avatar").text(emojiOf(data.auth));
+            $post.find(".post-name").text(nameOf(data.auth));
+            $post.find(".post-time")
+                .text(timeAgo(createdAt))
+                .attr("title", createdAt ? new Date(createdAt).toLocaleString("vi-VN") : "");
+            $post.find(".post-caption-author").text(nameOf(data.auth));
+            $post.find(".post-caption-text").text(data.comment || "");
+
+            const media = postMedia(data);
+            $post.data("media", media);
+            renderPostMedia($post, media);
+
+            likesByPost[id] = Array.isArray(data.likes) ? [...data.likes] : [];
+            renderLikes($post);
+            return $post;
+        }
+
+        function renderPostMedia($post, media) {
+            const $wrap = $post.find(".post-media");
+            const $track = $wrap.find(".media-track").empty();
+            const $dots = $wrap.find(".media-dots").empty();
+
+            $wrap.toggle(media.length > 0).toggleClass("is-multi", media.length > 1);
+
+            media.forEach((item) => {
+                const $slide = $("<div>", { class: "media-slide" });
+                if (item.type === "video") {
+                    $slide.append($("<video>", { src: item.url, preload: "metadata" }).attr({ controls: "", playsinline: "" }));
+                } else {
+                    $slide.append(
+                        $("<img>", { src: item.url, alt: "", loading: "lazy" }).on("error", function () {
+                            $(this).closest(".media-slide").addClass("is-broken");
+                        })
+                    );
+                }
+                $slide.append(
+                    $("<button>", { type: "button", class: "media-expand", "aria-label": "Phóng to", title: "Phóng to" })
+                        .append($("<i>", { class: "fa-solid fa-expand" }))
+                );
+                $track.append($slide);
+                if (media.length > 1) $dots.append($("<span>", { class: "media-dot" }));
+            });
+
+            // scroll does not bubble, so it cannot be delegated from #feed
+            $track.off("scroll").on("scroll", () => updateCarousel($wrap));
+            $track.scrollLeft(0);
+            updateCarousel($wrap);
+        }
+
+        function updateCarousel($wrap) {
+            const $track = $wrap.find(".media-track");
+            const $slides = $track.children();
+            const count = $slides.length;
+            const index = Math.round($track.scrollLeft() / ($track.width() || 1));
+
+            $wrap.find(".media-dot").removeClass("is-active").eq(index).addClass("is-active");
+            $wrap.find(".media-counter").text(count > 1 ? `${index + 1}/${count}` : "").toggle(count > 1);
+            $wrap.find(".media-prev").toggle(count > 1 && index > 0);
+            $wrap.find(".media-next").toggle(count > 1 && index < count - 1);
+
+            // Pause videos that have been swiped away
+            $slides.each(function (i) {
+                if (i !== index) $(this).find("video").each(function () { this.pause(); });
+            });
+        }
+
+        function slideCarousel($wrap, direction) {
+            const track = $wrap.find(".media-track")[0];
+            track.scrollBy({ left: direction * track.clientWidth, behavior: "smooth" });
+        }
+
+        /* ---------- Infinite scroll ---------- */
+
+        const PAGE_SIZE = 5;
+        let lastDoc = null;       // cursor: last post of the previous page
+        let hasMore = true;
+        let isLoadingPage = false;
+
+        const feedObserver = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting) loadNextPage();
+        }, { rootMargin: "400px" });
+
+        // Start over from the newest post (first load, after posting, after the feed becomes empty)
+        async function loadFeed() {
+            lastDoc = null;
+            hasMore = true;
+            knownAuthors.clear();
+            $("#feed").empty();
+            $("#feedEnd, #feedRetry").hide();
+            await loadNextPage();
+        }
+
+        async function loadNextPage() {
+            if (isLoadingPage || !hasMore) return;
+            isLoadingPage = true;
+
+            const $feed = $("#feed");
+            const isFirstPage = !lastDoc;
+            let failed = false;
+            $("#feedRetry").hide();
+            $("#feedLoader").show();
+
+            try {
+                const constraints = [orderBy("createdAt", "desc")];
+                if (lastDoc) constraints.push(startAfter(lastDoc));
+                constraints.push(limit(PAGE_SIZE));
+                const snapshot = await getDocs(query(collection(db, "photos"), ...constraints));
+
+                if (isFirstPage && snapshot.empty) {
+                    hasMore = false;
+                    $feed.append(renderState("fa-regular fa-images", "Chưa có bài viết nào", "Hãy là người đầu tiên chia sẻ khoảnh khắc!"));
+                    return;
+                }
+
+                snapshot.forEach((docSnap) => {
+                    const data = docSnap.data();
+                    if (data.auth) knownAuthors.add(data.auth);
+                    const $post = buildPost(docSnap.id, data);
+                    $feed.append($post);
+                    loadComments($post);
+                });
+
+                lastDoc = snapshot.docs[snapshot.docs.length - 1] || lastDoc;
+                hasMore = snapshot.size === PAGE_SIZE;
+                renderFriends();
+                $("#feedEnd").toggle(!hasMore);
+            } catch (err) {
+                console.error(err);
+                failed = true;
+                if (isFirstPage) {
+                    hasMore = false;
+                    $feed.html(renderState("fa-solid fa-triangle-exclamation", "Không tải được bài viết", errorMessage(err)));
+                } else {
+                    // Stop auto-loading so a failing request does not loop; let the user retry
+                    $("#feedRetry").show();
+                    showToast(errorMessage(err));
+                }
+            } finally {
+                isLoadingPage = false;
+                $("#feedLoader").hide();
+                // Re-observing fires the callback again if the sentinel is still on screen
+                // (e.g. a tall screen with only a few posts), so the page keeps filling up
+                if (hasMore && !failed) {
+                    const sentinel = document.getElementById("feedSentinel");
+                    feedObserver.unobserve(sentinel);
+                    feedObserver.observe(sentinel);
+                }
+            }
+        }
+
+        $("#feedRetry").on("click", loadNextPage);
+
+        function openPostEdit($post) {
+            if (!canEditPost($post.attr("data-auth"))) return;
+
+            const $form = $post.find(".post-edit-form");
+            const items = ($post.data("media") || []).map((item) => ({ ...item }));
+            $form.data("media", items);
+            $form.find(".edit-files").val("");
+            renderMediaGrid($form.find(".edit-media"), items);
+
+            $post.find(".post-caption").hide();
+            $form.show()
+                .find(".edit-input").val($post.find(".post-caption-text").text()).trigger("focus");
+        }
+
+        function closePostEdit($post) {
+            const $form = $post.find(".post-edit-form");
+            releaseMedia($form.data("media") || []);
+            $form.removeData("media").hide();
+            $post.find(".post-caption").show();
+        }
+
+        async function savePostEdit($post) {
+            const $form = $post.find(".post-edit-form");
+            const text = $.trim($form.find(".edit-input").val());
+            const items = $form.data("media") || [];
+            const original = $post.data("media") || [];
+            const mediaChanged = items.length !== original.length
+                || items.some((item, i) => item.file || item.url !== original[i].url);
+
+            if (!text) {
+                showToast("Nội dung không được để trống");
+                return;
+            }
+            if (!items.length) {
+                showToast("Bài viết cần ít nhất 1 ảnh hoặc video");
+                return;
+            }
+            if (text === $post.find(".post-caption-text").text() && !mediaChanged) {
+                closePostEdit($post);
+                return;
+            }
+
+            const $save = $form.find(".btn-edit-save");
+            $form.find("textarea, button, input").prop("disabled", true);
+            $save.text("Đang lưu...");
+            try {
+                const changes = { comment: text, editedAt: Date.now() };
+                if (mediaChanged) {
+                    changes.media = await uploadMediaItems(items, (done, total) => {
+                        if (total) $save.text(`Đang tải ${done}/${total}...`);
+                    });
+                }
+
+                await updateDoc(doc(db, "photos", $post.attr("data-id")), changes);
+
+                $post.find(".post-caption-text").text(text);
+                if (changes.media) {
+                    $post.data("media", changes.media);
+                    renderPostMedia($post, changes.media);
+                }
+                $post.find(".post-edited").show();
+                closePostEdit($post);
+                showToast("Đã cập nhật bài viết");
+            } catch (err) {
+                console.error(err);
+                showToast(errorMessage(err));
+            } finally {
+                $form.find("textarea, button, input").prop("disabled", false);
+                $save.text("Lưu");
+            }
+        }
+
+        async function deletePost($post) {
+            if (!canDeletePost($post.attr("data-auth"))) return;
+            if (!confirm("Bạn có chắc muốn xoá bài viết này?")) return;
+
+            const id = $post.attr("data-id");
+            $post.addClass("is-busy");
+
+            try {
+                const q = query(collection(db, "comments"), where("postId", "==", id));
+                const snapshot = await getDocs(q);
+                await Promise.all(snapshot.docs.map((docSnap) => deleteDoc(docSnap.ref)));
+                await deleteDoc(doc(db, "photos", id));
+
+                delete likesByPost[id];
+                $post.slideUp(250, function () {
+                    $(this).remove();
+                    if (!$("#feed .post").length) loadFeed();
+                });
+                showToast("Đã xoá bài viết");
+            } catch (err) {
+                console.error(err);
+                $post.removeClass("is-busy");
+                showToast(errorMessage(err));
+            }
+        }
+
+        /* ---------- Likes ---------- */
+
+        function isLiked($post) {
+            return (likesByPost[$post.attr("data-id")] || []).includes(currentAuthor());
+        }
+
+        function renderLikes($post) {
+            const likes = likesByPost[$post.attr("data-id")] || [];
+            const liked = isLiked($post);
+
+            $post.find(".btn-like")
+                .toggleClass("is-liked", liked)
+                .attr("aria-pressed", liked)
+                .find("i")
+                .toggleClass("fa-solid", liked)
+                .toggleClass("fa-regular", !liked);
+
+            $post.find(".post-likes")
+                .toggleClass("is-empty", !likes.length)
+                .text(likes.length ? `${likes.length} lượt thích` : "Hãy là người đầu tiên thích bài này")
+                .attr("title", likes.map(nameOf).join(", "));
+        }
+
+        async function toggleLike($post) {
+            if (!requireAuthor()) return;
+            const id = $post.attr("data-id");
+            const me = currentAuthor();
+            const previous = likesByPost[id] || [];
+            const liked = previous.includes(me);
+
+            // Optimistic update, rolled back on failure
+            likesByPost[id] = liked ? previous.filter((name) => name !== me) : [...previous, me];
+            renderLikes($post);
+
+            try {
+                await updateDoc(doc(db, "photos", id), {
+                    likes: liked ? arrayRemove(me) : arrayUnion(me)
+                });
+            } catch (err) {
+                console.error(err);
+                likesByPost[id] = previous;
+                renderLikes($post);
+                showToast(errorMessage(err));
+            }
+        }
+
+        function popHeart($media) {
+            const $heart = $media.find(".heart-pop").removeClass("is-show");
+            void $heart[0].offsetWidth; // restart animation
+            $heart.addClass("is-show");
+        }
+
+        /* ---------- Comments ---------- */
+
+        function renderComment(comment) {
+            const author = comment.author || "Anonymous";
+            const $comment = $("<div>", { class: "comment" }).attr("data-comment-id", comment.id).append(
+                $("<span>", { class: "avatar avatar-xs", text: emojiOf(author) }),
+                $("<div>", { class: "comment-body" }).append(
+                    $("<p>").append($("<strong>", { text: nameOf(author) }), $("<span>", { class: "comment-text", text: comment.text })),
+                    $("<span>", { class: "comment-time", text: timeAgo(comment.ms) }),
+                    $("<span>", { class: "comment-time comment-edited", text: " · đã chỉnh sửa" }).toggle(!!comment.editedAt)
+                )
+            );
+
+            // The comment's author or an admin can edit/delete it
+            if (canEditComment(author)) {
+                $comment.append(
+                    $("<div>", { class: "comment-tools" }).append(
+                        $("<button>", { type: "button", class: "comment-tool btn-edit-comment", "aria-label": "Sửa bình luận", title: "Sửa bình luận" })
+                            .append($("<i>", { class: "fa-regular fa-pen-to-square" })),
+                        $("<button>", { type: "button", class: "comment-tool btn-delete-comment", "aria-label": "Xoá bình luận", title: "Xoá bình luận" })
+                            .append($("<i>", { class: "fa-regular fa-trash-can" }))
+                    )
+                );
+            }
+            return $comment;
+        }
+
+        function openCommentEdit($comment) {
+            if ($comment.hasClass("is-editing")) return;
+
+            const $form = $("<form>", { class: "edit-form comment-edit-form" }).append(
+                $("<input>", { type: "text", class: "edit-input", maxlength: 500 }).val($comment.find(".comment-text").text()),
+                $("<div>", { class: "edit-actions" }).append(
+                    $("<button>", { type: "button", class: "link-btn btn-edit-cancel", text: "Huỷ" }),
+                    $("<button>", { type: "submit", class: "link-btn btn-send btn-edit-save", text: "Lưu" })
+                )
+            );
+
+            $comment.addClass("is-editing").find(".comment-body p").hide().after($form);
+            $form.find(".edit-input").trigger("focus");
+        }
+
+        function closeCommentEdit($comment) {
+            $comment.removeClass("is-editing").find(".comment-edit-form").remove();
+            $comment.find(".comment-body p").show();
+        }
+
+        async function saveCommentEdit($comment) {
+            const $form = $comment.find(".comment-edit-form");
+            const text = $.trim($form.find(".edit-input").val());
+
+            if (!text) {
+                showToast("Bình luận không được để trống");
+                return;
+            }
+            if (text === $comment.find(".comment-text").text()) {
+                closeCommentEdit($comment);
+                return;
+            }
+
+            $form.find("input, button").prop("disabled", true);
+            try {
+                await updateDoc(doc(db, "comments", $comment.attr("data-comment-id")), {
+                    text: text,
+                    editedAt: Date.now()
+                });
+                $comment.find(".comment-text").text(text);
+                $comment.find(".comment-edited").show();
+                closeCommentEdit($comment);
+            } catch (err) {
+                console.error(err);
+                $form.find("input, button").prop("disabled", false);
+                showToast(errorMessage(err));
+            }
+        }
+
+        async function deleteComment($post, $comment) {
+            if (!confirm("Xoá bình luận này?")) return;
+
+            $comment.addClass("is-busy");
+            try {
+                await deleteDoc(doc(db, "comments", $comment.attr("data-comment-id")));
+                $comment.slideUp(200, function () {
+                    $(this).remove();
+                    applyCommentLimit($post); // an older hidden comment moves into view
+                });
+            } catch (err) {
+                console.error(err);
+                $comment.removeClass("is-busy");
+                showToast(errorMessage(err));
+            }
+        }
+
+        // Comments are always open; only the newest `commentLimit` are shown, "Xem thêm" reveals more
+        const COMMENTS_PAGE_SIZE = 5;
+
+        function applyCommentLimit($post) {
+            const $comments = $post.find(".comment");
+            const visible = $post.data("commentLimit") || COMMENTS_PAGE_SIZE;
+            const hidden = Math.max(0, $comments.length - visible);
+
+            $comments.each(function (i) {
+                $(this).toggle(i < visible);
+            });
+            $post.find(".post-comments").toggle($comments.length > 0);
+            $post.find(".btn-more-comments")
+                .toggle(hidden > 0)
+                .text(`Xem thêm bình luận (${hidden})`);
+        }
+
+        async function loadComments($post) {
+            const id = $post.attr("data-id");
+            const $list = $post.find(".comments-list");
+
+            try {
+                const q = query(collection(db, "comments"), where("postId", "==", id));
+                const snapshot = await getDocs(q);
+
+                const comments = snapshot.docs
+                    .map((docSnap) => {
+                        const data = docSnap.data();
+                        return { ...data, id: docSnap.id, ms: toMillis(data.createdAt) };
+                    })
+                    .sort((a, b) => b.ms - a.ms);
+
+                $list.empty().append(comments.map(renderComment));
+                applyCommentLimit($post);
+            } catch (err) {
+                console.error("Error loading comments:", err);
+                $list.html($("<p>", { class: "comment-time", text: "Không tải được bình luận." }));
+                $post.find(".post-comments").show();
+            }
+        }
+
+        async function addComment($post) {
+            const $input = $post.find(".comment-input");
+            const $send = $post.find(".btn-send");
+            const text = $.trim($input.val());
+            if (!text) return;
+            if (!requireAuthor()) return;
+
+            $send.prop("disabled", true);
+            $input.prop("disabled", true);
+
+            try {
+                await addDoc(collection(db, "comments"), {
+                    postId: $post.attr("data-id"),
+                    text: text,
+                    author: currentAuthor(),
+                    createdAt: Date.now()
+                });
+                $input.val("");
+                await loadComments($post);
+            } catch (err) {
+                console.error(err);
+                $send.prop("disabled", false);
+                showToast(errorMessage(err));
+            } finally {
+                $input.prop("disabled", false).trigger("focus");
+            }
+        }
+
+        /* ---------- Feed events (delegated) ---------- */
+
+        let mediaClickTimer = null;
+
+        function openLightboxFrom($el) {
+            openLightbox($el.closest(".post").data("media") || [], $el.closest(".media-slide").index());
+        }
+
+        $("#feed")
+            .on("click", ".btn-like", function () {
+                toggleLike($(this).closest(".post"));
+            })
+            // Single click on an image opens the viewer, double click likes it.
+            // The click waits briefly so a double click does not also open the viewer.
+            .on("click", ".media-slide img", function () {
+                const $img = $(this);
+                clearTimeout(mediaClickTimer);
+                mediaClickTimer = setTimeout(() => openLightboxFrom($img), 250);
+            })
+            .on("click", ".media-expand", function () {
+                openLightboxFrom($(this));
+            })
+            // Only images: double-clicking a video is the browser's fullscreen gesture
+            .on("dblclick", ".media-slide img", function () {
+                clearTimeout(mediaClickTimer);
+                const $post = $(this).closest(".post");
+                popHeart($(this).closest(".post-media"));
+                if (!isLiked($post)) toggleLike($post);
+            })
+            .on("click", ".media-prev, .media-next", function () {
+                slideCarousel($(this).closest(".post-media"), $(this).hasClass("media-next") ? 1 : -1);
+            })
+            .on("click", ".btn-comment-focus", function () {
+                $(this).closest(".post").find(".comment-input").trigger("focus");
+            })
+            .on("click", ".btn-more-comments", function () {
+                const $post = $(this).closest(".post");
+                $post.data("commentLimit", ($post.data("commentLimit") || COMMENTS_PAGE_SIZE) + COMMENTS_PAGE_SIZE);
+                applyCommentLimit($post);
+            })
+            .on("input", ".comment-input", function () {
+                $(this).siblings(".btn-send").prop("disabled", !$.trim($(this).val()));
+            })
+            .on("submit", ".comment-form", function (e) {
+                e.preventDefault();
+                addComment($(this).closest(".post"));
+            })
+            .on("click", ".btn-delete", function () {
+                deletePost($(this).closest(".post"));
+            })
+            .on("click", ".btn-delete-comment", function () {
+                deleteComment($(this).closest(".post"), $(this).closest(".comment"));
+            })
+            .on("click", ".btn-edit", function () {
+                openPostEdit($(this).closest(".post"));
+            })
+            .on("click", ".btn-edit-comment", function () {
+                openCommentEdit($(this).closest(".comment"));
+            })
+            .on("change", ".edit-files", function () {
+                const $form = $(this).closest(".post-edit-form");
+                const items = $form.data("media") || [];
+                items.push(...pickMedia(this.files));
+                $(this).val("");
+                renderMediaGrid($form.find(".edit-media"), items);
+            })
+            .on("click", ".edit-media .media-remove", function () {
+                const $form = $(this).closest(".post-edit-form");
+                const items = $form.data("media") || [];
+                releaseMedia(items.splice(+$(this).attr("data-index"), 1));
+                renderMediaGrid($form.find(".edit-media"), items);
+            })
+            .on("submit", ".post-edit-form", function (e) {
+                e.preventDefault();
+                savePostEdit($(this).closest(".post"));
+            })
+            .on("submit", ".comment-edit-form", function (e) {
+                e.preventDefault();
+                saveCommentEdit($(this).closest(".comment"));
+            })
+            .on("click", ".btn-edit-cancel", function () {
+                const $comment = $(this).closest(".comment");
+                $comment.length ? closeCommentEdit($comment) : closePostEdit($(this).closest(".post"));
+            })
+            .on("keydown", ".edit-input", function (e) {
+                if (e.key === "Escape") $(this).closest(".edit-form").find(".btn-edit-cancel").trigger("click");
+            });
+
+        /* ---------- Init ---------- */
+
+        renderAdmin();
+        renderFriends();
+        loadFeed();
+        if (!currentAuthor()) openProfileModal();
+    </script>
+</body>
+
+</html>
