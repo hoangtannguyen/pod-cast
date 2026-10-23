@@ -1450,6 +1450,91 @@ body.no-scroll {
     text-align: center;
 }
 
+.users-card {
+    max-width: 520px;
+    text-align: left;
+}
+
+.users-card .modal-title,
+.users-card > .modal-desc {
+    text-align: center;
+}
+
+.users-count,
+.users-status {
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.users-status {
+    text-align: center;
+}
+
+.users-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    list-style: none;
+    max-height: min(50vh, 420px);
+    overflow-y: auto;
+}
+
+.user-list-item {
+    min-width: 0;
+    padding: 10px;
+    border: 1px solid var(--border-soft);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.user-list-item.is-busy {
+    opacity: 0.55;
+    pointer-events: none;
+}
+
+.user-list-avatar {
+    flex: 0 0 auto;
+}
+
+.user-list-identity {
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+}
+
+.user-list-name,
+.user-list-author {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.user-list-author {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.user-list-actions {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 4px;
+}
+
+.user-list-actions .icon-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+}
+
+.user-list-actions .user-delete:hover {
+    color: var(--like);
+    background: var(--like-soft);
+}
+
 .stats-body {
     display: flex;
     flex-direction: column;

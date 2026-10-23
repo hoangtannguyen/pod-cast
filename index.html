@@ -37,6 +37,9 @@
                 <button type="button" class="admin-btn admin-btn-icon" id="btnStats" title="Dung lượng" aria-label="Xem dung lượng" style="display:none">
                     <i class="fa-solid fa-chart-pie"></i>
                 </button>
+                <button type="button" class="admin-btn admin-btn-icon" id="btnUsers" title="Quản lý người dùng" aria-label="Quản lý người dùng" aria-haspopup="dialog" style="display:none">
+                    <i class="fa-solid fa-users"></i>
+                </button>
                 <button type="button" class="admin-btn admin-btn-icon" id="btnLogin" title="Đăng nhập" aria-label="Đăng nhập" style="display:none">
                     <i class="fa-solid fa-right-to-bracket"></i>
                 </button>
@@ -191,6 +194,35 @@
                 <button type="button" class="btn-primary modal-close">Đóng</button>
             </div>
         </div>
+    </div>
+
+    <!-- User management (admin only) -->
+    <div class="modal" id="usersModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="usersTitle">
+        <div class="modal-card users-card">
+            <h2 class="modal-title" id="usersTitle">Quản lý người dùng 👥</h2>
+            <p class="modal-desc">Tìm kiếm, chỉnh sửa tên hoặc xoá người dùng.</p>
+            <input type="search" id="usersSearch" class="modal-input" placeholder="Tìm theo tên người dùng..." aria-label="Tìm kiếm người dùng">
+            <p class="users-count" id="usersCount"></p>
+            <p class="users-status" id="usersStatus" role="status" style="display:none"></p>
+            <ul class="users-list" id="usersList"></ul>
+            <div class="modal-actions">
+                <button type="button" class="btn-primary modal-close">Đóng</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit user name (admin only) -->
+    <div class="modal" id="userEditModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="userEditTitle">
+        <form class="modal-card" id="userEditForm">
+            <h2 class="modal-title" id="userEditTitle">Chỉnh sửa người dùng</h2>
+            <p class="modal-desc">Nhập tên hiển thị mới, có thể giữ emoji ở đầu tên.</p>
+            <input type="text" id="userEditName" class="modal-input" maxlength="40" autocomplete="off" aria-label="Tên người dùng mới">
+            <p class="modal-error" id="userEditError" style="display:none"></p>
+            <div class="modal-actions">
+                <button type="button" class="btn-ghost" id="userEditCancel">Huỷ</button>
+                <button type="submit" class="btn-primary" id="userEditSave">Lưu</button>
+            </div>
+        </form>
     </div>
 
     <!-- Who liked a post -->
@@ -978,8 +1010,8 @@
 
         function renderAdmin() {
             // The admin button only shows while logged in (to log out); logging in is via the logo
-            $("#btnAdmin, #btnStats").toggle(isAdmin);
-            if (!isAdmin) $("#statsModal").hide();
+            $("#btnAdmin, #btnStats, #btnUsers").toggle(isAdmin);
+            if (!isAdmin) $("#statsModal, #usersModal, #userEditModal").hide();
         }
 
         function setAdmin(value) {
@@ -1025,6 +1057,174 @@
 
             return { posts: posts.size, comments: comments.size, likes: liked.size };
         }
+
+        function renderUserList() {
+            const search = $.trim($("#usersSearch").val()).toLowerCase();
+            const users = [...usersByAuthor.keys()]
+                .filter((name) => name.toLowerCase().includes(search) || nameOf(name).toLowerCase().includes(search))
+                .sort((a, b) => a.localeCompare(b, "vi"));
+            const $list = $("#usersList").empty();
+
+            $("#usersCount").text(`Đang hiển thị ${users.length}/${usersByAuthor.size} người dùng`);
+            $("#usersStatus").hide();
+            if (!users.length) {
+                $("#usersStatus").text(search ? "Không tìm thấy người dùng phù hợp." : "Chưa có người dùng nào.").show();
+                return;
+            }
+
+            users.forEach((name) => {
+                const $avatar = $("<span>", { class: "avatar avatar-md user-list-avatar" });
+                fillAvatar($avatar, name);
+                const $identity = $("<div>", { class: "user-list-identity" }).append(
+                    $("<strong>", { class: "user-list-name", text: nameOf(name) }),
+                    $("<span>", { class: "user-list-author", text: name })
+                );
+                const $actions = $("<div>", { class: "user-list-actions" }).append(
+                    $("<button>", {
+                        type: "button",
+                        class: "icon-btn user-edit",
+                        title: "Chỉnh sửa người dùng",
+                        "aria-label": `Chỉnh sửa ${nameOf(name)}`,
+                        "data-author": name
+                    }).append($("<i>", { class: "fa-regular fa-pen-to-square" })),
+                    $("<button>", {
+                        type: "button",
+                        class: "icon-btn user-delete",
+                        title: "Xoá người dùng",
+                        "aria-label": `Xoá ${nameOf(name)}`,
+                        "data-author": name
+                    }).append($("<i>", { class: "fa-regular fa-trash-can" }))
+                );
+                $list.append(
+                    $("<li>", { class: "user-list-item" }).append($avatar, $identity, $actions)
+                );
+            });
+        }
+
+        async function openUsersModal() {
+            if (!isAdmin) return;
+            $("#usersSearch").val("");
+            $("#usersList").empty();
+            $("#usersCount").text("");
+            $("#usersStatus").text("Đang tải danh sách người dùng...").show();
+            $("#usersModal").fadeIn(150);
+
+            try {
+                const snapshot = await getDocs(collection(db, "users"));
+                usersByAuthor.clear();
+                snapshot.forEach((docSnap) => {
+                    const data = docSnap.data();
+                    if (data.author) usersByAuthor.set(data.author, data);
+                });
+                renderUserList();
+            } catch (err) {
+                console.error("Error loading user management list:", err);
+                $("#usersList").empty();
+                $("#usersCount").text("");
+                $("#usersStatus").text(errorMessage(err)).show();
+            }
+        }
+
+        let editingUserAuthor = "";
+
+        $("#btnUsers").on("click", openUsersModal);
+        $("#usersSearch").on("input", renderUserList);
+
+        $("#usersList").on("click", ".user-edit", function () {
+            if (!isAdmin) return;
+            editingUserAuthor = $(this).attr("data-author");
+            $("#userEditName").val(editingUserAuthor);
+            $("#userEditError").hide();
+            $("#userEditModal").fadeIn(150);
+            $("#userEditName").trigger("focus").trigger("select");
+        });
+
+        $("#userEditCancel").on("click", () => $("#userEditModal").fadeOut(150));
+
+        $("#userEditForm").on("submit", async function (e) {
+            e.preventDefault();
+            if (!isAdmin || !editingUserAuthor) return;
+
+            const previous = editingUserAuthor;
+            const next = $.trim($("#userEditName").val()).replace(/\s+/g, " ");
+            if (!next) {
+                $("#userEditError").text("Tên người dùng không được để trống.").show();
+                return;
+            }
+            if (next.length > 40) {
+                $("#userEditError").text("Tên người dùng tối đa 40 ký tự.").show();
+                return;
+            }
+            if (next !== previous && usersByAuthor.has(next)) {
+                $("#userEditError").text("Tên này đã được người khác sử dụng.").show();
+                return;
+            }
+            if (next === previous) {
+                $("#userEditModal").fadeOut(150);
+                return;
+            }
+
+            const user = usersByAuthor.get(previous);
+            if (!user) {
+                $("#userEditError").text("Không tìm thấy người dùng này. Hãy tải lại danh sách.").show();
+                return;
+            }
+
+            const $fields = $("#userEditForm").find("input, button").prop("disabled", true);
+            $("#userEditError").hide();
+            try {
+                await saveUser(next, user.avatarUrl || "", user.authEmail || "");
+                await renameUser(previous, next);
+                await deleteDoc(doc(db, "users", userDocId(previous)));
+                usersByAuthor.delete(previous);
+
+                if (currentAuthor() === previous) {
+                    author = next;
+                    saveProfile(author);
+                    watchMyActivity();
+                }
+                editingUserAuthor = "";
+                $("#userEditModal").fadeOut(150);
+                renderUserList();
+                renderFriends();
+                refreshAvatars();
+                await loadFeed();
+                showToast(`Đã cập nhật tên thành ${nameOf(next)}`);
+            } catch (err) {
+                console.error("Error editing user:", err);
+                $("#userEditError").text(errorMessage(err)).show();
+            } finally {
+                $fields.prop("disabled", false);
+            }
+        });
+
+        $("#usersList").on("click", ".user-delete", async function () {
+            if (!isAdmin) return;
+            const name = $(this).attr("data-author");
+            const displayName = nameOf(name);
+            if (!confirm(`Xoá người dùng "${displayName}"?\n\nToàn bộ bài viết, bình luận và lượt thích của người này sẽ bị xoá vĩnh viễn. Tài khoản đăng nhập Firebase (nếu có) cần được xoá riêng trong Firebase Console.`)) return;
+
+            const $row = $(this).closest(".user-list-item").addClass("is-busy");
+            $row.find("button").prop("disabled", true);
+            try {
+                const result = await deleteUser(name);
+                knownAuthors.delete(name);
+                if (currentAuthor() === name) {
+                    author = "";
+                    saveProfile("");
+                    watchMyActivity();
+                }
+                renderUserList();
+                renderFriends();
+                refreshPermissions();
+                await loadFeed();
+                showToast(`Đã xoá ${displayName}: ${result.posts} bài, ${result.comments} bình luận, ${result.likes} lượt thích`);
+            } catch (err) {
+                console.error("Error deleting user:", err);
+                $row.removeClass("is-busy").find("button").prop("disabled", false);
+                showToast(errorMessage(err));
+            }
+        });
 
         // Mouse wheels only scroll vertically, so turn that into horizontal scrolling of the friends bar
         $("#friendsList")[0].addEventListener("wheel", function (e) {
