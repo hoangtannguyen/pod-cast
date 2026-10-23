@@ -23,6 +23,10 @@
                     <i class="fa-regular fa-user"></i>
                     <span id="friendCount">0</span>
                 </div>
+                <button type="button" class="admin-btn admin-btn-icon notify-btn" id="btnNotify" title="Thông báo" aria-label="Thông báo bài viết mới">
+                    <i class="fa-regular fa-bell"></i>
+                    <span class="notify-badge" id="notifyBadge" style="display:none">0</span>
+                </button>
                 <button type="button" class="admin-btn admin-btn-icon" id="btnStats" title="Dung lượng" aria-label="Xem dung lượng" style="display:none">
                     <i class="fa-solid fa-chart-pie"></i>
                 </button>
@@ -268,6 +272,7 @@
             limit,
             startAfter,
             setDoc,
+            onSnapshot,
         } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
         const firebaseConfig = {
@@ -453,6 +458,29 @@
             usersByAuthor.set(name, data);
         }
 
+        // Identity is the "emoji name" string stored on posts, comments and likes,
+        // so a rename has to rewrite every place that string appears.
+        async function renameUser(oldName, newName) {
+            const photosRef = collection(db, "photos");
+            const commentsRef = collection(db, "comments");
+
+            const [posts, comments, liked] = await Promise.all([
+                getDocs(query(photosRef, where("auth", "==", oldName))),
+                getDocs(query(commentsRef, where("author", "==", oldName))),
+                getDocs(query(photosRef, where("likes", "array-contains", oldName)))
+            ]);
+
+            await Promise.all([
+                ...posts.docs.map((p) => updateDoc(p.ref, { auth: newName })),
+                ...comments.docs.map((c) => updateDoc(c.ref, { author: newName })),
+                // arrayRemove + arrayUnion cannot target the same field in one update, so rewrite the array
+                ...liked.docs.map((p) => {
+                    const likes = (p.data().likes || []).map((n) => (n === oldName ? newName : n));
+                    return updateDoc(p.ref, { likes: [...new Set(likes)] });
+                })
+            ]);
+        }
+
         async function loadUsers() {
             try {
                 const snapshot = await getDocs(collection(db, "users"));
@@ -604,6 +632,14 @@
 
             const previous = currentAuthor();
             const next = `${selectedEmoji()} ${name}`;
+            const isRename = !!previous && previous !== next;
+
+            // Taking someone else's name would merge their posts into ours
+            if (isRename && usersByAuthor.has(next)) {
+                showToast("Tên và emoji này đã có người dùng, hãy chọn tên hoặc emoji khác");
+                return;
+            }
+
             const $save = $("#profileSave");
             const $fields = $("#profileForm").find("input, button");
 
@@ -615,8 +651,10 @@
                     : (profilePhoto?.url || "");
 
                 await saveUser(next, avatarUrl);
-                // Renaming: drop the old entry so the same person is not listed twice
-                if (previous && previous !== next) {
+                if (isRename) {
+                    $save.text("Đang cập nhật bài viết...");
+                    await renameUser(previous, next);
+                    // Drop the old entry so the same person is not listed twice
                     await deleteDoc(doc(db, "users", userDocId(previous)));
                     usersByAuthor.delete(previous);
                 }
@@ -627,7 +665,11 @@
                 closeProfileModal();
                 renderFriends();
                 refreshAvatars();
-                refreshPermissions();
+                if (isRename) {
+                    await loadFeed(); // posts, comments and likes now carry the new name
+                } else {
+                    refreshPermissions();
+                }
                 showToast(`Xin chào, ${name}! 👋`);
             } catch (err) {
                 console.error(err);
@@ -1811,6 +1853,28 @@
         renderAdmin();
         renderFriends();
         loadUsers();
+        /* ---------- New post notification ---------- */
+
+        // Only listen to posts created after the page was opened, so the initial snapshot is empty
+        let newPostCount = 0;
+        onSnapshot(
+            query(collection(db, "photos"), where("createdAt", ">", Date.now())),
+            (snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    if (change.type !== "added") return;
+                    // Own posts are already shown by loadFeed() after posting
+                    if (change.doc.data().auth === currentAuthor()) return;
+                    newPostCount++;
+                });
+                if (!newPostCount) return;
+                $("#notifyBadge").text(newPostCount > 9 ? "9+" : newPostCount).show();
+                $("#btnNotify").addClass("has-new").attr("title", `${newPostCount} bài viết mới — nhấn để tải lại`);
+            },
+            (err) => console.error(err)
+        );
+
+        $("#btnNotify").on("click", () => location.reload());
+
         loadFeed();
         if (!currentAuthor()) openProfileModal();
     </script>

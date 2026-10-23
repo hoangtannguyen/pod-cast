@@ -132,6 +132,31 @@ img {
     justify-content: center;
 }
 
+.notify-btn {
+    position: relative;
+}
+
+.notify-btn.has-new {
+    color: #ff3040;
+    border-color: #ff3040;
+}
+
+.notify-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: #ff3040;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 18px;
+    text-align: center;
+}
+
 /* Narrow phones: icon-only admin button so the header fits */
 @media (max-width: 400px) {
     #adminLabel {
