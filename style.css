@@ -1412,6 +1412,36 @@ body.no-scroll {
     gap: 8px;
 }
 
+.profile-password {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.profile-password .modal-hint {
+    margin-bottom: 0;
+}
+
+.profile-logout {
+    margin-right: auto;
+}
+
+.modal-switch {
+    font-size: 13px;
+    color: var(--muted);
+    text-align: center;
+}
+
+.modal-switch .link-btn {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--primary);
+}
+
+.modal-switch .link-btn:hover {
+    color: var(--primary-hover);
+}
+
 /* Storage stats */
 .stats-card {
     max-width: 420px;

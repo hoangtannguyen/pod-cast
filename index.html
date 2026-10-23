@@ -37,6 +37,9 @@
                 <button type="button" class="admin-btn admin-btn-icon" id="btnStats" title="Dung lượng" aria-label="Xem dung lượng" style="display:none">
                     <i class="fa-solid fa-chart-pie"></i>
                 </button>
+                <button type="button" class="admin-btn admin-btn-icon" id="btnLogin" title="Đăng nhập" aria-label="Đăng nhập" style="display:none">
+                    <i class="fa-solid fa-right-to-bracket"></i>
+                </button>
                 <button type="button" class="admin-btn" id="btnAdmin" title="Đăng nhập admin">
                     <i class="fa-solid fa-user-shield"></i>
                     <span id="adminLabel">Admin</span>
@@ -118,7 +121,19 @@
             <p class="modal-hint">Hoặc chọn emoji:</p>
             <div class="emoji-picker" id="emojiPicker" role="radiogroup" aria-label="Chọn avatar"></div>
             <input type="text" id="profileName" class="modal-input" placeholder="Tên của bạn" maxlength="30" autocomplete="nickname">
+            <div class="profile-password">
+                <p class="modal-hint" id="profilePasswordHint"></p>
+                <input type="password" id="profileCurrentPassword" class="modal-input" placeholder="Mật khẩu hiện tại" autocomplete="current-password" style="display:none">
+                <input type="password" id="profileNewPassword" class="modal-input" placeholder="Mật khẩu mới (ít nhất 6 ký tự)" autocomplete="new-password">
+            </div>
+            <p class="modal-error" id="profileError" style="display:none"></p>
+            <p class="modal-switch" id="profileToLoginRow" style="display:none">
+                Đã có tài khoản? <button type="button" class="link-btn" id="profileToLogin">Đăng nhập</button>
+            </p>
             <div class="modal-actions">
+                <button type="button" class="link-btn profile-logout" id="profileLogout" style="display:none">
+                    <i class="fa-solid fa-right-from-bracket"></i> Đăng xuất
+                </button>
                 <button type="button" class="btn-ghost" id="profileCancel">Để sau</button>
                 <button type="submit" class="btn-primary" id="profileSave" disabled>Lưu</button>
             </div>
@@ -127,6 +142,25 @@
 
     <!-- Emoji picker (shared by the composer and every comment box) -->
     <div class="emoji-popover" id="emojiPopover" style="display:none" role="dialog" aria-label="Chọn emoji"></div>
+
+    <!-- User login popup -->
+    <div class="modal" id="loginModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+        <form class="modal-card" id="loginForm">
+            <h2 class="modal-title" id="loginTitle">Đăng nhập 🔑</h2>
+            <p class="modal-desc">Nhập tên đăng nhập và mật khẩu.</p>
+            <input type="text" id="loginUser" class="modal-input" placeholder="Tên đăng nhập" maxlength="40" autocomplete="username">
+            <input type="password" id="loginPassword" class="modal-input" placeholder="Mật khẩu" autocomplete="current-password">
+            <p class="modal-hint" id="loginNoPassword" style="display:none">Tên này chưa có mật khẩu — bấm Đăng nhập để dùng ngay.</p>
+            <p class="modal-error" id="loginError" style="display:none"></p>
+            <div class="modal-actions">
+                <button type="button" class="btn-ghost modal-close">Huỷ</button>
+                <button type="submit" class="btn-primary" id="loginSubmit">Đăng nhập</button>
+            </div>
+            <p class="modal-switch">
+                Chưa có tài khoản? <button type="button" class="link-btn" id="loginToProfile">Tạo tên mới</button>
+            </p>
+        </form>
+    </div>
 
     <!-- Admin login popup -->
     <div class="modal" id="adminModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="adminTitle">
@@ -281,6 +315,14 @@
             setDoc,
             onSnapshot,
         } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import {
+            getAuth,
+            onAuthStateChanged,
+            createUserWithEmailAndPassword,
+            signInWithEmailAndPassword,
+            signOut,
+            updatePassword,
+        } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
         const firebaseConfig = {
             apiKey : "AIzaSyAn6U45kKfYSWfrFhMcwIP6_N7VC9KO5FQ" , 
@@ -301,6 +343,15 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
+        const auth = getAuth(app);
+        // Resolves once Firebase has restored the previous session (if any) from the browser
+        const authReady = new Promise((resolve) => {
+            const unsubscribe = onAuthStateChanged(auth, () => {
+                unsubscribe();
+                resolve();
+            });
+        });
+        const MIN_PASSWORD = 6;
 
         const PROFILE_KEY = "friendgram:author";
         const ADMIN_KEY = "friendgram:admin";
@@ -407,10 +458,20 @@
             return new Date(ms).toLocaleDateString("vi-VN");
         }
 
+        const AUTH_ERRORS = {
+            "auth/invalid-credential": "Sai mật khẩu.",
+            "auth/wrong-password": "Sai mật khẩu.",
+            "auth/too-many-requests": "Nhập sai quá nhiều lần, thử lại sau ít phút.",
+            "auth/weak-password": `Mật khẩu cần ít nhất ${MIN_PASSWORD} ký tự.`,
+            "auth/operation-not-allowed": "Chưa bật đăng nhập Email/Password trong Firebase Console.",
+            "auth/network-request-failed": "Mất kết nối mạng, thử lại sau."
+        };
+
         function errorMessage(err) {
             if (err?.code === "permission-denied") {
                 return "Firestore từ chối truy cập — kiểm tra Security Rules.";
             }
+            if (AUTH_ERRORS[err?.code]) return AUTH_ERRORS[err.code];
             return err?.message || "Có lỗi xảy ra, thử lại sau.";
         }
 
@@ -459,10 +520,12 @@
             });
         }
 
-        async function saveUser(name, avatarUrl) {
+        // authEmail: the Firebase Auth account behind a password-protected name ("" = no password)
+        async function saveUser(name, avatarUrl, authEmail) {
             const data = { author: name, avatarUrl: avatarUrl || "", updatedAt: Date.now() };
+            if (authEmail !== undefined) data.authEmail = authEmail;
             await setDoc(doc(db, "users", userDocId(name)), data, { merge: true });
-            usersByAuthor.set(name, data);
+            usersByAuthor.set(name, { ...usersByAuthor.get(name), ...data });
         }
 
         // Identity is the "emoji name" string stored on posts, comments and likes,
@@ -504,6 +567,23 @@
             }
             renderFriends();
             refreshAvatars();
+            if ($("#profileModal").is(":visible")) renderPasswordFields();
+        }
+
+        // A password-protected name stays in use only while its Firebase session is alive
+        async function checkSession() {
+            const email = usersByAuthor.get(author)?.authEmail;
+            if (!email) return;
+            await authReady;
+            if (auth.currentUser?.email === email) return;
+
+            author = "";
+            saveProfile("");
+            renderFriends();
+            refreshPermissions();
+            watchMyActivity();
+            showToast("Phiên đăng nhập đã hết, hãy đăng nhập lại");
+            openProfileModal();
         }
 
         /* ---------- Friends ---------- */
@@ -544,6 +624,7 @@
             $("#friendCount").text(total);
             fillAvatar($("#selectedAvatar"), me, me ? undefined : "🙂");
             $("#authorName").text(me ? nameOf(me) : "Nhập tên của bạn");
+            $("#btnLogin").toggle(!me);
         }
 
         $("#friendsList").on("click", "#myStory", openProfileModal);
@@ -594,6 +675,9 @@
             const me = currentAuthor();
             profilePhoto = avatarOf(me) ? { url: avatarOf(me) } : null;
             $("#profileFile").val("");
+            $("#profileCurrentPassword, #profileNewPassword").val("");
+            $("#profileLogout").toggle(!!me);
+            $("#profileToLoginRow").toggle(!me);
             selectEmoji(me ? emojiOf(me) : AVATAR_EMOJIS[0]);
             $("#profileName").val(me ? nameOf(me) : "").trigger("input");
             $("#profileModal").fadeIn(150);
@@ -608,6 +692,159 @@
         $("#emojiPicker").on("click", ".emoji-option", function () {
             setProfilePhoto(null);
             selectEmoji($(this).attr("data-emoji"));
+            renderPasswordFields();
+        });
+
+        function typedProfileName() {
+            return $.trim($("#profileName").val()).replace(/\s+/g, " ");
+        }
+
+        // What the password fields mean for the name typed in the popup:
+        // "login"  — another account's name that is protected, so its password is required
+        // "change" — the current user's own account, which already has a password
+        // "create" — a name without a password; setting one is optional
+        function profilePasswordMode() {
+            const me = currentAuthor();
+            const next = `${selectedEmoji()} ${typedProfileName()}`;
+            const target = usersByAuthor.get(next);
+            if (me && (next === me || !target)) return usersByAuthor.get(me)?.authEmail ? "change" : "create";
+            return target?.authEmail ? "login" : "create";
+        }
+
+        function renderPasswordFields() {
+            const mode = profilePasswordMode();
+            const hints = {
+                login: "Tên này đã có mật khẩu — nhập mật khẩu để đăng nhập:",
+                change: "Đổi mật khẩu (để trống nếu không đổi):",
+                create: "Tạo mật khẩu để bảo vệ tên của bạn (không bắt buộc):"
+            };
+            $("#profilePasswordHint").text(hints[mode]);
+            $("#profileCurrentPassword")
+                .toggle(mode !== "create")
+                .attr("placeholder", mode === "login" ? "Mật khẩu" : "Mật khẩu hiện tại");
+            $("#profileNewPassword").toggle(mode !== "login");
+            $("#profileError").hide();
+        }
+
+        function showProfileError(message) {
+            $("#profileError").text(message).show();
+        }
+
+        // Signs in to, creates, or updates the Firebase Auth account behind the name.
+        // Returns the account email to keep on the users entry ("" when the name has no password).
+        async function applyPassword(mode, next, currentPassword, newPassword) {
+            if (mode === "login") {
+                const email = usersByAuthor.get(next).authEmail;
+                await signInWithEmailAndPassword(auth, email, currentPassword);
+                return email;
+            }
+            if (mode === "change") {
+                const email = usersByAuthor.get(currentAuthor()).authEmail;
+                if (newPassword) {
+                    // Signing in again counts as a recent login, which updatePassword requires
+                    await signInWithEmailAndPassword(auth, email, currentPassword);
+                    await updatePassword(auth.currentUser, newPassword);
+                }
+                return email;
+            }
+            if (auth.currentUser) await signOut(auth);
+            if (!newPassword) return "";
+            // The name can change later, so the account uses a random email that never does
+            const email = `${crypto.randomUUID()}@${firebaseConfig.authDomain}`;
+            await createUserWithEmailAndPassword(auth, email, newPassword);
+            return email;
+        }
+
+        /* ---------- Login popup ---------- */
+
+        // Accepts the full "emoji name" or just the name (case-insensitive).
+        // Returns the matching author names; more than one means the same name is used with different emojis.
+        function findLoginUsers(input) {
+            const typed = $.trim(input).replace(/\s+/g, " ");
+            if (!typed) return [];
+            if (usersByAuthor.has(typed)) return [typed];
+            const lower = typed.toLowerCase();
+            return [...usersByAuthor.keys()].filter((name) => nameOf(name).toLowerCase() === lower);
+        }
+
+        function renderLoginFields() {
+            const matches = findLoginUsers($("#loginUser").val());
+            $("#loginNoPassword").toggle(matches.length === 1 && !usersByAuthor.get(matches[0]).authEmail);
+            $("#loginError").hide();
+        }
+
+        function openLoginModal() {
+            $("#loginUser, #loginPassword").val("");
+            renderLoginFields();
+            $("#profileModal").fadeOut(150);
+            $("#loginModal").fadeIn(150);
+            $("#loginUser").trigger("focus");
+        }
+
+        $("#btnLogin, #profileToLogin").on("click", openLoginModal);
+        $("#loginUser").on("input", renderLoginFields);
+
+        $("#loginToProfile").on("click", function () {
+            $("#loginModal").fadeOut(150);
+            openProfileModal();
+        });
+
+        $("#loginForm").on("submit", async function (e) {
+            e.preventDefault();
+            const matches = findLoginUsers($("#loginUser").val());
+            if (!matches.length) {
+                $("#loginError").text("Không tìm thấy tên này. Kiểm tra lại hoặc tạo tên mới.").show();
+                return;
+            }
+            if (matches.length > 1) {
+                $("#loginError").text(`Có nhiều người dùng tên này, hãy gõ kèm emoji, ví dụ: ${matches[0]}`).show();
+                return;
+            }
+            const name = matches[0];
+            const user = usersByAuthor.get(name);
+
+            const password = $("#loginPassword").val();
+            if (user.authEmail && !password) {
+                $("#loginError").text("Nhập mật khẩu để đăng nhập.").show();
+                return;
+            }
+
+            const $fields = $("#loginForm").find("input, select, button").prop("disabled", true);
+            try {
+                if (user.authEmail) {
+                    await signInWithEmailAndPassword(auth, user.authEmail, password);
+                } else if (auth.currentUser) {
+                    await signOut(auth);
+                }
+                author = name;
+                saveProfile(author);
+                watchMyActivity();
+                $("#loginModal").fadeOut(150);
+                renderFriends();
+                refreshPermissions();
+                showToast(`Xin chào, ${nameOf(name)}! 👋`);
+            } catch (err) {
+                console.error(err);
+                $("#loginError").text(errorMessage(err)).show();
+            } finally {
+                $fields.prop("disabled", false);
+                $("#loginPassword").val("");
+            }
+        });
+
+        $("#profileLogout").on("click", async function () {
+            try {
+                if (auth.currentUser) await signOut(auth);
+            } catch (err) {
+                console.error(err);
+            }
+            author = "";
+            saveProfile("");
+            closeProfileModal();
+            renderFriends();
+            refreshPermissions();
+            watchMyActivity();
+            showToast("Đã đăng xuất 👋");
         });
 
         $("#profileFile").on("change", function () {
@@ -630,11 +867,12 @@
 
         $("#profileName").on("input", function () {
             $("#profileSave").prop("disabled", !$.trim($(this).val()));
+            renderPasswordFields();
         });
 
         $("#profileForm").on("submit", async function (e) {
             e.preventDefault();
-            const name = $.trim($("#profileName").val()).replace(/\s+/g, " ");
+            const name = typedProfileName();
             if (!name) return;
 
             const previous = currentAuthor();
@@ -647,17 +885,37 @@
                 return;
             }
 
+            const mode = profilePasswordMode();
+            const currentPassword = $("#profileCurrentPassword").val();
+            const newPassword = $("#profileNewPassword").val();
+            if (mode === "login" && !currentPassword) {
+                showProfileError("Nhập mật khẩu để đăng nhập.");
+                return;
+            }
+            if (newPassword && newPassword.length < MIN_PASSWORD) {
+                showProfileError(`Mật khẩu cần ít nhất ${MIN_PASSWORD} ký tự.`);
+                return;
+            }
+            if (mode === "change" && newPassword && !currentPassword) {
+                showProfileError("Nhập mật khẩu hiện tại để đổi mật khẩu.");
+                return;
+            }
+            $("#profileError").hide();
+
             const $save = $("#profileSave");
             const $fields = $("#profileForm").find("input, button");
 
             $fields.prop("disabled", true);
             $save.text(profilePhoto?.file ? "Đang tải ảnh..." : "Đang lưu...");
             try {
+                // Check the password before changing anything else
+                const authEmail = await applyPassword(mode, next, currentPassword, newPassword);
+
                 const avatarUrl = profilePhoto?.file
                     ? (await uploadMedia(profilePhoto.file)).url
-                    : (profilePhoto?.url || "");
+                    : (profilePhoto?.url || (mode === "login" ? avatarOf(next) : ""));
 
-                await saveUser(next, avatarUrl);
+                await saveUser(next, avatarUrl, authEmail);
                 if (isRename) {
                     $save.text("Đang cập nhật bài viết...");
                     await renameUser(previous, next);
@@ -678,10 +936,14 @@
                 } else {
                     refreshPermissions();
                 }
-                showToast(`Xin chào, ${name}! 👋`);
+                showToast(newPassword ? `Đã lưu mật khẩu. Xin chào, ${name}! 👋` : `Xin chào, ${name}! 👋`);
             } catch (err) {
                 console.error(err);
-                showToast(errorMessage(err));
+                if (err?.code?.startsWith("auth/")) {
+                    showProfileError(errorMessage(err));
+                } else {
+                    showToast(errorMessage(err));
+                }
             } finally {
                 $fields.prop("disabled", false);
                 $save.text("Lưu");
@@ -1871,7 +2133,7 @@
 
         renderAdmin();
         renderFriends();
-        loadUsers();
+        loadUsers().then(checkSession);
         /* ---------- Notifications ---------- */
 
         // Only events after the page was opened are notified (likes carry no timestamp)
