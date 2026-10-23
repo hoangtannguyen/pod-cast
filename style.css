@@ -80,10 +80,21 @@ img {
 }
 
 .logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     font-family: "Grand Hotel", cursive;
     font-size: 32px;
     font-weight: 400;
     line-height: 1;
+}
+
+.logo-img {
+    width: 34px;
+    height: 34px;
+    object-fit: contain;
+    /* the PNG has a white margin around the icon; scale it up so the icon itself reads bigger */
+    transform: scale(1.25);
 }
 
 .topbar-actions {
@@ -798,12 +809,68 @@ body.no-scroll {
 }
 
 .post-likes {
+    display: block;
     margin: 2px 0 6px;
+    padding: 0;
     font-weight: 600;
+    text-align: left;
+}
+
+.post-likes:not(:disabled):hover {
+    text-decoration: underline;
 }
 
 .post-likes.is-empty {
     font-weight: 400;
+    color: var(--muted);
+    cursor: default;
+}
+
+/* Who liked popup */
+.likes-card {
+    text-align: left;
+}
+
+.likes-card .modal-title {
+    text-align: center;
+}
+
+.likes-list {
+    list-style: none;
+    max-height: 50vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.likes-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 4px;
+    border-radius: 8px;
+}
+
+.likes-item:hover {
+    background-color: var(--bg);
+}
+
+.likes-name {
+    flex: 1;
+    min-width: 0;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.likes-heart {
+    color: var(--like);
+}
+
+.likes-empty {
+    text-align: center;
     color: var(--muted);
 }
 
