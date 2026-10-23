@@ -86,6 +86,8 @@ img {
     font-family: "Grand Hotel", cursive;
     font-size: 32px;
     font-weight: 400;
+    /* repeated clicks open the admin login; don't select the text */
+    user-select: none;
     line-height: 1;
 }
 
@@ -251,10 +253,6 @@ img {
 
 /* Narrow phones: icon-only admin button so the header fits */
 @media (max-width: 400px) {
-    #adminLabel {
-        display: none;
-    }
-
     .admin-btn {
         width: 32px;
         height: 32px;

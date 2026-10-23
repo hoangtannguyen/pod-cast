@@ -40,9 +40,8 @@
                 <button type="button" class="admin-btn admin-btn-icon" id="btnLogin" title="Đăng nhập" aria-label="Đăng nhập" style="display:none">
                     <i class="fa-solid fa-right-to-bracket"></i>
                 </button>
-                <button type="button" class="admin-btn" id="btnAdmin" title="Đăng nhập admin">
+                <button type="button" class="admin-btn admin-btn-icon is-admin" id="btnAdmin" title="Đăng xuất admin" aria-label="Đăng xuất admin" style="display:none">
                     <i class="fa-solid fa-user-shield"></i>
-                    <span id="adminLabel">Admin</span>
                 </button>
             </div>
         </div>
@@ -978,11 +977,8 @@
         }
 
         function renderAdmin() {
-            $("#btnAdmin")
-                .toggleClass("is-admin", isAdmin)
-                .attr("title", isAdmin ? "Đăng xuất admin" : "Đăng nhập admin");
-            $("#adminLabel").text(isAdmin ? "Đăng xuất" : "Admin");
-            $("#btnStats").toggle(isAdmin);
+            // The admin button only shows while logged in (to log out); logging in is via the logo
+            $("#btnAdmin, #btnStats").toggle(isAdmin);
             if (!isAdmin) $("#statsModal").hide();
         }
 
@@ -1062,13 +1058,22 @@
         });
 
         $("#btnAdmin").on("click", function () {
-            if (isAdmin) {
-                if (!confirm("Đăng xuất admin?")) return;
-                setAdmin(false);
-                showToast("Đã đăng xuất admin");
-                return;
-            }
+            if (!confirm("Đăng xuất admin?")) return;
+            setAdmin(false);
+            showToast("Đã đăng xuất admin");
+        });
 
+        // Hidden entry: 5 quick clicks on the logo open the admin login
+        let logoClicks = 0;
+        let logoClickTimer = null;
+        $(".logo").on("click", function () {
+            if (isAdmin) return;
+            logoClicks++;
+            clearTimeout(logoClickTimer);
+            logoClickTimer = setTimeout(() => { logoClicks = 0; }, 1500);
+            if (logoClicks < 5) return;
+
+            logoClicks = 0;
             $("#adminUser, #adminPass").val("");
             $("#adminError").hide();
             $("#adminModal").fadeIn(150);
