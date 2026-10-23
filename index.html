@@ -768,6 +768,17 @@
             return { posts: posts.size, comments: comments.size, likes: liked.size };
         }
 
+        // Mouse wheels only scroll vertically, so turn that into horizontal scrolling of the friends bar
+        $("#friendsList")[0].addEventListener("wheel", function (e) {
+            if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+            const max = this.scrollWidth - this.clientWidth;
+            if (max <= 0) return;
+            // At either end, let the page scroll as usual
+            if ((e.deltaY < 0 && this.scrollLeft <= 0) || (e.deltaY > 0 && this.scrollLeft >= max)) return;
+            e.preventDefault();
+            this.scrollLeft += e.deltaY;
+        }, { passive: false });
+
         $("#friendsList").on("click", ".story-delete", async function () {
             if (!isAdmin) return;
 

@@ -356,11 +356,43 @@ body.no-scroll {
     background-color: var(--card);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    scrollbar-width: none;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
 }
 
 .stories::-webkit-scrollbar {
-    display: none;
+    height: 6px;
+}
+
+.stories::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.stories::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 999px;
+}
+
+.stories::-webkit-scrollbar-thumb:hover {
+    background: var(--muted);
+}
+
+.stories .story {
+    scroll-snap-align: start;
+}
+
+/* Touch screens swipe, so the bar is not needed there */
+@media (hover: none) {
+    .stories {
+        scrollbar-width: none;
+    }
+
+    .stories::-webkit-scrollbar {
+        display: none;
+    }
 }
 
 .story {
