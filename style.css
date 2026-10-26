@@ -1981,3 +1981,54 @@ body.no-scroll {
     font-size: 11px;
     color: var(--muted);
 }
+
+.chat-row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    max-width: 100%;
+}
+
+.chat-tools {
+    flex-shrink: 0;
+    display: flex;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.chat-msg:hover .chat-tools,
+.chat-tools:focus-within {
+    opacity: 1;
+}
+
+.chat-msg.is-editing .chat-bubble {
+    outline: 2px solid var(--primary-hover);
+    outline-offset: 2px;
+}
+
+.chat-msg.is-busy {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+.chat-editing {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 16px;
+    border-top: 1px solid var(--border-soft);
+    background-color: var(--bg);
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.chat-editing span {
+    flex: 1;
+}
+
+/* Touch screens have no hover — keep the buttons visible */
+@media (hover: none) {
+    .chat-tools {
+        opacity: 1;
+    }
+}

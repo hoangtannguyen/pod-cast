@@ -153,6 +153,11 @@
                 </button>
             </div>
             <div class="chat-messages" id="chatMessages" aria-live="polite"></div>
+            <div class="chat-editing" id="chatEditing" style="display:none">
+                <i class="fa-solid fa-pen"></i>
+                <span>Đang sửa tin nhắn</span>
+                <button type="button" class="link-btn" id="chatEditCancel">Huỷ</button>
+            </div>
             <form class="comment-form chat-form" id="chatForm">
                 <button type="button" class="btn-emoji comment-emoji" data-target="#chatInput" aria-label="Chèn emoji">
                     <i class="fa-regular fa-face-smile"></i>
@@ -2616,6 +2621,8 @@
         let chatPartner = ""; // author name, for the header
         let chatPartnerId = "";
         let unsubChat = null;
+        // id of my message being edited in the input box ("" = the box sends a new message)
+        let editingMessageId = "";
 
         function chatTime(ms) {
             const date = new Date(ms);
@@ -2630,12 +2637,23 @@
                 return;
             }
             messages.forEach((m) => {
-                $list.append(
-                    $("<div>", { class: "chat-msg" + (m.fromId === myId ? " is-mine" : "") }).append(
-                        $("<span>", { class: "chat-bubble", text: m.text }),
-                        $("<span>", { class: "chat-time", text: chatTime(m.createdAt) })
-                    )
+                const isMine = m.fromId === myId;
+                const $msg = $("<div>", { class: "chat-msg" + (isMine ? " is-mine" : "") + (m.id === editingMessageId ? " is-editing" : ""), "data-id": m.id }).append(
+                    $("<div>", { class: "chat-row" }).append($("<span>", { class: "chat-bubble", text: m.text })),
+                    $("<span>", { class: "chat-time", text: chatTime(m.createdAt) + (m.editedAt ? " · đã chỉnh sửa" : "") })
                 );
+                // Only the sender can edit or delete a message
+                if (isMine) {
+                    $msg.find(".chat-row").prepend(
+                        $("<div>", { class: "chat-tools" }).append(
+                            $("<button>", { type: "button", class: "comment-tool btn-edit-comment chat-edit", "aria-label": "Sửa tin nhắn", title: "Sửa tin nhắn" })
+                                .append($("<i>", { class: "fa-solid fa-pen" })),
+                            $("<button>", { type: "button", class: "comment-tool btn-delete-comment chat-delete", "aria-label": "Xoá tin nhắn", title: "Xoá tin nhắn" })
+                                .append($("<i>", { class: "fa-regular fa-trash-can" }))
+                        )
+                    );
+                }
+                $list.append($msg);
             });
             $list.scrollTop($list[0].scrollHeight);
         }
@@ -2657,7 +2675,52 @@
             if (unsubChat) unsubChat();
             unsubChat = null;
             chatPartner = chatPartnerId = "";
+            cancelMessageEdit();
         }
+
+        function startMessageEdit(id, text) {
+            editingMessageId = id;
+            $("#chatMessages .chat-msg").removeClass("is-editing").filter(`[data-id="${id}"]`).addClass("is-editing");
+            $("#chatEditing").show();
+            $("#chatInput").val(text).trigger("focus");
+            $("#chatSend").text("Lưu").prop("disabled", !$.trim(text));
+        }
+
+        function cancelMessageEdit() {
+            if (!editingMessageId) return;
+            editingMessageId = "";
+            $("#chatMessages .chat-msg").removeClass("is-editing");
+            $("#chatEditing").hide();
+            $("#chatInput").val("");
+            $("#chatSend").text("Gửi").prop("disabled", true);
+        }
+
+        $("#chatEditCancel").on("click", cancelMessageEdit);
+
+        $("#chatInput").on("keydown", function (e) {
+            if (e.key === "Escape" && editingMessageId) {
+                // Leave the popup open; Escape only cancels the edit
+                e.stopPropagation();
+                cancelMessageEdit();
+            }
+        });
+
+        $("#chatMessages")
+            .on("click", ".chat-edit", function () {
+                const $msg = $(this).closest(".chat-msg");
+                startMessageEdit($msg.attr("data-id"), $msg.find(".chat-bubble").text());
+            })
+            .on("click", ".chat-delete", async function () {
+                if (!confirm("Xoá tin nhắn này?")) return;
+                const $msg = $(this).closest(".chat-msg").addClass("is-busy");
+                try {
+                    await deleteDoc(doc(db, "messages", $msg.attr("data-id")));
+                } catch (err) {
+                    console.error(err);
+                    $msg.removeClass("is-busy");
+                    showToast(errorMessage(err));
+                }
+            });
 
         function openChat(partner) {
             if (!partner || !requireAuthor()) return;
@@ -2684,7 +2747,9 @@
             unsubChat = onSnapshot(
                 query(collection(db, "messages"), where("chatId", "==", chatIdOf(myId, partnerId))),
                 (snapshot) => {
-                    const messages = snapshot.docs.map((d) => d.data()).sort((a, b) => a.createdAt - b.createdAt);
+                    const messages = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => a.createdAt - b.createdAt);
+                    // The message being edited was deleted (here or on another device)
+                    if (editingMessageId && !messages.some((m) => m.id === editingMessageId)) cancelMessageEdit();
                     renderChatMessages(messages, myId);
                     markChatRead(snapshot, myId);
                 },
@@ -2720,6 +2785,18 @@
             if (!text || !chatPartnerId || !myId) return;
 
             $("#chatSend").prop("disabled", true);
+            if (editingMessageId) {
+                try {
+                    await updateDoc(doc(db, "messages", editingMessageId), { text: text, editedAt: Date.now() });
+                    cancelMessageEdit();
+                    $("#chatInput").trigger("focus");
+                } catch (err) {
+                    console.error(err);
+                    showToast(errorMessage(err));
+                    $("#chatSend").prop("disabled", false);
+                }
+                return;
+            }
             try {
                 await addDoc(collection(db, "messages"), {
                     chatId: chatIdOf(myId, chatPartnerId),
