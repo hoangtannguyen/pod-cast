@@ -2032,3 +2032,9 @@ body.no-scroll {
         opacity: 1;
     }
 }
+
+.chat-start {
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+}

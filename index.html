@@ -2623,6 +2623,16 @@
         let unsubChat = null;
         // id of my message being edited in the input box ("" = the box sends a new message)
         let editingMessageId = "";
+        // friend user id -> refs of their unread messages to me (kept by watchMyMessages)
+        const unreadRefsByFriend = new Map();
+
+        // Only the newest messages are shown; scrolling to the top shows one more page
+        const CHAT_PAGE_SIZE = 10;
+        let chatLimit = CHAT_PAGE_SIZE;
+        let chatAllMessages = []; // every message of the open conversation, oldest first
+        let chatHasMore = false;
+        let chatLoadingOlder = false;
+        let chatStickBottom = true; // next render jumps to the newest message
 
         function chatTime(ms) {
             const date = new Date(ms);
@@ -2631,10 +2641,19 @@
         }
 
         function renderChatMessages(messages, myId) {
-            const $list = $("#chatMessages").empty();
+            const $list = $("#chatMessages");
+            const list = $list[0];
+            const fromBottom = list.scrollHeight - list.scrollTop;
+            const wasNearBottom = fromBottom - list.clientHeight < 80;
+            const oldTop = list.scrollTop;
+
+            $list.empty();
             if (!messages.length) {
                 $list.append($("<p>", { class: "chat-empty", text: `Hãy gửi lời chào tới ${nameOf(chatPartner)} 👋` }));
                 return;
+            }
+            if (!chatHasMore && messages.length > CHAT_PAGE_SIZE) {
+                $list.append($("<p>", { class: "chat-start", text: "Đã hiển thị hết tin nhắn" }));
             }
             messages.forEach((m) => {
                 const isMine = m.fromId === myId;
@@ -2655,15 +2674,24 @@
                 }
                 $list.append($msg);
             });
-            $list.scrollTop($list[0].scrollHeight);
+
+            if (chatLoadingOlder) {
+                // Older messages were added on top: keep the message the user was looking at in place
+                list.scrollTop = list.scrollHeight - fromBottom;
+            } else if (chatStickBottom || wasNearBottom) {
+                list.scrollTop = list.scrollHeight;
+            } else {
+                list.scrollTop = oldTop; // reading older messages: a new one at the bottom must not pull the view down
+            }
+            chatStickBottom = false;
         }
 
-        // Everything the partner sent me is read once it is on screen
-        async function markChatRead(snapshot, myId) {
-            const unread = snapshot.docs.filter((d) => d.data().toId === myId && !d.data().read);
-            if (!unread.length) return;
+        // Opening the chat reads everything the partner sent me, including messages older than the loaded page
+        async function markChatRead() {
+            const refs = unreadRefsByFriend.get(chatPartnerId) || [];
+            if (!refs.length) return;
             const batch = writeBatch(db);
-            unread.forEach((d) => batch.update(d.ref, { read: true }));
+            refs.forEach((ref) => batch.update(ref, { read: true }));
             try {
                 await batch.commit();
             } catch (err) {
@@ -2675,8 +2703,54 @@
             if (unsubChat) unsubChat();
             unsubChat = null;
             chatPartner = chatPartnerId = "";
+            chatLoadingOlder = false;
             cancelMessageEdit();
         }
+
+        function renderVisibleMessages() {
+            const list = $("#chatMessages")[0];
+            for (;;) {
+                chatHasMore = chatAllMessages.length > chatLimit;
+                renderChatMessages(chatAllMessages.slice(-chatLimit), userIdOf(currentAuthor()));
+                // Too few messages to scroll: show the next page now, otherwise it could never be reached
+                if (!chatHasMore || list.scrollHeight > list.clientHeight) break;
+                chatLimit += CHAT_PAGE_SIZE;
+            }
+        }
+
+        // Listens to the whole conversation and sorts on the client, so no composite index is needed;
+        // paging only limits how many of the loaded messages are shown
+        function subscribeChat() {
+            if (unsubChat) unsubChat();
+            const myId = userIdOf(currentAuthor());
+
+            unsubChat = onSnapshot(
+                query(collection(db, "messages"), where("chatId", "==", chatIdOf(myId, chatPartnerId))),
+                (snapshot) => {
+                    chatAllMessages = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => a.createdAt - b.createdAt);
+                    // The message being edited was deleted (here or on another device)
+                    if (editingMessageId && !chatAllMessages.some((m) => m.id === editingMessageId)) cancelMessageEdit();
+                    renderVisibleMessages();
+                    markChatRead();
+                },
+                (err) => {
+                    console.error(err);
+                    $("#chatMessages").html(renderState("fa-solid fa-triangle-exclamation", "Không tải được tin nhắn", errorMessage(err)));
+                }
+            );
+        }
+
+        function loadOlderMessages() {
+            if (!unsubChat || !chatHasMore || chatLoadingOlder) return;
+            chatLoadingOlder = true;
+            chatLimit += CHAT_PAGE_SIZE;
+            renderVisibleMessages();
+            chatLoadingOlder = false;
+        }
+
+        $("#chatMessages").on("scroll", function () {
+            if (this.scrollTop < 60) loadOlderMessages();
+        });
 
         function startMessageEdit(id, text) {
             editingMessageId = id;
@@ -2743,21 +2817,10 @@
             $("#chatModal").fadeIn(150);
             $("#chatInput").trigger("focus");
 
-            // Sorted on the client so no composite index is needed
-            unsubChat = onSnapshot(
-                query(collection(db, "messages"), where("chatId", "==", chatIdOf(myId, partnerId))),
-                (snapshot) => {
-                    const messages = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => a.createdAt - b.createdAt);
-                    // The message being edited was deleted (here or on another device)
-                    if (editingMessageId && !messages.some((m) => m.id === editingMessageId)) cancelMessageEdit();
-                    renderChatMessages(messages, myId);
-                    markChatRead(snapshot, myId);
-                },
-                (err) => {
-                    console.error(err);
-                    $("#chatMessages").html(renderState("fa-solid fa-triangle-exclamation", "Không tải được tin nhắn", errorMessage(err)));
-                }
-            );
+            chatLimit = CHAT_PAGE_SIZE;
+            chatHasMore = false;
+            chatStickBottom = true;
+            subscribeChat();
         }
 
         function onChatKey(e) {
@@ -2797,6 +2860,7 @@
                 }
                 return;
             }
+            chatStickBottom = true; // show my new message even when scrolled up
             try {
                 await addDoc(collection(db, "messages"), {
                     chatId: chatIdOf(myId, chatPartnerId),
@@ -2832,6 +2896,7 @@
             unsubMyMessages = null;
             watchedMessagesId = myId;
             unreadByFriend.clear();
+            unreadRefsByFriend.clear();
             renderFriends();
             if (!myId) return;
 
@@ -2844,10 +2909,15 @@
                     isFirstSnapshot = false;
 
                     unreadByFriend.clear();
+                    unreadRefsByFriend.clear();
                     snapshot.docs.forEach((d) => {
                         const m = d.data();
-                        if (!m.read) unreadByFriend.set(m.fromId, (unreadByFriend.get(m.fromId) || 0) + 1);
+                        if (m.read) return;
+                        unreadByFriend.set(m.fromId, (unreadByFriend.get(m.fromId) || 0) + 1);
+                        unreadRefsByFriend.set(m.fromId, [...(unreadRefsByFriend.get(m.fromId) || []), d.ref]);
                     });
+                    // A message from the friend whose chat is open is read right away
+                    if (chatPartnerId && unreadRefsByFriend.has(chatPartnerId)) markChatRead();
 
                     const added = snapshot.docChanges()
                         .filter((c) => c.type === "added" && !c.doc.data().read)
