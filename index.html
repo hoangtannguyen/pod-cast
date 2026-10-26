@@ -142,6 +142,27 @@
         </form>
     </div>
 
+    <!-- Chat popup (1-1 messages with a friend) -->
+    <div class="modal" id="chatModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="chatTitle">
+        <div class="modal-card chat-card">
+            <div class="chat-head">
+                <span class="avatar avatar-md" id="chatAvatar"></span>
+                <h2 class="chat-title" id="chatTitle"></h2>
+                <button type="button" class="icon-btn modal-close" aria-label="Đóng">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="chat-messages" id="chatMessages" aria-live="polite"></div>
+            <form class="comment-form chat-form" id="chatForm">
+                <button type="button" class="btn-emoji comment-emoji" data-target="#chatInput" aria-label="Chèn emoji">
+                    <i class="fa-regular fa-face-smile"></i>
+                </button>
+                <input type="text" class="comment-input" id="chatInput" placeholder="Nhắn tin..." maxlength="1000" autocomplete="off">
+                <button type="submit" class="link-btn btn-send" id="chatSend" disabled>Gửi</button>
+            </form>
+        </div>
+    </div>
+
     <!-- Emoji picker (shared by the composer and every comment box) -->
     <div class="emoji-popover" id="emojiPopover" style="display:none" role="dialog" aria-label="Chọn emoji"></div>
 
@@ -345,6 +366,8 @@
             startAfter,
             setDoc,
             onSnapshot,
+            runTransaction,
+            writeBatch,
         } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import {
             getAuth,
@@ -395,6 +418,8 @@
         const likesByPost = {};
         // authors seen in the feed, used for the friends bar
         const knownAuthors = new Set();
+        // friend user id -> number of their messages to me that are still unread
+        const unreadByFriend = new Map();
         // everyone who has entered a name ("users" collection): author -> { author, avatarUrl }
         const usersByAuthor = new Map();
 
@@ -552,11 +577,43 @@
         }
 
         // authEmail: the Firebase Auth account behind a password-protected name ("" = no password)
-        async function saveUser(name, avatarUrl, authEmail) {
+        // userId: carried over on rename. Every user gets a permanent random id (names can be renamed or
+        // reused after a delete), read inside a transaction so an existing id is never overwritten.
+        async function saveUser(name, avatarUrl, authEmail, userId) {
             const data = { author: name, avatarUrl: avatarUrl || "", updatedAt: Date.now() };
             if (authEmail !== undefined) data.authEmail = authEmail;
-            await setDoc(doc(db, "users", userDocId(name)), data, { merge: true });
+            const ref = doc(db, "users", userDocId(name));
+            await runTransaction(db, async (tx) => {
+                const snap = await tx.get(ref);
+                data.id = snap.data()?.id || userId || crypto.randomUUID();
+                tx.set(ref, data, { merge: true });
+            });
             usersByAuthor.set(name, { ...usersByAuthor.get(name), ...data });
+        }
+
+        // Users created before ids existed get one the first time anybody loads the list
+        async function ensureUserId(name) {
+            const ref = doc(db, "users", userDocId(name));
+            const id = await runTransaction(db, async (tx) => {
+                const snap = await tx.get(ref);
+                if (!snap.exists()) return "";
+                if (snap.data().id) return snap.data().id;
+                const newId = crypto.randomUUID();
+                tx.update(ref, { id: newId });
+                return newId;
+            });
+            if (id) usersByAuthor.set(name, { ...usersByAuthor.get(name), id });
+        }
+
+        function userIdOf(name) {
+            return usersByAuthor.get(name)?.id || "";
+        }
+
+        function authorOfId(id) {
+            for (const [name, user] of usersByAuthor) {
+                if (user.id === id) return name;
+            }
+            return "";
         }
 
         // Identity is the "emoji name" string stored on posts, comments and likes,
@@ -593,9 +650,14 @@
 
                 // Names entered before the users list existed get registered on their next visit
                 if (author && !usersByAuthor.has(author)) await saveUser(author, "");
+
+                const missingIds = [...usersByAuthor].filter(([, user]) => !user.id).map(([name]) => name);
+                await Promise.all(missingIds.map(ensureUserId));
             } catch (err) {
                 console.error("Error loading users:", err);
             }
+            // Messages are addressed by user id, which is only known once the list has loaded
+            watchMyMessages();
             renderFriends();
             refreshAvatars();
             if ($("#profileModal").is(":visible")) renderPasswordFields();
@@ -613,6 +675,7 @@
             renderFriends();
             refreshPermissions();
             watchMyActivity();
+            watchMyMessages();
             showToast("Phiên đăng nhập đã hết, hãy đăng nhập lại");
             openProfileModal();
         }
@@ -623,11 +686,25 @@
         function buildStory(name, emoji, isMe, author) {
             const $story = $(isMe ? "<button>" : "<div>", {
                 class: "story" + (isMe ? " is-active" : ""),
-                title: isMe ? "Đổi tên / avatar" : name
+                title: isMe ? "Đổi tên / avatar" : `Nhắn tin với ${name}`
             })
                 .attr(isMe ? { type: "button", id: "myStory" } : {})
                 .append($("<span>", { class: "ring" }).append(fillAvatar($("<span>", { class: "avatar avatar-lg" }), author, emoji)))
                 .append($("<span>", { class: "story-name", text: name }));
+
+            // Only users with an id can be messaged (authors of old posts may have no users entry).
+            // Friends are a <div> (the admin delete button sits inside), so act as a button via role/tabindex
+            const friendId = isMe ? "" : userIdOf(author);
+            if (friendId) {
+                $story.attr({ role: "button", tabindex: 0, "data-chat": author, "aria-label": `Nhắn tin với ${name}` })
+                    .append($("<span>", { class: "story-chat-icon", "aria-hidden": "true" }).append($("<i>", { class: "fa-solid fa-comment-dots" })));
+                const unread = unreadByFriend.get(friendId) || 0;
+                if (unread) {
+                    $story.addClass("has-unread").append(
+                        $("<span>", { class: "story-unread", text: unread > 9 ? "9+" : unread, title: `${unread} tin nhắn chưa đọc` })
+                    );
+                }
+            }
 
             if (!isMe && isAdmin) {
                 $story.append(
@@ -850,6 +927,7 @@
                 author = name;
                 saveProfile(author);
                 watchMyActivity();
+                watchMyMessages();
                 $("#loginModal").fadeOut(150);
                 renderFriends();
                 refreshPermissions();
@@ -875,6 +953,7 @@
             renderFriends();
             refreshPermissions();
             watchMyActivity();
+            watchMyMessages();
             showToast("Đã đăng xuất 👋");
         });
 
@@ -946,7 +1025,7 @@
                     ? (await uploadMedia(profilePhoto.file)).url
                     : (profilePhoto?.url || (mode === "login" ? avatarOf(next) : ""));
 
-                await saveUser(next, avatarUrl, authEmail);
+                await saveUser(next, avatarUrl, authEmail, isRename ? userIdOf(previous) : undefined);
                 if (isRename) {
                     $save.text("Đang cập nhật bài viết...");
                     await renameUser(previous, next);
@@ -958,6 +1037,7 @@
                 author = next;
                 saveProfile(author);
                 watchMyActivity();
+                watchMyMessages();
                 setProfilePhoto(avatarUrl ? { url: avatarUrl } : null);
                 closeProfileModal();
                 renderFriends();
@@ -1173,7 +1253,7 @@
             const $fields = $("#userEditForm").find("input, button").prop("disabled", true);
             $("#userEditError").hide();
             try {
-                await saveUser(next, user.avatarUrl || "", user.authEmail || "");
+                await saveUser(next, user.avatarUrl || "", user.authEmail || "", user.id);
                 await renameUser(previous, next);
                 await deleteDoc(doc(db, "users", userDocId(previous)));
                 usersByAuthor.delete(previous);
@@ -1182,6 +1262,7 @@
                     author = next;
                     saveProfile(author);
                     watchMyActivity();
+                    watchMyMessages();
                 }
                 editingUserAuthor = "";
                 $("#userEditModal").fadeOut(150);
@@ -1213,6 +1294,7 @@
                     author = "";
                     saveProfile("");
                     watchMyActivity();
+                    watchMyMessages();
                 }
                 renderUserList();
                 renderFriends();
@@ -1608,7 +1690,9 @@
                 const $thumb = $("<div>", { class: "media-thumb" });
                 if (item.type === "video") {
                     $thumb.append(
-                        $("<video>", { src: item.url, preload: "metadata" }).prop("muted", true),
+                        // "#t=0.001" makes mobile browsers show the first frame of a local (not yet uploaded) file
+                        $("<video>", { src: item.file ? `${item.url}#t=0.001` : item.url, preload: "metadata", poster: videoPoster(item.url) || undefined })
+                            .attr("playsinline", "").prop("muted", true),
                         $("<i>", { class: "fa-solid fa-play media-thumb-badge" })
                     );
                 } else {
@@ -1756,6 +1840,13 @@
             return $post;
         }
 
+        // Phones do not paint a frame for preload="metadata" until playback starts, so videos showed black.
+        // Cloudinary serves a frame of the video as an image: "so_0" = first frame, ".jpg" = image format.
+        function videoPoster(url) {
+            if (!/res\.cloudinary\.com\/.+\/video\/upload\//.test(url)) return "";
+            return url.replace("/video/upload/", "/video/upload/so_0/").replace(/\.[a-z0-9]+(\?.*)?$/i, ".jpg");
+        }
+
         function renderPostMedia($post, media) {
             const $wrap = $post.find(".post-media");
             const $track = $wrap.find(".media-track").empty();
@@ -1766,7 +1857,8 @@
             media.forEach((item) => {
                 const $slide = $("<div>", { class: "media-slide" });
                 if (item.type === "video") {
-                    $slide.append($("<video>", { src: item.url, preload: "metadata" }).attr({ controls: "", playsinline: "" }));
+                    const poster = videoPoster(item.url);
+                    $slide.append($("<video>", { src: item.url, preload: "metadata" }).attr({ controls: "", playsinline: "", ...(poster ? { poster } : {}) }));
                 } else {
                     $slide.append(
                         $("<img>", { src: item.url, alt: "", loading: "lazy" }).on("error", function () {
@@ -2361,7 +2453,7 @@
         // kind "post" reloads the page on click; other kinds scroll to the post
         function addNotification({ kind, icon, who, action, caption, postId, ms }) {
             const $item = $("<li>").append(
-                $("<button>", { type: "button", class: "notify-item is-unread", "data-post-id": postId, "data-kind": kind }).append(
+                $("<button>", { type: "button", class: "notify-item is-unread", "data-post-id": postId, "data-kind": kind, "data-who": who }).append(
                     fillAvatar($("<span>", { class: "avatar avatar-md notify-avatar" }), who, emojiOf(who)),
                     $("<span>", { class: "notify-text" }).append(
                         $("<strong>", { text: nameOf(who) }),
@@ -2500,6 +2592,10 @@
                 return;
             }
             closeNotify();
+            if ($(this).attr("data-kind") === "message") {
+                openChat($(this).attr("data-who"));
+                return;
+            }
             const $post = $(`#feed .post[data-id="${$(this).attr("data-post-id")}"]`);
             if (!$post.length) {
                 showToast("Bài viết chưa được tải trong bảng tin");
@@ -2508,6 +2604,216 @@
             $post[0].scrollIntoView({ behavior: "smooth", block: "center" });
             loadComments($post);
         });
+
+        /* ---------- Chat ---------- */
+
+        // Conversations are keyed by user ids, not names: names can be renamed or reused after a delete.
+        // Sorting makes the id the same from both sides.
+        function chatIdOf(idA, idB) {
+            return [idA, idB].sort().join("_");
+        }
+
+        let chatPartner = ""; // author name, for the header
+        let chatPartnerId = "";
+        let unsubChat = null;
+
+        function chatTime(ms) {
+            const date = new Date(ms);
+            const time = date.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+            return date.toDateString() === new Date().toDateString() ? time : `${date.toLocaleDateString("vi-VN")} ${time}`;
+        }
+
+        function renderChatMessages(messages, myId) {
+            const $list = $("#chatMessages").empty();
+            if (!messages.length) {
+                $list.append($("<p>", { class: "chat-empty", text: `Hãy gửi lời chào tới ${nameOf(chatPartner)} 👋` }));
+                return;
+            }
+            messages.forEach((m) => {
+                $list.append(
+                    $("<div>", { class: "chat-msg" + (m.fromId === myId ? " is-mine" : "") }).append(
+                        $("<span>", { class: "chat-bubble", text: m.text }),
+                        $("<span>", { class: "chat-time", text: chatTime(m.createdAt) })
+                    )
+                );
+            });
+            $list.scrollTop($list[0].scrollHeight);
+        }
+
+        // Everything the partner sent me is read once it is on screen
+        async function markChatRead(snapshot, myId) {
+            const unread = snapshot.docs.filter((d) => d.data().toId === myId && !d.data().read);
+            if (!unread.length) return;
+            const batch = writeBatch(db);
+            unread.forEach((d) => batch.update(d.ref, { read: true }));
+            try {
+                await batch.commit();
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function stopChat() {
+            if (unsubChat) unsubChat();
+            unsubChat = null;
+            chatPartner = chatPartnerId = "";
+        }
+
+        function openChat(partner) {
+            if (!partner || !requireAuthor()) return;
+            const myId = userIdOf(currentAuthor());
+            const partnerId = userIdOf(partner);
+            if (partner === currentAuthor()) return;
+            if (!myId || !partnerId) {
+                showToast("Chưa nhắn tin được với người này, thử tải lại trang");
+                return;
+            }
+
+            stopChat();
+            chatPartner = partner;
+            chatPartnerId = partnerId;
+            fillAvatar($("#chatAvatar"), partner);
+            $("#chatTitle").text(nameOf(partner));
+            $("#chatMessages").empty().append($("<div>", { class: "spinner" }));
+            $("#chatInput").val("");
+            $("#chatSend").prop("disabled", true);
+            $("#chatModal").fadeIn(150);
+            $("#chatInput").trigger("focus");
+
+            // Sorted on the client so no composite index is needed
+            unsubChat = onSnapshot(
+                query(collection(db, "messages"), where("chatId", "==", chatIdOf(myId, partnerId))),
+                (snapshot) => {
+                    const messages = snapshot.docs.map((d) => d.data()).sort((a, b) => a.createdAt - b.createdAt);
+                    renderChatMessages(messages, myId);
+                    markChatRead(snapshot, myId);
+                },
+                (err) => {
+                    console.error(err);
+                    $("#chatMessages").html(renderState("fa-solid fa-triangle-exclamation", "Không tải được tin nhắn", errorMessage(err)));
+                }
+            );
+        }
+
+        function onChatKey(e) {
+            if ((e.key === "Enter" || e.key === " ") && !$(e.target).closest(".story-delete").length) {
+                e.preventDefault();
+                openChat($(this).attr("data-chat"));
+            }
+        }
+
+        $("#friendsList")
+            .on("click", ".story[data-chat]", function (e) {
+                if ($(e.target).closest(".story-delete").length) return;
+                openChat($(this).attr("data-chat"));
+            })
+            .on("keydown", ".story[data-chat]", onChatKey);
+
+        $("#chatInput").on("input", function () {
+            $("#chatSend").prop("disabled", !$.trim($(this).val()));
+        });
+
+        $("#chatForm").on("submit", async function (e) {
+            e.preventDefault();
+            const text = $.trim($("#chatInput").val());
+            const myId = userIdOf(currentAuthor());
+            if (!text || !chatPartnerId || !myId) return;
+
+            $("#chatSend").prop("disabled", true);
+            try {
+                await addDoc(collection(db, "messages"), {
+                    chatId: chatIdOf(myId, chatPartnerId),
+                    fromId: myId,
+                    toId: chatPartnerId,
+                    text: text,
+                    createdAt: Date.now(),
+                    read: false
+                });
+                $("#chatInput").val("").trigger("focus");
+            } catch (err) {
+                console.error(err);
+                showToast(errorMessage(err));
+                $("#chatSend").prop("disabled", false);
+            }
+        });
+
+        // The shared modal handlers only hide the popup, so stop listening once it is gone
+        new MutationObserver(() => {
+            if ($("#chatModal")[0].style.display === "none") stopChat();
+        }).observe($("#chatModal")[0], { attributes: true, attributeFilter: ["style"] });
+
+        // Unread messages to me: badges on the friends bar and bell notifications.
+        // Re-subscribed when the signed-in user changes.
+        let unsubMyMessages = null;
+        let watchedMessagesId = "";
+
+        function watchMyMessages() {
+            const myId = userIdOf(currentAuthor());
+            if (myId === watchedMessagesId) return;
+
+            if (unsubMyMessages) unsubMyMessages();
+            unsubMyMessages = null;
+            watchedMessagesId = myId;
+            unreadByFriend.clear();
+            renderFriends();
+            if (!myId) return;
+
+            let isFirstSnapshot = true;
+            // Filtered by "read" on the client so no composite index is needed
+            unsubMyMessages = onSnapshot(
+                query(collection(db, "messages"), where("toId", "==", myId)),
+                async (snapshot) => {
+                    const isFirst = isFirstSnapshot;
+                    isFirstSnapshot = false;
+
+                    unreadByFriend.clear();
+                    snapshot.docs.forEach((d) => {
+                        const m = d.data();
+                        if (!m.read) unreadByFriend.set(m.fromId, (unreadByFriend.get(m.fromId) || 0) + 1);
+                    });
+
+                    const added = snapshot.docChanges()
+                        .filter((c) => c.type === "added" && !c.doc.data().read)
+                        .map((c) => c.doc.data());
+
+                    // The users list is loaded once per page, so a sender who signed up or renamed
+                    // after that is unknown here: without a reload their message and avatar would be dropped
+                    if (added.some((m) => !authorOfId(m.fromId))) await loadUsers();
+
+                    const isChatOpen = $("#chatModal").is(":visible");
+                    const fresh = added.filter((m) => !(isChatOpen && m.fromId === chatPartnerId) && authorOfId(m.fromId));
+
+                    if (isFirst) {
+                        // Messages that arrived while away: one notification per friend
+                        const latestByFriend = new Map();
+                        fresh.forEach((m) => {
+                            if ((latestByFriend.get(m.fromId)?.createdAt || 0) < m.createdAt) latestByFriend.set(m.fromId, m);
+                        });
+                        latestByFriend.forEach((m, fromId) => addNotification({
+                            kind: "message",
+                            icon: "fa-regular fa-paper-plane",
+                            who: authorOfId(fromId),
+                            action: `có ${unreadByFriend.get(fromId)} tin nhắn chưa đọc, mới nhất:`,
+                            caption: m.text,
+                            postId: "",
+                            ms: m.createdAt
+                        }));
+                    } else {
+                        fresh.forEach((m) => addNotification({
+                            kind: "message",
+                            icon: "fa-regular fa-paper-plane",
+                            who: authorOfId(m.fromId),
+                            action: "đã nhắn tin cho bạn:",
+                            caption: m.text,
+                            postId: "",
+                            ms: m.createdAt
+                        }));
+                    }
+                    renderFriends();
+                },
+                (err) => console.error(err)
+            );
+        }
 
         watchMyActivity();
 
