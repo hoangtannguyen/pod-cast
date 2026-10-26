@@ -1919,10 +1919,53 @@
         }, { rootMargin: "400px" });
 
         // Start over from the newest post (first load, after posting, after the feed becomes empty)
+        // Keeps the like counts of the posts on screen in sync with other users.
+        // Listens to the newest N posts (N = posts on screen), re-subscribed whenever the feed grows.
+        let unsubFeedLikes = null;
+        let watchedFeedSize = 0;
+
+        function watchFeedLikes() {
+            const size = $("#feed .post").length;
+            if (size === watchedFeedSize) return;
+            if (unsubFeedLikes) unsubFeedLikes();
+            unsubFeedLikes = null;
+            watchedFeedSize = size;
+            if (!size) return;
+
+            unsubFeedLikes = onSnapshot(
+                query(collection(db, "photos"), orderBy("createdAt", "desc"), limit(size)),
+                (snapshot) => {
+                    snapshot.docs.forEach((docSnap) => {
+                        const $post = $(`#feed .post[data-id="${docSnap.id}"]`);
+                        if (!$post.length) return;
+                        const likes = Array.isArray(docSnap.data().likes) ? docSnap.data().likes : [];
+                        const current = likesByPost[docSnap.id] || [];
+                        if (likes.length === current.length && likes.every((name, i) => name === current[i])) return;
+                        likesByPost[docSnap.id] = [...likes];
+                        renderLikes($post);
+                    });
+                },
+                (err) => console.error(err)
+            );
+        }
+
+        // A post someone else just published goes straight to the top of the feed
+        function prependNewPost(id, data) {
+            if ($(`#feed .post[data-id="${id}"]`).length) return;
+            $("#feed .feed-state").remove(); // "no posts yet"
+            if (data.auth) knownAuthors.add(data.auth);
+            const $post = buildPost(id, data);
+            $("#feed").prepend($post);
+            loadComments($post);
+            renderFriends();
+            watchFeedLikes();
+        }
+
         async function loadFeed() {
             lastDoc = null;
             hasMore = true;
             knownAuthors.clear();
+            stopCommentListeners();
             $("#feed").empty();
             $("#feedEnd, #feedRetry").hide();
             await loadNextPage();
@@ -1953,6 +1996,8 @@
                 snapshot.forEach((docSnap) => {
                     const data = docSnap.data();
                     if (data.auth) knownAuthors.add(data.auth);
+                    // Already inserted live by prependNewPost() while this page was loading
+                    if ($feed.children(`.post[data-id="${docSnap.id}"]`).length) return;
                     const $post = buildPost(docSnap.id, data);
                     $feed.append($post);
                     loadComments($post);
@@ -1976,6 +2021,7 @@
             } finally {
                 isLoadingPage = false;
                 $("#feedLoader").hide();
+                watchFeedLikes();
                 // Re-observing fires the callback again if the sentinel is still on screen
                 // (e.g. a tall screen with only a few posts), so the page keeps filling up
                 if (hasMore && !failed) {
@@ -2074,6 +2120,7 @@
                 await deleteDoc(doc(db, "photos", id));
 
                 delete likesByPost[id];
+                stopCommentListeners(id);
                 $post.slideUp(250, function () {
                     $(this).remove();
                     if (!$("#feed .post").length) loadFeed();
@@ -2288,28 +2335,83 @@
                 .text(`Xem thêm bình luận (${hidden})`);
         }
 
-        async function loadComments($post) {
-            const id = $post.attr("data-id");
-            const $list = $post.find(".comments-list");
+        // Comments of each post on screen are live: postId -> Map(commentId -> comment), and its listener
+        const commentsByPost = new Map();
+        const commentListeners = new Map();
 
-            try {
-                const q = query(collection(db, "comments"), where("postId", "==", id));
-                const snapshot = await getDocs(q);
+        function stopCommentListeners(postId) {
+            const ids = postId ? [postId] : [...commentListeners.keys()];
+            ids.forEach((id) => {
+                commentListeners.get(id)?.();
+                commentListeners.delete(id);
+                commentsByPost.delete(id);
+            });
+        }
 
-                const comments = snapshot.docs
-                    .map((docSnap) => {
-                        const data = docSnap.data();
-                        return { ...data, id: docSnap.id, ms: toMillis(data.createdAt) };
-                    })
-                    .sort((a, b) => b.ms - a.ms);
+        // Full redraw from the cached comments (also re-applies edit/delete permissions)
+        function renderCommentList($post) {
+            const comments = [...(commentsByPost.get($post.attr("data-id"))?.values() || [])].sort((a, b) => b.ms - a.ms);
+            $post.find(".comments-list").empty().append(comments.map((c) => renderComment(c).attr("data-ms", c.ms)));
+            applyCommentLimit($post);
+        }
 
-                $list.empty().append(comments.map(renderComment));
-                applyCommentLimit($post);
-            } catch (err) {
-                console.error("Error loading comments:", err);
-                $list.html($("<p>", { class: "comment-time", text: "Không tải được bình luận." }));
-                $post.find(".post-comments").show();
+        // Applies one change in place, so an open edit form or the "Xem thêm" state survives
+        function applyCommentChange($list, change) {
+            const $existing = $list.children(`.comment[data-comment-id="${change.doc.id}"]`);
+            if (change.type === "removed") {
+                $existing.remove();
+                return;
             }
+            const data = change.doc.data();
+            const comment = { ...data, id: change.doc.id, ms: toMillis(data.createdAt) };
+            if ($existing.length) {
+                $existing.find(".comment-text").text(comment.text);
+                $existing.find(".comment-edited").toggle(!!comment.editedAt);
+                return;
+            }
+            // Newest first
+            const $comment = renderComment(comment).attr("data-ms", comment.ms);
+            const $older = $list.children(".comment").filter(function () {
+                return Number($(this).attr("data-ms")) < comment.ms;
+            }).first();
+            if ($older.length) $comment.insertBefore($older);
+            else $list.append($comment);
+        }
+
+        function loadComments($post) {
+            const id = $post.attr("data-id");
+            if (commentListeners.has(id)) {
+                renderCommentList($post);
+                return;
+            }
+
+            const $list = $post.find(".comments-list");
+            const cache = new Map();
+            commentsByPost.set(id, cache);
+            let isFirstSnapshot = true;
+
+            commentListeners.set(id, onSnapshot(
+                query(collection(db, "comments"), where("postId", "==", id)),
+                (snapshot) => {
+                    snapshot.docChanges().forEach((change) => {
+                        if (change.type === "removed") cache.delete(change.doc.id);
+                        else cache.set(change.doc.id, { ...change.doc.data(), id: change.doc.id, ms: toMillis(change.doc.data().createdAt) });
+                    });
+                    if (isFirstSnapshot) {
+                        isFirstSnapshot = false;
+                        renderCommentList($post);
+                        return;
+                    }
+                    snapshot.docChanges().forEach((change) => applyCommentChange($list, change));
+                    applyCommentLimit($post);
+                },
+                (err) => {
+                    console.error("Error loading comments:", err);
+                    stopCommentListeners(id); // allow a later retry
+                    $list.html($("<p>", { class: "comment-time", text: "Không tải được bình luận." }));
+                    $post.find(".post-comments").show();
+                }
+            ));
         }
 
         async function addComment($post) {
@@ -2329,8 +2431,7 @@
                     author: currentAuthor(),
                     createdAt: Date.now()
                 });
-                $input.val("");
-                await loadComments($post);
+                $input.val(""); // the live listener shows the new comment
             } catch (err) {
                 console.error(err);
                 $send.prop("disabled", false);
@@ -2455,7 +2556,7 @@
             return text.length > 60 ? `${text.slice(0, 60)}…` : text;
         }
 
-        // kind "post" reloads the page on click; other kinds scroll to the post
+        // kind "message" opens the chat on click; other kinds scroll to the post
         function addNotification({ kind, icon, who, action, caption, postId, ms }) {
             const $item = $("<li>").append(
                 $("<button>", { type: "button", class: "notify-item is-unread", "data-post-id": postId, "data-kind": kind, "data-who": who }).append(
@@ -2482,11 +2583,12 @@
                     const data = change.doc.data();
                     // Own posts are already shown by loadFeed() after posting
                     if (data.auth === currentAuthor()) return;
+                    prependNewPost(change.doc.id, data);
                     addNotification({
-                        kind: "post",
-                        icon: "fa-solid fa-rotate-right",
+                        kind: "new-post",
+                        icon: "fa-regular fa-image",
                         who: data.auth,
-                        action: "đã đăng bài viết mới — nhấn để tải lại",
+                        action: "đã đăng bài viết mới",
                         caption: data.comment,
                         postId: change.doc.id,
                         ms: toMillis(data.createdAt)
@@ -2592,10 +2694,6 @@
 
         $("#notifyList").on("click", ".notify-item", function () {
             $(this).removeClass("is-unread");
-            if ($(this).attr("data-kind") === "post") {
-                location.reload();
-                return;
-            }
             closeNotify();
             if ($(this).attr("data-kind") === "message") {
                 openChat($(this).attr("data-who"));
