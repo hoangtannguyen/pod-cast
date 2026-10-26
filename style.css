@@ -94,9 +94,16 @@ img {
 .logo-img {
     width: 34px;
     height: 34px;
-    object-fit: contain;
-    /* the PNG has a white margin around the icon; scale it up so the icon itself reads bigger */
-    transform: scale(1.25);
+    flex-shrink: 0;
+}
+
+/* same gradient as the "V" mark (images/vibe-logo.svg) */
+.logo-text {
+    padding: 0 2px 4px; /* room for the script font's swashes, which the clipped background would cut off */
+    background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 50%, #ec4899 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
 }
 
 .topbar-actions {
