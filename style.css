@@ -1819,7 +1819,7 @@ body.no-scroll {
 
 /* Very narrow phones (iPhone SE, small Androids) */
 @media (max-width: 360px) {
-    .logo span {
+    .logo .logo-text {
         font-size: 24px;
     }
 
@@ -2623,4 +2623,37 @@ body.no-scroll {
     color: var(--muted);
     font-weight: 400;
     pointer-events: none;
+}
+
+/* Tagline under the wordmark */
+.logo-brand {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.logo-tagline {
+    margin-top: -2px; /* the script font leaves room below for its swashes */
+    padding-left: 3px; /* line up with the "V" stroke rather than its swash */
+    font-family: var(--font);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+    color: var(--muted);
+}
+
+/* Very narrow phones: the header has little room, keep only the wordmark */
+@media (max-width: 360px) {
+    .logo-tagline {
+        display: none;
+    }
+}
+
+/* Phones: the topbar is crowded with icons, so keep the tagline about as wide as the wordmark */
+@media (max-width: 500px) {
+    .logo-tagline {
+        font-size: 9px;
+        letter-spacing: 0;
+    }
 }
