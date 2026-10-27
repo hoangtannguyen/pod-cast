@@ -3220,8 +3220,13 @@
             .on("click", ".chat-delete", async function () {
                 if (!confirm("Xoá tin nhắn này?")) return;
                 const $msg = $(this).closest(".chat-msg").addClass("is-busy");
+                const id = $msg.attr("data-id");
+                // Read before deleting: the live listener drops the message from chatAllMessages right away
+                const wasLast = chatAllMessages[chatAllMessages.length - 1]?.id === id;
+                const remaining = chatAllMessages.filter((m) => m.id !== id);
                 try {
-                    await deleteDoc(doc(db, "messages", $msg.attr("data-id")));
+                    await deleteDoc(doc(db, "messages", id));
+                    if (wasLast) syncConversationLast(remaining);
                 } catch (err) {
                     console.error(err);
                     $msg.removeClass("is-busy");
@@ -3481,6 +3486,27 @@
             if (chatConv.name) data.name = chatConv.name;
             try {
                 await setDoc(doc(db, "conversations", chatConv.id), data, { merge: true });
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        // After the newest message is deleted or edited, point the list entry at the message now last.
+        // A 1-1 chat with no messages left leaves the list; an empty group stays (it still has members).
+        async function syncConversationLast(messages) {
+            if (!chatConv) return;
+            const ref = doc(db, "conversations", chatConv.id);
+            const last = messages[messages.length - 1];
+            // type + memberIds are required by the rules when the entry does not exist yet (1-1 chats from before the list)
+            const base = { type: chatConv.type, memberIds: chatConv.memberIds };
+            try {
+                if (!last && chatConv.type === "direct") {
+                    await deleteDoc(ref);
+                } else if (!last) {
+                    await setDoc(ref, { ...base, lastText: "Chưa có tin nhắn", lastFromId: "" }, { merge: true });
+                } else {
+                    await setDoc(ref, { ...base, lastText: last.text, lastAt: last.createdAt, lastFromId: last.fromId }, { merge: true });
+                }
             } catch (err) {
                 console.error(err);
             }
@@ -3790,7 +3816,10 @@
             $("#chatSend").prop("disabled", true);
             if (editingMessageId) {
                 try {
-                    await updateDoc(doc(db, "messages", editingMessageId), { text: text, editedAt: Date.now() });
+                    const editedId = editingMessageId;
+                    await updateDoc(doc(db, "messages", editedId), { text: text, editedAt: Date.now() });
+                    const last = chatAllMessages[chatAllMessages.length - 1];
+                    if (last?.id === editedId) syncConversationLast([{ ...last, text: text }]);
                     cancelMessageEdit();
                     $("#chatInput").trigger("focus");
                 } catch (err) {

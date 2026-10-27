@@ -2590,3 +2590,17 @@ body.no-scroll {
 :root[data-theme="dark"] .profile-cover-btn {
     color: #262626;
 }
+
+/* Notifications: the unread highlight is a fixed light blue, unreadable under light dark-mode text */
+:root[data-theme="dark"] .notify-item.is-unread {
+    background: #0d2a40;
+}
+
+:root[data-theme="dark"] .notify-item.is-unread:hover,
+:root[data-theme="dark"] .notify-item:hover {
+    background: #1c1c1c;
+}
+
+:root[data-theme="dark"] .notify-dropdown {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
