@@ -20,6 +20,14 @@
                 <span class="logo-text">VibeGram</span>
             </h1>
             <div class="topbar-actions">
+                <!-- Smaller screens only: on wide screens the profile is always shown in the left column -->
+                <button type="button" class="admin-btn admin-btn-icon profile-open-btn" id="btnMyProfile" title="Trang cá nhân" aria-label="Trang cá nhân" style="display:none">
+                    <i class="fa-regular fa-id-card"></i>
+                </button>
+                <button type="button" class="admin-btn admin-btn-icon notify-btn" id="btnChat" title="Tin nhắn" aria-label="Tin nhắn" style="display:none">
+                    <i class="fa-regular fa-paper-plane"></i>
+                    <span class="notify-badge" id="chatBadge" style="display:none">0</span>
+                </button>
                 <div class="topbar-meta" title="Số thành viên">
                     <i class="fa-regular fa-user"></i>
                     <span id="friendCount">0</span>
@@ -51,6 +59,7 @@
         </div>
     </header>
 
+    <div class="page-layout">
     <main class="container">
         <!-- Friends (stories) -->
         <section class="stories" id="friendsList" aria-label="Bạn bè"></section>
@@ -103,6 +112,30 @@
         <div id="feedSentinel" aria-hidden="true"></div>
     </main>
 
+    <!-- Profile: left column on wide screens (placed by CSS grid), popup on smaller screens -->
+    <aside class="profile-panel" id="profilePanel" aria-label="Trang cá nhân">
+        <div class="profile-card card">
+            <button type="button" class="icon-btn profile-panel-close" id="profilePanelClose" aria-label="Đóng">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <div class="profile-cover" id="profileCover"></div>
+            <div class="profile-cover-actions" id="profileCoverActions" style="display:none">
+                <label class="btn-ghost profile-cover-btn">
+                    <i class="fa-solid fa-camera"></i>
+                    <span id="profileCoverLabel">Thêm ảnh bìa</span>
+                    <input type="file" id="profileCoverFile" accept="image/*" hidden>
+                </label>
+                <button type="button" class="btn-ghost profile-cover-btn" id="profileCoverRemove" aria-label="Xoá ảnh bìa" title="Xoá ảnh bìa" style="display:none">
+                    <i class="fa-regular fa-trash-can"></i>
+                </button>
+            </div>
+            <span class="ring profile-panel-ring"><span class="avatar avatar-xl" id="profilePanelAvatar"></span></span>
+            <h2 class="profile-panel-name" id="profilePanelName"></h2>
+            <div class="profile-panel-actions" id="profilePanelActions"></div>
+        </div>
+    </aside>
+    </div>
+
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
     <!-- Profile popup -->
@@ -143,12 +176,52 @@
         </form>
     </div>
 
-    <!-- Chat popup (1-1 messages with a friend) -->
-    <div class="modal" id="chatModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="chatTitle">
+    <!-- Chat popup: conversation list -> conversation (1-1 or group); "new group" form -->
+    <div class="modal" id="chatModal" style="display:none" role="dialog" aria-modal="true" aria-label="Tin nhắn">
         <div class="modal-card chat-card">
+            <div class="chat-view" id="chatListView">
+                <div class="chat-head">
+                    <h2 class="chat-title">Tin nhắn</h2>
+                    <button type="button" class="icon-btn" id="chatNewGroup" title="Tạo nhóm" aria-label="Tạo nhóm">
+                        <i class="fa-solid fa-user-plus"></i>
+                    </button>
+                    <button type="button" class="icon-btn modal-close" aria-label="Đóng">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="chat-search">
+                    <input type="search" id="chatSearch" class="modal-input" placeholder="Tìm cuộc trò chuyện hoặc bạn bè..." aria-label="Tìm kiếm">
+                </div>
+                <div class="chat-list" id="chatList"></div>
+            </div>
+
+            <form class="chat-view" id="chatGroupForm" style="display:none">
+                <div class="chat-head">
+                    <button type="button" class="icon-btn chat-back" aria-label="Quay lại"><i class="fa-solid fa-chevron-left"></i></button>
+                    <h2 class="chat-title">Tạo nhóm</h2>
+                </div>
+                <div class="chat-group-body">
+                    <input type="text" id="chatGroupName" class="modal-input" placeholder="Tên nhóm (vd: Cầu lông tối thứ 5)" maxlength="50">
+                    <p class="modal-hint">Chọn thành viên:</p>
+                    <div class="chat-group-members" id="chatGroupMembers"></div>
+                    <p class="modal-error" id="chatGroupError" style="display:none"></p>
+                </div>
+                <div class="chat-group-actions">
+                    <button type="submit" class="btn-primary" id="chatGroupSave">Tạo nhóm</button>
+                </div>
+            </form>
+
+            <div class="chat-view" id="chatConvView" style="display:none">
             <div class="chat-head">
+                <button type="button" class="icon-btn chat-back" aria-label="Quay lại danh sách"><i class="fa-solid fa-chevron-left"></i></button>
                 <span class="avatar avatar-md" id="chatAvatar"></span>
                 <h2 class="chat-title" id="chatTitle"></h2>
+                <button type="button" class="btn-ghost chat-event-btn" id="chatCreateEvent" style="display:none" title="Tạo kèo cầu lông">
+                    🏸 <span>Tạo kèo</span>
+                </button>
+                <button type="button" class="icon-btn chat-delete-group" id="chatDeleteGroup" style="display:none" title="Xoá nhóm" aria-label="Xoá nhóm">
+                    <i class="fa-regular fa-trash-can"></i>
+                </button>
                 <button type="button" class="icon-btn modal-close" aria-label="Đóng">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
@@ -166,7 +239,42 @@
                 <input type="text" class="comment-input" id="chatInput" placeholder="Nhắn tin..." maxlength="1000" autocomplete="off">
                 <button type="submit" class="link-btn btn-send" id="chatSend" disabled>Gửi</button>
             </form>
+            </div>
         </div>
+    </div>
+
+    <!-- Create / edit a badminton event (group chats) -->
+    <div class="modal" id="eventModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="eventFormTitle">
+        <form class="modal-card event-form" id="eventForm">
+            <h2 class="modal-title" id="eventFormTitle">Tạo kèo cầu lông 🏸</h2>
+            <label class="event-field">Ngày chơi
+                <input type="date" id="eventDate" class="modal-input" required>
+            </label>
+            <div class="event-row">
+                <label class="event-field">Bắt đầu
+                    <input type="time" id="eventStart" class="modal-input" required>
+                </label>
+                <label class="event-field">Kết thúc
+                    <input type="time" id="eventEnd" class="modal-input" required>
+                </label>
+            </div>
+            <label class="event-field">Sân / địa điểm
+                <input type="text" id="eventPlace" class="modal-input" maxlength="100" placeholder="vd: Sân Hoà Bình, Q.10" required>
+            </label>
+            <div class="event-row">
+                <label class="event-field">Số người tối đa
+                    <input type="number" id="eventCapacity" class="modal-input" min="2" max="50" step="1" required>
+                </label>
+                <label class="event-field">Tiền sân dự kiến (đ)
+                    <input type="number" id="eventCost" class="modal-input" min="0" step="1000" placeholder="0">
+                </label>
+            </div>
+            <p class="modal-error" id="eventError" style="display:none"></p>
+            <div class="modal-actions">
+                <button type="button" class="btn-ghost modal-close">Huỷ</button>
+                <button type="submit" class="btn-primary" id="eventSave">Tạo kèo</button>
+            </div>
+        </form>
     </div>
 
     <!-- Emoji picker (shared by the composer and every comment box) -->
@@ -585,8 +693,9 @@
         // authEmail: the Firebase Auth account behind a password-protected name ("" = no password)
         // userId: carried over on rename. Every user gets a permanent random id (names can be renamed or
         // reused after a delete), read inside a transaction so an existing id is never overwritten.
-        async function saveUser(name, avatarUrl, authEmail, userId) {
-            const data = { author: name, avatarUrl: avatarUrl || "", updatedAt: Date.now() };
+        // extra: other profile fields carried over on rename (e.g. coverUrl), since a rename creates a new document
+        async function saveUser(name, avatarUrl, authEmail, userId, extra = {}) {
+            const data = { ...extra, author: name, avatarUrl: avatarUrl || "", updatedAt: Date.now() };
             if (authEmail !== undefined) data.authEmail = authEmail;
             const ref = doc(db, "users", userDocId(name));
             await runTransaction(db, async (tx) => {
@@ -692,18 +801,25 @@
         function buildStory(name, emoji, isMe, author) {
             const $story = $(isMe ? "<button>" : "<div>", {
                 class: "story" + (isMe ? " is-active" : ""),
-                title: isMe ? "Đổi tên / avatar" : `Nhắn tin với ${name}`
+                title: isMe ? "Đổi tên / avatar" : `Xem trang cá nhân của ${name}`
             })
                 .attr(isMe ? { type: "button", id: "myStory" } : {})
                 .append($("<span>", { class: "ring" }).append(fillAvatar($("<span>", { class: "avatar avatar-lg" }), author, emoji)))
                 .append($("<span>", { class: "story-name", text: name }));
 
-            // Only users with an id can be messaged (authors of old posts may have no users entry).
-            // Friends are a <div> (the admin delete button sits inside), so act as a button via role/tabindex
+            // Friends are a <div> (the admin delete button sits inside), so act as a button via role/tabindex.
+            // Clicking opens their profile; the small chat icon opens the chat directly.
+            if (!isMe) {
+                $story.attr({ role: "button", tabindex: 0, "data-profile": author, "aria-label": `Xem trang cá nhân của ${name}` });
+            }
+
+            // Only users with an id can be messaged (authors of old posts may have no users entry)
             const friendId = isMe ? "" : userIdOf(author);
             if (friendId) {
-                $story.attr({ role: "button", tabindex: 0, "data-chat": author, "aria-label": `Nhắn tin với ${name}` })
-                    .append($("<span>", { class: "story-chat-icon", "aria-hidden": "true" }).append($("<i>", { class: "fa-solid fa-comment-dots" })));
+                $story.append(
+                    $("<button>", { type: "button", class: "story-chat-icon", "data-chat": author, title: `Nhắn tin với ${name}`, "aria-label": `Nhắn tin với ${name}` })
+                        .append($("<i>", { class: "fa-solid fa-comment-dots" }))
+                );
                 const unread = unreadByFriend.get(friendId) || 0;
                 if (unread) {
                     $story.addClass("has-unread").append(
@@ -739,10 +855,149 @@
             fillAvatar($("#selectedAvatar"), me, me ? undefined : "🙂");
             $("#authorName").text(me ? nameOf(me) : "Nhập tên của bạn");
             $("#btnLogin").toggle(!me);
+            $("#btnMyProfile").toggle(!!me);
+            $("#btnChat").toggle(!!me);
+            const unreadTotal = [...unreadByFriend.values()].reduce((sum, n) => sum + n, 0);
+            $("#chatBadge").text(unreadTotal > 9 ? "9+" : unreadTotal).toggle(unreadTotal > 0);
+            renderProfilePanel();
+            if ($("#chatListView").is(":visible")) renderChatList();
         }
 
         $("#friendsList").on("click", "#myStory", openProfileModal);
         $("#btnProfile").on("click", openProfileModal);
+
+        /* ---------- Profile panel ---------- */
+
+        // Whose profile the panel shows ("" = the current user)
+        let profileTarget = "";
+        // Must match the breakpoint in style.css where the panel becomes the right column
+        const WIDE_LAYOUT = window.matchMedia("(min-width: 1120px)");
+
+        function renderProfilePanel() {
+            const me = currentAuthor();
+            // Viewing myself, or the viewed user was deleted: back to my own profile
+            if (profileTarget === me || (profileTarget && !usersByAuthor.has(profileTarget) && !knownAuthors.has(profileTarget))) {
+                profileTarget = "";
+            }
+
+            const name = profileTarget || me;
+            const isMine = !!me && name === me;
+            const cover = usersByAuthor.get(name)?.coverUrl || "";
+
+            const $cover = $("#profileCover").empty().toggleClass("has-photo", !!cover);
+            if (cover) $cover.append($("<img>", { src: cover, alt: "" }));
+            fillAvatar($("#profilePanelAvatar"), name, name ? undefined : "🙂");
+            $("#profilePanelName").text(name ? nameOf(name) : "Bạn là ai? 👋");
+
+            $("#profileCoverActions").toggle(isMine);
+            $("#profileCoverLabel").text(cover ? "Đổi ảnh bìa" : "Thêm ảnh bìa");
+            $("#profileCoverRemove").toggle(isMine && !!cover);
+
+            const $actions = $("#profilePanelActions").empty();
+            if (!name) {
+                $actions.append($("<button>", { type: "button", class: "btn-primary profile-edit", text: "Nhập tên của bạn" }));
+            } else if (isMine) {
+                $actions.append(
+                    $("<button>", { type: "button", class: "btn-ghost profile-edit" })
+                        .append($("<i>", { class: "fa-solid fa-pen" }), $("<span>", { text: "Chỉnh sửa trang cá nhân" }))
+                );
+            } else if (me) {
+                if (userIdOf(name)) {
+                    $actions.append(
+                        $("<button>", { type: "button", class: "btn-primary profile-chat" })
+                            .append($("<i>", { class: "fa-solid fa-comment-dots" }), $("<span>", { text: "Nhắn tin" }))
+                    );
+                }
+                $actions.append($("<button>", { type: "button", class: "btn-ghost profile-back", text: "Về trang của bạn" }));
+            }
+        }
+
+        function openProfilePanel() {
+            $("#profilePanel").addClass("is-open");
+            $("body").addClass("no-scroll");
+        }
+
+        function closeProfilePanel() {
+            $("#profilePanel").removeClass("is-open");
+            $("body").removeClass("no-scroll");
+        }
+
+        // On phones the panel is not visible on the page, so it opens as a popup
+        function showProfile(name) {
+            profileTarget = name === currentAuthor() ? "" : name;
+            renderProfilePanel();
+            if (!WIDE_LAYOUT.matches) openProfilePanel();
+        }
+
+        WIDE_LAYOUT.addEventListener("change", (e) => {
+            if (e.matches) closeProfilePanel();
+        });
+
+        $("#btnMyProfile").on("click", () => showProfile(currentAuthor()));
+        $("#profilePanelClose").on("click", closeProfilePanel);
+        $("#profilePanel").on("click", function (e) {
+            if (e.target === this) closeProfilePanel(); // backdrop of the phone popup
+        });
+        $(document).on("keydown", function (e) {
+            if (e.key === "Escape") closeProfilePanel();
+        });
+
+        $("#profilePanelActions")
+            .on("click", ".profile-edit", function () {
+                closeProfilePanel();
+                openProfileModal();
+            })
+            .on("click", ".profile-chat", function () {
+                const name = profileTarget;
+                closeProfilePanel();
+                openChat(name);
+            })
+            .on("click", ".profile-back", () => showProfile(currentAuthor()));
+
+        // Cover photos are stored on Cloudinary like post images; the link lives on the users entry
+        async function saveCover(file) {
+            const me = currentAuthor();
+            if (!me) return;
+            $("#profileCoverActions").addClass("is-busy");
+            $("#profileCoverLabel").text(file ? "Đang tải ảnh..." : "Đang xoá...");
+            try {
+                const coverUrl = file ? (await uploadMedia(file)).url : "";
+                await setDoc(doc(db, "users", userDocId(me)), { coverUrl: coverUrl, updatedAt: Date.now() }, { merge: true });
+                usersByAuthor.set(me, { ...usersByAuthor.get(me), coverUrl: coverUrl });
+                showToast(file ? "Đã cập nhật ảnh bìa" : "Đã xoá ảnh bìa");
+            } catch (err) {
+                console.error(err);
+                showToast(errorMessage(err));
+            } finally {
+                $("#profileCoverActions").removeClass("is-busy");
+                renderProfilePanel();
+            }
+        }
+
+        $("#profileCoverFile").on("change", function () {
+            const file = this.files[0];
+            $(this).val("");
+            if (!file) return;
+            if (mediaTypeOf(file) !== "image") {
+                showToast("Ảnh bìa chỉ dùng được file ảnh");
+                return;
+            }
+            if (file.size > MAX_IMAGE_MB * 1024 * 1024) {
+                showToast(`Ảnh bìa tối đa ${MAX_IMAGE_MB}MB`);
+                return;
+            }
+            saveCover(file);
+        });
+
+        $("#profileCoverRemove").on("click", function () {
+            if (confirm("Xoá ảnh bìa?")) saveCover(null);
+        });
+
+        // Clicking a post's author opens their profile
+        $("#feed").on("click", ".post-author .ring, .post-name", function () {
+            const name = $(this).closest(".post").attr("data-auth");
+            if (name) showProfile(name);
+        });
 
         /* ---------- Profile popup ---------- */
 
@@ -1031,7 +1286,8 @@
                     ? (await uploadMedia(profilePhoto.file)).url
                     : (profilePhoto?.url || (mode === "login" ? avatarOf(next) : ""));
 
-                await saveUser(next, avatarUrl, authEmail, isRename ? userIdOf(previous) : undefined);
+                await saveUser(next, avatarUrl, authEmail, isRename ? userIdOf(previous) : undefined,
+                    isRename ? { coverUrl: usersByAuthor.get(previous)?.coverUrl || "" } : {});
                 if (isRename) {
                     $save.text("Đang cập nhật bài viết...");
                     await renameUser(previous, next);
@@ -1259,7 +1515,7 @@
             const $fields = $("#userEditForm").find("input, button").prop("disabled", true);
             $("#userEditError").hide();
             try {
-                await saveUser(next, user.avatarUrl || "", user.authEmail || "", user.id);
+                await saveUser(next, user.avatarUrl || "", user.authEmail || "", user.id, { coverUrl: user.coverUrl || "" });
                 await renameUser(previous, next);
                 await deleteDoc(doc(db, "users", userDocId(previous)));
                 usersByAuthor.delete(previous);
@@ -2717,9 +2973,14 @@
             return [idA, idB].sort().join("_");
         }
 
-        let chatPartner = ""; // author name, for the header
+        let chatPartner = ""; // 1-1 chat: the other person's author name ("" in a group)
         let chatPartnerId = "";
         let unsubChat = null;
+        // Open conversation { id, type: "direct" | "group", name, memberIds }; null on the list screen.
+        // A 1-1 conversation's id is chatIdOf(), the same chatId its messages always had.
+        let chatConv = null;
+        let unsubConvEvents = null;
+        const eventsById = new Map(); // badminton events of the open group chat
         // id of my message being edited in the input box ("" = the box sends a new message)
         let editingMessageId = "";
         // friend user id -> refs of their unread messages to me (kept by watchMyMessages)
@@ -2748,7 +3009,8 @@
 
             $list.empty();
             if (!messages.length) {
-                $list.append($("<p>", { class: "chat-empty", text: `Hãy gửi lời chào tới ${nameOf(chatPartner)} 👋` }));
+                const hello = chatPartner ? `Hãy gửi lời chào tới ${nameOf(chatPartner)} 👋` : "Nhóm chưa có tin nhắn nào, hãy bắt đầu 👋";
+                $list.append($("<p>", { class: "chat-empty", text: hello }));
                 return;
             }
             if (!chatHasMore && messages.length > CHAT_PAGE_SIZE) {
@@ -2756,10 +3018,19 @@
             }
             messages.forEach((m) => {
                 const isMine = m.fromId === myId;
+                // Event messages show the live event card instead of their text
+                if (m.type === "event") {
+                    $list.append(renderEventCard(m.eventId, myId));
+                    return;
+                }
                 const $msg = $("<div>", { class: "chat-msg" + (isMine ? " is-mine" : "") + (m.id === editingMessageId ? " is-editing" : ""), "data-id": m.id }).append(
                     $("<div>", { class: "chat-row" }).append($("<span>", { class: "chat-bubble", text: m.text })),
                     $("<span>", { class: "chat-time", text: chatTime(m.createdAt) + (m.editedAt ? " · đã chỉnh sửa" : "") })
                 );
+                // In a group, say who wrote each message
+                if (!chatPartner && !isMine) {
+                    $msg.prepend($("<span>", { class: "chat-sender", text: nameOf(authorOfId(m.fromId)) }));
+                }
                 // Only the sender can edit or delete a message
                 if (isMine) {
                     $msg.find(".chat-row").prepend(
@@ -2800,7 +3071,10 @@
 
         function stopChat() {
             if (unsubChat) unsubChat();
-            unsubChat = null;
+            if (unsubConvEvents) unsubConvEvents();
+            unsubChat = unsubConvEvents = null;
+            eventsById.clear();
+            chatConv = null;
             chatPartner = chatPartnerId = "";
             chatLoadingOlder = false;
             cancelMessageEdit();
@@ -2821,10 +3095,23 @@
         // paging only limits how many of the loaded messages are shown
         function subscribeChat() {
             if (unsubChat) unsubChat();
-            const myId = userIdOf(currentAuthor());
+
+            // Group chats: the events shown as cards, kept live so joins and edits appear at once
+            if (chatConv.type === "group") {
+                unsubConvEvents = onSnapshot(
+                    query(collection(db, "events"), where("conversationId", "==", chatConv.id)),
+                    (snapshot) => {
+                        eventsById.clear();
+                        snapshot.docs.forEach((d) => eventsById.set(d.id, { id: d.id, ...d.data() }));
+                        // Before the messages arrive, keep the loading spinner
+                        if (chatAllMessages.length) renderVisibleMessages();
+                    },
+                    (err) => console.error(err)
+                );
+            }
 
             unsubChat = onSnapshot(
-                query(collection(db, "messages"), where("chatId", "==", chatIdOf(myId, chatPartnerId))),
+                query(collection(db, "messages"), where("chatId", "==", chatConv.id)),
                 (snapshot) => {
                     chatAllMessages = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => a.createdAt - b.createdAt);
                     // The message being edited was deleted (here or on another device)
@@ -2895,6 +3182,7 @@
                 }
             });
 
+        // 1-1 chat with a friend (from the friends bar, a profile, a notification or the list)
         function openChat(partner) {
             if (!partner || !requireAuthor()) return;
             const myId = userIdOf(currentAuthor());
@@ -2904,15 +3192,30 @@
                 showToast("Chưa nhắn tin được với người này, thử tải lại trang");
                 return;
             }
+            openConversation({ id: chatIdOf(myId, partnerId), type: "direct", memberIds: [myId, partnerId] }, partner);
+        }
 
+        function openConversation(conv, partner) {
             stopChat();
-            chatPartner = partner;
-            chatPartnerId = partnerId;
-            fillAvatar($("#chatAvatar"), partner);
-            $("#chatTitle").text(nameOf(partner));
+            chatConv = conv;
+            chatPartner = partner || "";
+            chatPartnerId = partner ? userIdOf(partner) : "";
+            chatAllMessages = [];
+
+            if (partner) {
+                fillAvatar($("#chatAvatar"), partner);
+                $("#chatTitle").text(nameOf(partner));
+            } else {
+                $("#chatAvatar").empty().removeAttr("data-avatar-of").removeClass("has-photo").text("👥");
+                $("#chatTitle").text(conv.name);
+            }
+            $("#chatCreateEvent").toggle(conv.type === "group");
+            // The group's creator or an admin can delete it
+            $("#chatDeleteGroup").toggle(conv.type === "group" && (conv.createdBy === userIdOf(currentAuthor()) || isAdmin));
             $("#chatMessages").empty().append($("<div>", { class: "spinner" }));
             $("#chatInput").val("");
             $("#chatSend").prop("disabled", true);
+            showChatView("#chatConvView");
             $("#chatModal").fadeIn(150);
             $("#chatInput").trigger("focus");
 
@@ -2922,19 +3225,447 @@
             subscribeChat();
         }
 
-        function onChatKey(e) {
-            if ((e.key === "Enter" || e.key === " ") && !$(e.target).closest(".story-delete").length) {
-                e.preventDefault();
-                openChat($(this).attr("data-chat"));
+        function showChatView(id) {
+            $(".chat-view").hide();
+            $(id).css("display", "flex");
+        }
+
+        /* Conversation list */
+
+        let unsubConvList = null;
+        let myConversations = []; // newest activity first
+
+        function startConvList() {
+            if (unsubConvList) return;
+            const myId = userIdOf(currentAuthor());
+            if (!myId) return;
+            $("#chatList").html('<div class="spinner"></div>');
+            // Sorted on the client so no composite index is needed
+            unsubConvList = onSnapshot(
+                query(collection(db, "conversations"), where("memberIds", "array-contains", myId)),
+                (snapshot) => {
+                    myConversations = snapshot.docs
+                        .map((d) => ({ id: d.id, ...d.data() }))
+                        .sort((a, b) => (b.lastAt || 0) - (a.lastAt || 0));
+                    // Someone deleted the group I have open: leave it, otherwise my next message
+                    // would recreate it (the deleter's own client is handled by the delete button)
+                    const deleting = $("#chatDeleteGroup").prop("disabled");
+                    if (chatConv?.type === "group" && !deleting && !myConversations.some((c) => c.id === chatConv.id)) {
+                        stopChat();
+                        showChatView("#chatListView");
+                        showToast("Nhóm này đã bị xoá");
+                    }
+                    renderChatList();
+                },
+                (err) => {
+                    console.error(err);
+                    $("#chatList").html(renderState("fa-solid fa-triangle-exclamation", "Không tải được cuộc trò chuyện", errorMessage(err)));
+                }
+            );
+        }
+
+        function stopConvList() {
+            if (unsubConvList) unsubConvList();
+            unsubConvList = null;
+        }
+
+        function openChatList() {
+            if (!requireAuthor()) return;
+            stopChat();
+            $("#chatSearch").val("");
+            showChatView("#chatListView");
+            $("#chatModal").fadeIn(150);
+            startConvList();
+            renderChatList();
+        }
+
+        // The other member of a 1-1 conversation (author name), "" if unknown
+        function partnerOf(conv) {
+            const myId = userIdOf(currentAuthor());
+            return authorOfId(conv.memberIds.find((id) => id !== myId) || "");
+        }
+
+        function renderChatList() {
+            if (!unsubConvList) return;
+            const me = currentAuthor();
+            const search = $.trim($("#chatSearch").val()).toLowerCase();
+            const matches = (text) => !search || text.toLowerCase().includes(search);
+            const $list = $("#chatList").empty();
+
+            const chattedWith = new Set();
+            myConversations.forEach((conv) => {
+                const partner = conv.type === "direct" ? partnerOf(conv) : "";
+                if (conv.type === "direct") {
+                    if (!partner) return; // the other user was deleted
+                    chattedWith.add(partner);
+                }
+                const title = partner ? nameOf(partner) : conv.name;
+                if (!matches(title)) return;
+
+                const unread = partner ? unreadByFriend.get(userIdOf(partner)) || 0 : 0;
+                const $avatar = partner
+                    ? fillAvatar($("<span>", { class: "avatar avatar-md" }), partner)
+                    : $("<span>", { class: "avatar avatar-md", text: "👥" });
+                $list.append(
+                    $("<button>", { type: "button", class: "chat-item" + (unread ? " has-unread" : ""), "data-conv": conv.id }).append(
+                        $avatar,
+                        $("<span>", { class: "chat-item-text" }).append(
+                            $("<strong>", { text: title }),
+                            $("<span>", { class: "chat-item-last", text: conv.lastText || (conv.type === "group" ? `${conv.memberIds.length} thành viên` : "") })
+                        ),
+                        $("<span>", { class: "chat-item-meta" }).append(
+                            $("<span>", { class: "chat-item-time", text: conv.lastAt ? timeAgo(conv.lastAt) : "" }),
+                            unread ? $("<span>", { class: "chat-item-unread", text: unread > 9 ? "9+" : unread }) : null
+                        )
+                    )
+                );
+            });
+
+            // Friends without a conversation yet: start one
+            const others = [...usersByAuthor.keys()]
+                .filter((name) => name !== me && userIdOf(name) && !chattedWith.has(name) && matches(nameOf(name)))
+                .sort((a, b) => nameOf(a).localeCompare(nameOf(b), "vi"));
+            if (others.length) {
+                $list.append($("<p>", { class: "chat-list-label", text: "Bắt đầu trò chuyện" }));
+                others.forEach((name) => {
+                    $list.append(
+                        $("<button>", { type: "button", class: "chat-item", "data-user": name }).append(
+                            fillAvatar($("<span>", { class: "avatar avatar-md" }), name),
+                            $("<span>", { class: "chat-item-text" }).append($("<strong>", { text: nameOf(name) }))
+                        )
+                    );
+                });
+            }
+
+            if (!$list.children().length) {
+                $list.append($("<p>", { class: "chat-empty", text: search ? "Không tìm thấy kết quả" : "Chưa có cuộc trò chuyện nào" }));
             }
         }
 
+        $("#btnChat").on("click", openChatList);
+        $("#chatSearch").on("input", renderChatList);
+
+        $("#chatList")
+            .on("click", "[data-user]", function () {
+                openChat($(this).attr("data-user"));
+            })
+            .on("click", "[data-conv]", function () {
+                const conv = myConversations.find((c) => c.id === $(this).attr("data-conv"));
+                if (!conv) return;
+                if (conv.type === "direct") openChat(partnerOf(conv));
+                else openConversation(conv);
+            });
+
+        $("#chatModal").on("click", ".chat-back", function () {
+            stopChat();
+            $("#chatSearch").val("");
+            showChatView("#chatListView");
+            startConvList();
+            renderChatList();
+        });
+
+        // Keeps the list entry (last message, time) up to date; creates it on the first message
+        async function touchConversation(text) {
+            if (!chatConv) return; // popup closed meanwhile
+            const data = { type: chatConv.type, memberIds: chatConv.memberIds, lastText: text, lastAt: Date.now() };
+            if (chatConv.name) data.name = chatConv.name;
+            try {
+                await setDoc(doc(db, "conversations", chatConv.id), data, { merge: true });
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        /* New group */
+
+        $("#chatNewGroup").on("click", function () {
+            const me = currentAuthor();
+            const $members = $("#chatGroupMembers").empty();
+            [...usersByAuthor.keys()]
+                .filter((name) => name !== me && userIdOf(name))
+                .sort((a, b) => nameOf(a).localeCompare(nameOf(b), "vi"))
+                .forEach((name) => {
+                    $members.append(
+                        $("<label>", { class: "chat-member" }).append(
+                            $("<input>", { type: "checkbox", value: userIdOf(name) }),
+                            fillAvatar($("<span>", { class: "avatar avatar-sm" }), name),
+                            $("<span>", { text: nameOf(name) })
+                        )
+                    );
+                });
+            $("#chatGroupName").val("");
+            $("#chatGroupError").hide();
+            showChatView("#chatGroupForm");
+            $("#chatGroupName").trigger("focus");
+        });
+
+        $("#chatGroupForm").on("submit", async function (e) {
+            e.preventDefault();
+            const name = $.trim($("#chatGroupName").val());
+            const memberIds = $("#chatGroupMembers input:checked").map(function () { return this.value; }).get();
+            const myId = userIdOf(currentAuthor());
+            if (!name) {
+                $("#chatGroupError").text("Nhập tên nhóm.").show();
+                return;
+            }
+            if (!memberIds.length) {
+                $("#chatGroupError").text("Chọn ít nhất 1 thành viên.").show();
+                return;
+            }
+
+            const $save = $("#chatGroupSave").prop("disabled", true);
+            try {
+                const conv = { type: "group", name: name, memberIds: [myId, ...memberIds], createdBy: myId, lastText: "Nhóm vừa được tạo", lastAt: Date.now() };
+                const ref = await addDoc(collection(db, "conversations"), conv);
+                openConversation({ id: ref.id, ...conv });
+            } catch (err) {
+                console.error(err);
+                $("#chatGroupError").text(errorMessage(err)).show();
+            } finally {
+                $save.prop("disabled", false);
+            }
+        });
+
+        // Deletes the group with all its messages and events. Batches hold at most 500 writes, so chunk them.
+        $("#chatDeleteGroup").on("click", async function () {
+            if (!chatConv || chatConv.type !== "group") return;
+            if (!confirm(`Xoá nhóm "${chatConv.name}"? Toàn bộ tin nhắn và kèo của nhóm sẽ bị xoá vĩnh viễn.`)) return;
+
+            const convId = chatConv.id;
+            const $button = $(this).prop("disabled", true);
+            try {
+                const [messages, events] = await Promise.all([
+                    getDocs(query(collection(db, "messages"), where("chatId", "==", convId))),
+                    getDocs(query(collection(db, "events"), where("conversationId", "==", convId)))
+                ]);
+                const refs = [...messages.docs, ...events.docs].map((d) => d.ref);
+                for (let i = 0; i < refs.length; i += 450) {
+                    const batch = writeBatch(db);
+                    refs.slice(i, i + 450).forEach((ref) => batch.delete(ref));
+                    await batch.commit();
+                }
+                await deleteDoc(doc(db, "conversations", convId));
+
+                stopChat();
+                showChatView("#chatListView");
+                startConvList();
+                renderChatList();
+                showToast("Đã xoá nhóm");
+            } catch (err) {
+                console.error(err);
+                showToast(errorMessage(err));
+            } finally {
+                $button.prop("disabled", false);
+            }
+        });
+
+        /* Badminton events (group chats) */
+
+        let editingEventId = ""; // "" = the form creates a new event
+
+        function formatMoney(value) {
+            return `${Number(value || 0).toLocaleString("vi-VN")}đ`;
+        }
+
+        function eventDateText(ev) {
+            const [y, m, d] = ev.date.split("-");
+            const weekday = new Date(Number(y), Number(m) - 1, Number(d)).toLocaleDateString("vi-VN", { weekday: "long" });
+            return `${ev.start}–${ev.end} · ${weekday}, ${d}/${m}/${y}`;
+        }
+
+        function eventIsOver(ev) {
+            return new Date(`${ev.date}T${ev.end}`).getTime() < Date.now();
+        }
+
+        function renderEventCard(eventId, myId) {
+            const ev = eventsById.get(eventId);
+            const $card = $("<div>", { class: "event-card", "data-event": eventId });
+            if (!ev) {
+                return $card.addClass("is-muted").append($("<p>", { text: "🏸 Kèo này đã bị xoá" }));
+            }
+
+            const going = ev.going || [];
+            const left = Math.max(0, ev.capacity - going.length);
+            const iGo = going.includes(myId);
+            const iDecline = (ev.declined || []).includes(myId);
+            const status = ev.cancelled ? "Đã huỷ" : eventIsOver(ev) ? "Đã kết thúc" : left ? `Còn ${left} chỗ` : "Đã đủ người";
+
+            $card.toggleClass("is-cancelled", !!ev.cancelled).append(
+                $("<div>", { class: "event-card-head" }).append(
+                    $("<strong>", { text: "🏸 Kèo cầu lông" }),
+                    $("<span>", { class: "event-status" + (ev.cancelled ? " is-cancelled" : ""), text: status })
+                ),
+                $("<p>", { class: "event-line" }).append($("<i>", { class: "fa-regular fa-clock" }), $("<span>", { text: eventDateText(ev) })),
+                $("<p>", { class: "event-line" }).append($("<i>", { class: "fa-solid fa-location-dot" }), $("<span>", { text: ev.place })),
+                ev.cost ? $("<p>", { class: "event-line" }).append($("<i>", { class: "fa-solid fa-coins" }), $("<span>", { text: `Tiền sân dự kiến ${formatMoney(ev.cost)}` })) : null,
+                $("<p>", { class: "event-line" }).append(
+                    $("<i>", { class: "fa-solid fa-user-group" }),
+                    $("<span>", { text: `${going.length}/${ev.capacity} người: ${going.map((id) => nameOf(authorOfId(id))).join(", ") || "chưa có ai"}` })
+                )
+            );
+
+            if (!ev.cancelled && !eventIsOver(ev)) {
+                const $actions = $("<div>", { class: "event-actions" }).append(
+                    $("<button>", { type: "button", class: "event-btn event-join" + (iGo ? " is-active" : ""), text: iGo ? "✓ Đã tham gia" : "Tham gia" })
+                        .prop("disabled", !iGo && !left),
+                    $("<button>", { type: "button", class: "event-btn event-decline" + (iDecline ? " is-active" : ""), text: "Không tham gia" })
+                );
+                if (ev.createdBy === myId) {
+                    $actions.append(
+                        $("<button>", { type: "button", class: "event-btn event-edit", text: "Sửa" }),
+                        $("<button>", { type: "button", class: "event-btn event-cancel", text: "Huỷ kèo" })
+                    );
+                }
+                $card.append($actions);
+            }
+            // Deleting is allowed in any state (also for cancelled or past events): the creator or an admin
+            if (ev.createdBy === myId || isAdmin) {
+                $card.find(".event-card-head").append(
+                    $("<button>", { type: "button", class: "event-delete", title: "Xoá kèo", "aria-label": "Xoá kèo" })
+                        .append($("<i>", { class: "fa-regular fa-trash-can" }))
+                );
+            }
+            return $card;
+        }
+
+        function openEventForm(ev) {
+            editingEventId = ev ? ev.id : "";
+            $("#eventFormTitle").text(ev ? "Sửa kèo cầu lông 🏸" : "Tạo kèo cầu lông 🏸");
+            $("#eventSave").text(ev ? "Lưu" : "Tạo kèo");
+            $("#eventDate").val(ev?.date || "");
+            $("#eventStart").val(ev?.start || "");
+            $("#eventEnd").val(ev?.end || "");
+            $("#eventPlace").val(ev?.place || "");
+            $("#eventCapacity").val(ev?.capacity || 4);
+            $("#eventCost").val(ev?.cost || "");
+            $("#eventError").hide();
+            $("#eventModal").fadeIn(150);
+            $("#eventDate").trigger("focus");
+        }
+
+        $("#chatCreateEvent").on("click", () => openEventForm(null));
+
+        $("#eventForm").on("submit", async function (e) {
+            e.preventDefault();
+            const ev = {
+                date: $("#eventDate").val(),
+                start: $("#eventStart").val(),
+                end: $("#eventEnd").val(),
+                place: $.trim($("#eventPlace").val()),
+                capacity: Number($("#eventCapacity").val()),
+                cost: Number($("#eventCost").val()) || 0
+            };
+            const editing = editingEventId ? eventsById.get(editingEventId) : null;
+            const fail = (message) => $("#eventError").text(message).show();
+            if (!ev.date || !ev.start || !ev.end || !ev.place) return fail("Nhập đủ ngày, giờ và địa điểm.");
+            if (ev.end <= ev.start) return fail("Giờ kết thúc phải sau giờ bắt đầu.");
+            if (!editing && new Date(`${ev.date}T${ev.start}`).getTime() < Date.now()) return fail("Thời gian chơi đã qua.");
+            if (!Number.isInteger(ev.capacity) || ev.capacity < 2 || ev.capacity > 50) return fail("Số người tối đa từ 2 đến 50.");
+            if (editing && ev.capacity < (editing.going || []).length) {
+                return fail(`Đã có ${editing.going.length} người tham gia, không giảm số chỗ xuống thấp hơn được.`);
+            }
+
+            const $save = $("#eventSave").prop("disabled", true);
+            try {
+                if (editing) {
+                    await updateDoc(doc(db, "events", editingEventId), { ...ev, updatedAt: Date.now() });
+                } else {
+                    const myId = userIdOf(currentAuthor());
+                    const ref = await addDoc(collection(db, "events"), {
+                        ...ev, conversationId: chatConv.id, createdBy: myId, going: [myId], declined: [], cancelled: false, createdAt: Date.now()
+                    });
+                    const text = `🏸 Kèo cầu lông ${ev.start} ngày ${ev.date.split("-").reverse().join("/")}`;
+                    chatStickBottom = true;
+                    await addDoc(collection(db, "messages"), {
+                        chatId: chatConv.id, fromId: myId, toId: "", text: text, createdAt: Date.now(), read: false, type: "event", eventId: ref.id
+                    });
+                    touchConversation(text);
+                }
+                $("#eventModal").fadeOut(150);
+            } catch (err) {
+                console.error(err);
+                fail(errorMessage(err));
+            } finally {
+                $save.prop("disabled", false);
+            }
+        });
+
+        // Join / decline in a transaction so two people cannot take the last seat at the same time
+        async function answerEvent(eventId, join) {
+            const myId = userIdOf(currentAuthor());
+            try {
+                await runTransaction(db, async (tx) => {
+                    const ref = doc(db, "events", eventId);
+                    const snap = await tx.get(ref);
+                    if (!snap.exists()) throw new Error("Kèo này không còn nữa.");
+                    const ev = snap.data();
+                    if (ev.cancelled) throw new Error("Kèo đã bị huỷ.");
+                    const going = (ev.going || []).filter((id) => id !== myId);
+                    const declined = (ev.declined || []).filter((id) => id !== myId);
+                    if (join && going.length >= ev.capacity) throw new Error("Kèo đã đủ người.");
+                    tx.update(ref, join ? { going: [...going, myId], declined } : { going, declined: [...declined, myId] });
+                });
+                showToast(join ? "Đã tham gia kèo 🏸" : "Đã báo không tham gia");
+            } catch (err) {
+                console.error(err);
+                showToast(errorMessage(err));
+            }
+        }
+
+        $("#chatMessages")
+            .on("click", ".event-join:not(.is-active)", function () {
+                answerEvent($(this).closest(".event-card").attr("data-event"), true);
+            })
+            .on("click", ".event-decline:not(.is-active)", function () {
+                answerEvent($(this).closest(".event-card").attr("data-event"), false);
+            })
+            .on("click", ".event-edit", function () {
+                openEventForm(eventsById.get($(this).closest(".event-card").attr("data-event")));
+            })
+            // Removes the event and its card message(s), so the card disappears from the chat for everyone
+            .on("click", ".event-delete", async function () {
+                if (!confirm("Xoá hẳn kèo này? Thẻ kèo sẽ biến mất khỏi cuộc trò chuyện.")) return;
+                const eventId = $(this).closest(".event-card").addClass("is-busy").attr("data-event");
+                try {
+                    const cards = await getDocs(query(collection(db, "messages"), where("eventId", "==", eventId)));
+                    const batch = writeBatch(db);
+                    cards.docs.forEach((d) => batch.delete(d.ref));
+                    batch.delete(doc(db, "events", eventId));
+                    await batch.commit();
+                    showToast("Đã xoá kèo");
+                } catch (err) {
+                    console.error(err);
+                    $(`.event-card[data-event="${eventId}"]`).removeClass("is-busy");
+                    showToast(errorMessage(err));
+                }
+            })
+            .on("click", ".event-cancel", async function () {
+                if (!confirm("Huỷ kèo này? Mọi người trong nhóm sẽ thấy kèo đã huỷ.")) return;
+                try {
+                    await updateDoc(doc(db, "events", $(this).closest(".event-card").attr("data-event")), { cancelled: true, updatedAt: Date.now() });
+                    showToast("Đã huỷ kèo");
+                } catch (err) {
+                    console.error(err);
+                    showToast(errorMessage(err));
+                }
+            });
+
         $("#friendsList")
-            .on("click", ".story[data-chat]", function (e) {
-                if ($(e.target).closest(".story-delete").length) return;
+            .on("click", ".story-chat-icon", function (e) {
+                e.stopPropagation(); // the story itself opens the profile
                 openChat($(this).attr("data-chat"));
             })
-            .on("keydown", ".story[data-chat]", onChatKey);
+            .on("click", ".story[data-profile]", function (e) {
+                if ($(e.target).closest(".story-delete").length) return;
+                showProfile($(this).attr("data-profile"));
+            })
+            // Enter/Space on the story itself; inner buttons handle their own keys
+            .on("keydown", ".story[data-profile]", function (e) {
+                if ((e.key === "Enter" || e.key === " ") && e.target === this) {
+                    e.preventDefault();
+                    showProfile($(this).attr("data-profile"));
+                }
+            });
 
         $("#chatInput").on("input", function () {
             $("#chatSend").prop("disabled", !$.trim($(this).val()));
@@ -2944,7 +3675,7 @@
             e.preventDefault();
             const text = $.trim($("#chatInput").val());
             const myId = userIdOf(currentAuthor());
-            if (!text || !chatPartnerId || !myId) return;
+            if (!text || !chatConv || !myId) return;
 
             $("#chatSend").prop("disabled", true);
             if (editingMessageId) {
@@ -2962,14 +3693,15 @@
             chatStickBottom = true; // show my new message even when scrolled up
             try {
                 await addDoc(collection(db, "messages"), {
-                    chatId: chatIdOf(myId, chatPartnerId),
+                    chatId: chatConv.id,
                     fromId: myId,
-                    toId: chatPartnerId,
+                    toId: chatPartnerId, // "" in a group: unread counts are only kept for 1-1 chats
                     text: text,
                     createdAt: Date.now(),
                     read: false
                 });
                 $("#chatInput").val("").trigger("focus");
+                touchConversation(text);
             } catch (err) {
                 console.error(err);
                 showToast(errorMessage(err));
@@ -2979,7 +3711,9 @@
 
         // The shared modal handlers only hide the popup, so stop listening once it is gone
         new MutationObserver(() => {
-            if ($("#chatModal")[0].style.display === "none") stopChat();
+            if ($("#chatModal")[0].style.display !== "none") return;
+            stopChat();
+            stopConvList();
         }).observe($("#chatModal")[0], { attributes: true, attributeFilter: ["style"] });
 
         // Unread messages to me: badges on the friends bar and bell notifications.
