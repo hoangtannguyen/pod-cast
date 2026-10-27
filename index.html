@@ -115,6 +115,16 @@
                 </button>
             </div>
 
+            <div class="post-type" role="radiogroup" aria-label="Loại bài đăng">
+                <button type="button" class="post-type-btn is-active" data-type="post" role="radio" aria-checked="true">📝 Bài viết thường</button>
+                <button type="button" class="post-type-btn" data-type="party" role="radio" aria-checked="false">🎉 Tạo sự kiện</button>
+            </div>
+            <!-- Filled from the event popup; the first picked photo is the event cover -->
+            <div class="party-chip" id="composerParty" style="display:none">
+                <span class="party-chip-text" id="composerPartyText"></span>
+                <button type="button" class="link-btn" id="composerPartyEdit">Sửa</button>
+            </div>
+
             <textarea id="comment" placeholder="Bạn đang nghĩ gì? ✨" rows="2" maxlength="2000"></textarea>
 
             <div class="media-grid" id="composerMedia" style="display:none"></div>
@@ -277,6 +287,60 @@
                 <input type="text" class="comment-input" id="chatInput" placeholder="Nhắn tin..." maxlength="1000" autocomplete="off">
                 <button type="submit" class="link-btn btn-send" id="chatSend" disabled>Gửi</button>
             </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Event post details: used when creating the post (composer) and when the host edits it -->
+    <div class="modal" id="partyModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="partyFormTitle">
+        <form class="modal-card event-form" id="partyForm">
+            <h2 class="modal-title" id="partyFormTitle">Tạo sự kiện 🎉</h2>
+            <label class="event-field">Tên sự kiện
+                <input type="text" id="partyTitle" class="modal-input" maxlength="80" placeholder="vd: Sinh nhật Gô 25 tuổi" required>
+            </label>
+            <label class="event-field">Loại tiệc
+                <select id="partyKind" class="modal-input">
+                    <option>Sinh nhật</option>
+                    <option>Tiệc tùng</option>
+                    <option>Họp mặt</option>
+                    <option>Liên hoan</option>
+                    <option>Dã ngoại</option>
+                    <option>Khác</option>
+                </select>
+            </label>
+            <div class="event-row">
+                <label class="event-field">Ngày
+                    <input type="date" id="partyDate" class="modal-input" required>
+                </label>
+                <label class="event-field">Giờ
+                    <input type="time" id="partyTime" class="modal-input" required>
+                </label>
+            </div>
+            <label class="event-field">Địa điểm
+                <input type="text" id="partyPlace" class="modal-input" maxlength="100" required>
+            </label>
+            <label class="event-field">Số khách tối đa
+                <input type="number" id="partyCapacity" class="modal-input" min="1" max="500" step="1" required>
+            </label>
+            <label class="party-approval">
+                <input type="checkbox" id="partyApproval">
+                <span>Yêu cầu duyệt khách (người bấm "Sẽ tham gia" phải chờ bạn duyệt)</span>
+            </label>
+            <p class="modal-error" id="partyError" style="display:none"></p>
+            <div class="modal-actions">
+                <button type="button" class="btn-ghost modal-close">Huỷ</button>
+                <button type="submit" class="btn-primary" id="partySave">Xong</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Guest list of an event post -->
+    <div class="modal" id="guestModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="guestTitle">
+        <div class="modal-card guest-card">
+            <h2 class="modal-title" id="guestTitle">Khách mời</h2>
+            <div class="guest-body" id="guestBody"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn-primary modal-close">Đóng</button>
             </div>
         </div>
     </div>
@@ -457,6 +521,9 @@
                 <div class="media-dots"></div>
                 <i class="fa-solid fa-heart heart-pop" aria-hidden="true"></i>
             </div>
+
+            <!-- Event posts only -->
+            <div class="party-card" style="display:none"></div>
 
             <div class="post-actions">
                 <button type="button" class="icon-btn btn-like" aria-label="Thích" aria-pressed="false">
@@ -1419,6 +1486,7 @@
             $("#feed .post").each(function () {
                 const $post = $(this);
                 renderLikes($post);
+                renderParty($post); // my answer and host buttons depend on who is signed in
                 $post.find(".post-tools").toggle(canEditPost($post.attr("data-auth")));
                 closePostEdit($post);
                 loadComments($post);
@@ -2107,6 +2175,8 @@
         /* ---------- Composer ---------- */
 
         let composerMedia = [];
+        // Event details of the post being written (null = a normal post)
+        let composerParty = null;
 
         function setPosting(isPosting, label) {
             $("#btnPost")
@@ -2127,6 +2197,7 @@
             releaseMedia(composerMedia);
             composerMedia = [];
             renderComposerMedia();
+            setPostType("post");
         }
 
         $("#mediaFiles").on("change", function () {
@@ -2149,8 +2220,14 @@
             const comment = $.trim($("#comment").val());
 
             if (!requireAuthor()) return;
-            if (!composerMedia.length || !comment) {
-                showToast("Chọn ảnh/video và nhập nội dung nhé!");
+            // An event needs a cover photo; its caption is optional (the event has a title)
+            if (!composerMedia.length || (!comment && !composerParty)) {
+                showToast(composerParty ? "Chọn ảnh bìa cho sự kiện nhé!" : "Chọn ảnh/video và nhập nội dung nhé!");
+                return;
+            }
+            const myId = userIdOf(currentAuthor());
+            if (composerParty && !myId) {
+                showToast("Chưa tạo được sự kiện, thử tải lại trang");
                 return;
             }
 
@@ -2162,7 +2239,8 @@
                     comment: comment,
                     auth: currentAuthor(),
                     likes: [],
-                    createdAt: Date.now()
+                    createdAt: Date.now(),
+                    ...(composerParty ? { party: { ...composerParty, hostId: myId, going: [], maybe: [], declined: [], pending: [] } } : {})
                 });
                 resetComposer();
                 showToast("Đã đăng bài ✨");
@@ -2197,6 +2275,8 @@
 
             likesByPost[id] = Array.isArray(data.likes) ? [...data.likes] : [];
             renderLikes($post);
+            $post.data("party", data.party || null);
+            renderParty($post);
             return $post;
         }
 
@@ -2293,6 +2373,14 @@
                     snapshot.docs.forEach((docSnap) => {
                         const $post = $(`#feed .post[data-id="${docSnap.id}"]`);
                         if (!$post.length) return;
+                        // Event posts: guest answers and edits are live too
+                        const party = docSnap.data().party || null;
+                        const oldParty = $post.data("party");
+                        if (JSON.stringify(party) !== JSON.stringify(oldParty)) {
+                            notifyPartyChange(docSnap.id, oldParty, party);
+                            $post.data("party", party);
+                            renderParty($post);
+                        }
                         const likes = Array.isArray(docSnap.data().likes) ? docSnap.data().likes : [];
                         const current = likesByPost[docSnap.id] || [];
                         if (likes.length === current.length && likes.every((name, i) => name === current[i])) return;
@@ -2579,6 +2667,335 @@
             void $heart[0].offsetWidth; // restart animation
             $heart.addClass("is-show");
         }
+
+        /* ---------- Event posts ("party" field on a post) ---------- */
+
+        // Guests are stored by user id (stable across renames) in one of these lists
+        const PARTY_LISTS = ["going", "maybe", "declined", "pending"];
+
+        function partyWhen(p) {
+            const [y, m, d] = p.date.split("-");
+            return `${p.time} · ${d}/${m}/${y}`;
+        }
+
+        function partyAnswerOf(p, userId) {
+            return PARTY_LISTS.find((k) => (p[k] || []).includes(userId)) || "";
+        }
+
+        function renderParty($post) {
+            const p = $post.data("party");
+            const $card = $post.find(".party-card").empty().toggle(!!p);
+            if (!p) return;
+
+            const myId = userIdOf(currentAuthor());
+            const isHost = !!myId && p.hostId === myId;
+            const going = p.going || [];
+            const left = Math.max(0, p.capacity - going.length);
+            const mine = partyAnswerOf(p, myId);
+            const isOver = new Date(`${p.date}T${p.time}`).getTime() < Date.now();
+
+            $card.append(
+                $("<div>", { class: "party-head" }).append(
+                    $("<span>", { class: "party-kind", text: `🎉 ${p.kind}` }),
+                    $("<strong>", { class: "party-title", text: p.title })
+                ),
+                $("<p>", { class: "event-line" }).append($("<i>", { class: "fa-regular fa-clock" }), $("<span>", { text: partyWhen(p) + (isOver ? " · đã diễn ra" : "") })),
+                $("<p>", { class: "event-line" }).append($("<i>", { class: "fa-solid fa-location-dot" }), $("<span>", { text: p.place })),
+                $("<p>", { class: "event-line" }).append(
+                    $("<i>", { class: "fa-solid fa-user-group" }),
+                    $("<span>", { text: `${going.length}/${p.capacity} khách · ${left ? `còn ${left} chỗ` : "đã đủ khách"}${p.requireApproval ? " · cần duyệt" : ""}` })
+                )
+            );
+
+            // The host does not answer their own event
+            if (!isHost && !isOver) {
+                const goingText = mine === "pending" ? "⏳ Chờ duyệt" : mine === "going" ? "✓ Sẽ tham gia" : "Sẽ tham gia";
+                $card.append(
+                    $("<div>", { class: "event-actions" }).append(
+                        $("<button>", { type: "button", class: "event-btn party-rsvp" + (mine === "going" || mine === "pending" ? " is-active" : ""), "data-rsvp": "going", text: goingText })
+                            .prop("disabled", !mine.match(/going|pending/) && !left),
+                        $("<button>", { type: "button", class: "event-btn party-rsvp" + (mine === "maybe" ? " is-active" : ""), "data-rsvp": "maybe", text: "Đang cân nhắc" }),
+                        $("<button>", { type: "button", class: "event-btn party-rsvp" + (mine === "declined" ? " is-active" : ""), "data-rsvp": "declined", text: "Không tham gia" })
+                    )
+                );
+            }
+
+            const $footer = $("<div>", { class: "party-footer" }).append(
+                $("<button>", { type: "button", class: "link-btn party-guests", text: `Khách mời (${going.length + (p.maybe || []).length + (p.pending || []).length})` })
+            );
+            if (isHost) {
+                const pending = (p.pending || []).length;
+                if (pending) $footer.find(".party-guests").append($("<span>", { class: "party-pending", text: `${pending} chờ duyệt` }));
+                $footer.append($("<button>", { type: "button", class: "link-btn party-edit", text: "Sửa sự kiện" }));
+            }
+            // Group chat: the host opens it; confirmed guests can enter once it exists
+            if (isHost || (p.chatId && mine === "going")) {
+                $footer.append($("<button>", { type: "button", class: "link-btn party-chat", text: p.chatId ? "💬 Nhóm chat" : "💬 Mở nhóm chat" }));
+            }
+            $card.append($footer);
+
+            if (guestPostId === $post.attr("data-id") && $("#guestModal").is(":visible")) renderGuests();
+        }
+
+        // Bell notifications for guests: approved by the host, or the time/place changed
+        function notifyPartyChange(postId, oldParty, party) {
+            const myId = userIdOf(currentAuthor());
+            if (!oldParty || !party || !myId || party.hostId === myId) return;
+            const host = authorOfId(party.hostId) || $(`#feed .post[data-id="${postId}"]`).attr("data-auth");
+            if (!host) return;
+            const notify = (icon, action) => addNotification({ kind: "party", icon: icon, who: host, action: action, caption: party.title, postId: postId, ms: Date.now() });
+
+            if ((oldParty.pending || []).includes(myId) && (party.going || []).includes(myId)) {
+                notify("fa-solid fa-circle-check", "đã duyệt bạn tham gia sự kiện");
+            }
+            const moved = oldParty.date !== party.date || oldParty.time !== party.time || oldParty.place !== party.place;
+            if (moved && ["going", "maybe", "pending"].includes(partyAnswerOf(party, myId))) {
+                notify("fa-regular fa-calendar", `đã đổi thời gian/địa điểm sự kiện (${partyWhen(party)}, ${party.place}):`);
+            }
+        }
+
+        // Adds a guest to the event's group chat, if the host opened one
+        function joinPartyChat(chatId, userId) {
+            if (!chatId) return;
+            updateDoc(doc(db, "conversations", chatId), { memberIds: arrayUnion(userId) }).catch((err) => console.error(err));
+        }
+
+        // Tapping your current answer again cancels it. Runs in a transaction so the guest limit holds.
+        async function answerParty($post, status) {
+            if (!requireAuthor()) return;
+            const myId = userIdOf(currentAuthor());
+            if (!myId) {
+                showToast("Chưa trả lời được, thử tải lại trang");
+                return;
+            }
+            try {
+                const result = await runTransaction(db, async (tx) => {
+                    const ref = doc(db, "photos", $post.attr("data-id"));
+                    const p = (await tx.get(ref)).data()?.party;
+                    if (!p) throw new Error("Sự kiện không còn nữa.");
+                    const current = partyAnswerOf(p, myId);
+                    const lists = {};
+                    PARTY_LISTS.forEach((k) => { lists[k] = (p[k] || []).filter((id) => id !== myId); });
+
+                    let target = status === current || (status === "going" && current === "pending") ? "" : status;
+                    if (target === "going" && p.requireApproval) target = "pending";
+                    if (target === "going" && lists.going.length >= p.capacity) throw new Error("Sự kiện đã đủ khách.");
+                    if (target) lists[target].push(myId);
+
+                    const changes = {};
+                    PARTY_LISTS.forEach((k) => { changes[`party.${k}`] = lists[k]; });
+                    tx.update(ref, changes);
+                    return { target: target, chatId: p.chatId };
+                });
+                if (result.target === "going") joinPartyChat(result.chatId, myId);
+                showToast({
+                    going: "Bạn sẽ tham gia 🎉",
+                    pending: "Đã gửi yêu cầu, chờ chủ sự kiện duyệt",
+                    maybe: "Đã đánh dấu đang cân nhắc",
+                    declined: "Đã báo không tham gia",
+                    "": "Đã huỷ phản hồi"
+                }[result.target]);
+            } catch (err) {
+                console.error(err);
+                showToast(errorMessage(err));
+            }
+        }
+
+        /* Event form (composer + host edit) */
+
+        let partyEditPostId = ""; // "" = filling the composer's event
+
+        function setPostType(type) {
+            if (type === "post") composerParty = null;
+            $(".post-type-btn").each(function () {
+                const on = $(this).attr("data-type") === type;
+                $(this).toggleClass("is-active", on).attr("aria-checked", on);
+            });
+            $("#composerParty").toggle(!!composerParty);
+            if (composerParty) $("#composerPartyText").text(`🎉 ${composerParty.title} · ${partyWhen(composerParty)}`);
+            $("#comment").attr("placeholder", composerParty ? "Lời mời / mô tả sự kiện (không bắt buộc) ✨" : "Bạn đang nghĩ gì? ✨");
+            // The label's first text node ("Ảnh/Video "), before the file count
+            $("label[for='mediaFiles'] > span").contents()[0].nodeValue = composerParty ? "Ảnh bìa " : "Ảnh/Video ";
+        }
+
+        function openPartyForm(postId) {
+            partyEditPostId = postId || "";
+            const p = postId ? $(`#feed .post[data-id="${postId}"]`).data("party") : composerParty;
+            $("#partyFormTitle").text(postId ? "Sửa sự kiện 🎉" : "Tạo sự kiện 🎉");
+            $("#partySave").text(postId ? "Lưu" : "Xong");
+            $("#partyTitle").val(p?.title || "");
+            $("#partyKind").val(p?.kind || "Sinh nhật");
+            $("#partyDate").val(p?.date || "");
+            $("#partyTime").val(p?.time || "");
+            $("#partyPlace").val(p?.place || "");
+            $("#partyCapacity").val(p?.capacity || 20);
+            $("#partyApproval").prop("checked", !!p?.requireApproval);
+            $("#partyError").hide();
+            $("#partyModal").fadeIn(150);
+            $("#partyTitle").trigger("focus");
+        }
+
+        $(".post-type").on("click", ".post-type-btn", function () {
+            if ($(this).attr("data-type") === "post") {
+                setPostType("post");
+            } else if (requireAuthor()) {
+                openPartyForm(null); // switches to "event" once the form is filled
+            }
+        });
+        $("#composerPartyEdit").on("click", () => openPartyForm(null));
+
+        $("#partyForm").on("submit", async function (e) {
+            e.preventDefault();
+            const p = {
+                title: $.trim($("#partyTitle").val()),
+                kind: $("#partyKind").val(),
+                date: $("#partyDate").val(),
+                time: $("#partyTime").val(),
+                place: $.trim($("#partyPlace").val()),
+                capacity: Number($("#partyCapacity").val()),
+                requireApproval: $("#partyApproval").prop("checked")
+            };
+            const fail = (message) => $("#partyError").text(message).show();
+            if (!p.title || !p.date || !p.time || !p.place) return fail("Nhập đủ tên, ngày giờ và địa điểm.");
+            if (!Number.isInteger(p.capacity) || p.capacity < 1 || p.capacity > 500) return fail("Số khách tối đa từ 1 đến 500.");
+
+            if (!partyEditPostId) {
+                if (new Date(`${p.date}T${p.time}`).getTime() < Date.now()) return fail("Thời gian sự kiện đã qua.");
+                composerParty = p;
+                setPostType("party");
+                $("#partyModal").fadeOut(150);
+                return;
+            }
+
+            const old = $(`#feed .post[data-id="${partyEditPostId}"]`).data("party") || {};
+            if (p.capacity < (old.going || []).length) return fail(`Đã có ${old.going.length} khách xác nhận, không giảm số chỗ thấp hơn được.`);
+            const changes = { "party.updatedAt": Date.now() };
+            Object.keys(p).forEach((k) => { changes[`party.${k}`] = p[k]; });
+
+            const $save = $("#partySave").prop("disabled", true);
+            try {
+                await updateDoc(doc(db, "photos", partyEditPostId), changes);
+                $("#partyModal").fadeOut(150);
+                showToast("Đã cập nhật sự kiện");
+            } catch (err) {
+                console.error(err);
+                fail(errorMessage(err));
+            } finally {
+                $save.prop("disabled", false);
+            }
+        });
+
+        /* Guest list */
+
+        let guestPostId = "";
+
+        function renderGuests() {
+            const p = $(`#feed .post[data-id="${guestPostId}"]`).data("party");
+            const $body = $("#guestBody").empty();
+            if (!p) {
+                $body.append($("<p>", { class: "chat-empty", text: "Sự kiện không còn nữa" }));
+                return;
+            }
+            const isHost = p.hostId === userIdOf(currentAuthor());
+            const left = Math.max(0, p.capacity - (p.going || []).length);
+            $("#guestTitle").text(`Khách mời · ${p.title}`);
+            $body.append($("<p>", { class: "guest-summary", text: `${(p.going || []).length}/${p.capacity} đã xác nhận · còn ${left} chỗ` }));
+
+            [
+                ["pending", "⏳ Chờ duyệt"],
+                ["going", "✓ Sẽ tham gia"],
+                ["maybe", "🤔 Đang cân nhắc"],
+                ["declined", "✕ Không tham gia"]
+            ].forEach(([key, label]) => {
+                const ids = p[key] || [];
+                if (!ids.length) return;
+                const $list = $("<ul>", { class: "guest-list" });
+                ids.forEach((id) => {
+                    const name = authorOfId(id);
+                    const $item = $("<li>", { class: "guest-item" }).append(
+                        fillAvatar($("<span>", { class: "avatar avatar-sm" }), name),
+                        $("<span>", { class: "guest-name", text: name ? nameOf(name) : "(người dùng đã xoá)" })
+                    );
+                    // The host approves or turns down requests
+                    if (key === "pending" && isHost) {
+                        $item.append(
+                            $("<button>", { type: "button", class: "event-btn guest-approve", "data-guest": id, text: "Duyệt" }),
+                            $("<button>", { type: "button", class: "event-btn guest-reject", "data-guest": id, text: "Từ chối" })
+                        );
+                    }
+                    $list.append($item);
+                });
+                $body.append($("<h3>", { class: "guest-section", text: `${label} (${ids.length})` }), $list);
+            });
+        }
+
+        async function reviewGuest(guestId, accept) {
+            const ref = doc(db, "photos", guestPostId);
+            try {
+                const chatId = await runTransaction(db, async (tx) => {
+                    const p = (await tx.get(ref)).data()?.party;
+                    if (!p || !(p.pending || []).includes(guestId)) throw new Error("Yêu cầu này không còn nữa.");
+                    const pending = p.pending.filter((id) => id !== guestId);
+                    if (accept && (p.going || []).length >= p.capacity) throw new Error("Sự kiện đã đủ khách.");
+                    tx.update(ref, accept
+                        ? { "party.pending": pending, "party.going": [...(p.going || []), guestId] }
+                        : { "party.pending": pending, "party.declined": [...(p.declined || []).filter((id) => id !== guestId), guestId] });
+                    return p.chatId;
+                });
+                if (accept) joinPartyChat(chatId, guestId);
+                showToast(accept ? "Đã duyệt khách" : "Đã từ chối");
+            } catch (err) {
+                console.error(err);
+                showToast(errorMessage(err));
+            }
+        }
+
+        $("#guestBody")
+            .on("click", ".guest-approve", function () { reviewGuest($(this).attr("data-guest"), true); })
+            .on("click", ".guest-reject", function () { reviewGuest($(this).attr("data-guest"), false); });
+
+        // The event's own group chat: the host creates it with everyone who confirmed
+        async function openPartyChat($post) {
+            const p = $post.data("party");
+            const myId = userIdOf(currentAuthor());
+            if (!p || !myId) return;
+            const members = [...new Set([p.hostId, ...(p.going || [])])];
+            const conv = { type: "group", name: `🎉 ${p.title}`, memberIds: members };
+            try {
+                if (!p.chatId) {
+                    if (members.length < 2) {
+                        showToast("Chưa có khách xác nhận tham gia để lập nhóm");
+                        return;
+                    }
+                    const ref = await addDoc(collection(db, "conversations"), {
+                        ...conv, createdBy: myId, lastText: "Nhóm chat của sự kiện", lastAt: Date.now(), lastFromId: myId
+                    });
+                    await updateDoc(doc(db, "photos", $post.attr("data-id")), { "party.chatId": ref.id });
+                    openConversation({ id: ref.id, ...conv, createdBy: myId });
+                } else {
+                    openConversation({ id: p.chatId, ...conv, createdBy: p.hostId });
+                }
+            } catch (err) {
+                console.error(err);
+                showToast(errorMessage(err));
+            }
+        }
+
+        $("#feed")
+            .on("click", ".party-rsvp", function () {
+                answerParty($(this).closest(".post"), $(this).attr("data-rsvp"));
+            })
+            .on("click", ".party-guests", function () {
+                guestPostId = $(this).closest(".post").attr("data-id");
+                renderGuests();
+                $("#guestModal").fadeIn(150);
+            })
+            .on("click", ".party-edit", function () {
+                openPartyForm($(this).closest(".post").attr("data-id"));
+            })
+            .on("click", ".party-chat", function () {
+                openPartyChat($(this).closest(".post"));
+            });
 
         /* ---------- Comments ---------- */
 

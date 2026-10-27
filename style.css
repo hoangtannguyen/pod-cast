@@ -2767,3 +2767,182 @@ body.no-scroll {
         display: none;
     }
 }
+
+/* ---------- Event posts ---------- */
+
+/* Composer: normal post / event switch */
+.post-type {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.post-type-btn {
+    flex: 1;
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.post-type-btn.is-active {
+    border-color: transparent;
+    background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 55%, #ec4899 100%);
+    color: #fff;
+}
+
+.party-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: var(--input);
+    font-size: 13px;
+}
+
+.party-chip-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+}
+
+.party-chip .link-btn {
+    color: var(--primary);
+    font-weight: 600;
+}
+
+/* Event block on a post, under the cover photo */
+.party-card {
+    margin: 12px 12px 0;
+    padding: 12px 14px;
+    border: 1px solid #ddd6fe;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #eff6ff 0%, #f5f3ff 100%);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 13px;
+}
+
+.party-head {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.party-kind {
+    font-size: 11px;
+    font-weight: 600;
+    color: #7c3aed;
+}
+
+.party-title {
+    font-size: 16px;
+    overflow-wrap: anywhere;
+}
+
+.party-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px;
+    margin-top: 2px;
+}
+
+.party-footer .link-btn {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--primary);
+}
+
+.party-pending {
+    margin-left: 6px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: #ff3040;
+    color: #fff;
+    font-size: 11px;
+}
+
+.party-approval {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+}
+
+.party-approval input {
+    margin-top: 3px;
+}
+
+/* Guest list popup */
+.guest-card {
+    max-width: 380px;
+    text-align: left;
+}
+
+.guest-summary {
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.guest-section {
+    margin-top: 6px;
+    font-size: 13px;
+}
+
+.guest-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.guest-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.guest-name {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.guest-item .event-btn {
+    padding: 4px 10px;
+    font-size: 12px;
+}
+
+.guest-approve {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+:root[data-theme="dark"] .party-card {
+    border-color: #3b2f63;
+    background: linear-gradient(135deg, #0f1a2e 0%, #1a1530 100%);
+}
+
+:root[data-theme="dark"] .party-kind {
+    color: #c4b5fd;
+}
+
+.guest-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 60vh;
+    overflow-y: auto;
+}
