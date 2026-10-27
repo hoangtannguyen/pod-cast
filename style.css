@@ -2604,3 +2604,23 @@ body.no-scroll {
 :root[data-theme="dark"] .notify-dropdown {
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
 }
+
+/* VND amount input with a fixed "đ" suffix */
+.money-input {
+    position: relative;
+    display: block;
+}
+
+.money-input .modal-input {
+    padding-right: 28px;
+}
+
+.money-unit {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    font-weight: 400;
+    pointer-events: none;
+}

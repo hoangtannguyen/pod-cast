@@ -280,8 +280,12 @@
                 <label class="event-field">Số người tối đa
                     <input type="number" id="eventCapacity" class="modal-input" min="2" max="50" step="1" required>
                 </label>
-                <label class="event-field">Tiền sân dự kiến (đ)
-                    <input type="number" id="eventCost" class="modal-input" min="0" step="1000" placeholder="0">
+                <label class="event-field">Tiền sân dự kiến
+                    <!-- text, not number: shows thousands separators (240.000) while typing -->
+                    <span class="money-input">
+                        <input type="text" id="eventCost" class="modal-input" inputmode="numeric" maxlength="13" placeholder="0" autocomplete="off">
+                        <span class="money-unit">đ</span>
+                    </span>
                 </label>
             </div>
             <p class="modal-error" id="eventError" style="display:none"></p>
@@ -3603,6 +3607,27 @@
             return `${Number(value || 0).toLocaleString("vi-VN")}đ`;
         }
 
+        // VND input: digits only, shown with "." thousands separators (240000 -> "240.000")
+        function formatMoneyInput(value) {
+            return Number(value).toLocaleString("vi-VN");
+        }
+
+        function parseMoneyInput(text) {
+            return Number(String(text).replace(/\D/g, "")) || 0;
+        }
+
+        $("#eventCost").on("input", function () {
+            // Keep the caret at the same digit after the separators are re-inserted
+            const digitsBeforeCaret = this.value.slice(0, this.selectionStart).replace(/\D/g, "").length;
+            const digits = this.value.replace(/\D/g, "").replace(/^0+(?=\d)/, "").slice(0, 10);
+            this.value = digits ? formatMoneyInput(digits) : "";
+            let caret = 0;
+            for (let seen = 0; caret < this.value.length && seen < digitsBeforeCaret; caret++) {
+                if (/\d/.test(this.value[caret])) seen++;
+            }
+            this.setSelectionRange(caret, caret);
+        });
+
         function eventDateText(ev) {
             const [y, m, d] = ev.date.split("-");
             const weekday = new Date(Number(y), Number(m) - 1, Number(d)).toLocaleDateString("vi-VN", { weekday: "long" });
@@ -3673,7 +3698,7 @@
             $("#eventEnd").val(ev?.end || "");
             $("#eventPlace").val(ev?.place || "");
             $("#eventCapacity").val(ev?.capacity || 4);
-            $("#eventCost").val(ev?.cost || "");
+            $("#eventCost").val(ev?.cost ? formatMoneyInput(ev.cost) : "");
             $("#eventError").hide();
             $("#eventModal").fadeIn(150);
             $("#eventDate").trigger("focus");
@@ -3689,7 +3714,7 @@
                 end: $("#eventEnd").val(),
                 place: $.trim($("#eventPlace").val()),
                 capacity: Number($("#eventCapacity").val()),
-                cost: Number($("#eventCost").val()) || 0
+                cost: parseMoneyInput($("#eventCost").val())
             };
             const editing = editingEventId ? eventsById.get(editingEventId) : null;
             const fail = (message) => $("#eventError").text(message).show();
