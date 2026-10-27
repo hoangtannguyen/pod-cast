@@ -2537,3 +2537,56 @@ body.no-scroll {
 .chat-delete-group:hover {
     color: var(--like);
 }
+
+/* ---------- Dark theme (toggled from the header, saved per browser) ---------- */
+
+:root[data-theme="dark"] {
+    color-scheme: dark; /* native controls: date/time pickers, scrollbars */
+    --bg: #000000;
+    --card: #121212;
+    --border: #363636;
+    --border-soft: #262626;
+    --text: #f5f5f5;
+    --muted: #a8a8a8;
+    --input: #262626;
+    --primary: #0095f6;
+    --primary-hover: #4cb5f9;
+    --like: #ff4d63;
+    --like-soft: #3a1d22;
+    --shadow: none;
+}
+
+/* Spots that use fixed light colors instead of the tokens above */
+:root[data-theme="dark"] .topbar {
+    background: rgba(0, 0, 0, 0.85);
+}
+
+:root[data-theme="dark"] .btn-edit:hover,
+:root[data-theme="dark"] .btn-edit-comment:hover,
+:root[data-theme="dark"] .emoji-option.is-selected {
+    background-color: #0d2a40;
+}
+
+:root[data-theme="dark"] .btn-send:hover {
+    color: var(--primary-hover);
+}
+
+:root[data-theme="dark"] .event-card {
+    border-color: #3b2f63;
+    background: linear-gradient(135deg, #0f1a2e 0%, #1a1530 100%);
+}
+
+:root[data-theme="dark"] .event-status {
+    background: #2e1f5e;
+    color: #c4b5fd;
+}
+
+:root[data-theme="dark"] .event-line i {
+    color: #a78bfa;
+}
+
+/* White buttons over photos keep dark text in both themes */
+:root[data-theme="dark"] .media-nav,
+:root[data-theme="dark"] .profile-cover-btn {
+    color: #262626;
+}

@@ -5,6 +5,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Apply the saved light/dark theme before the page paints, so a dark page does not flash white.
+         No saved choice: follow the device setting. -->
+    <script>
+        (function () {
+            var theme = null;
+            try { theme = localStorage.getItem("vibegram:theme"); } catch (e) {}
+            if (theme !== "light" && theme !== "dark") {
+                theme = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+            }
+            document.documentElement.setAttribute("data-theme", theme);
+        })();
+    </script>
     <link rel="stylesheet" href="style.css">
     <title>VibeGram 📸 | Share Your Vibes</title>
     <link rel="icon" type="image/svg+xml" href="images/vibe-logo.svg">
@@ -23,6 +35,9 @@
                 <!-- Smaller screens only: on wide screens the profile is always shown in the left column -->
                 <button type="button" class="admin-btn admin-btn-icon profile-open-btn" id="btnMyProfile" title="Trang cá nhân" aria-label="Trang cá nhân" style="display:none">
                     <i class="fa-regular fa-id-card"></i>
+                </button>
+                <button type="button" class="admin-btn admin-btn-icon" id="btnTheme" title="Chế độ tối" aria-label="Chế độ tối" aria-pressed="false">
+                    <i class="fa-regular fa-moon"></i>
                 </button>
                 <button type="button" class="admin-btn admin-btn-icon notify-btn" id="btnChat" title="Tin nhắn" aria-label="Tin nhắn" style="display:none">
                     <i class="fa-regular fa-paper-plane"></i>
@@ -867,6 +882,29 @@
 
         $("#friendsList").on("click", "#myStory", openProfileModal);
         $("#btnProfile").on("click", openProfileModal);
+
+        /* ---------- Light / dark theme ---------- */
+
+        // The theme itself is applied by the inline script in <head>; this keeps the button in sync
+        function renderThemeButton() {
+            const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+            const label = isDark ? "Chế độ sáng" : "Chế độ tối";
+            $("#btnTheme").attr({ title: label, "aria-label": label, "aria-pressed": isDark })
+                .find("i").attr("class", isDark ? "fa-regular fa-sun" : "fa-regular fa-moon");
+        }
+
+        $("#btnTheme").on("click", function () {
+            const next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+            document.documentElement.setAttribute("data-theme", next);
+            try {
+                localStorage.setItem("vibegram:theme", next);
+            } catch (e) {
+                // storage unavailable — the choice lasts for this tab only
+            }
+            renderThemeButton();
+        });
+
+        renderThemeButton();
 
         /* ---------- Profile panel ---------- */
 
