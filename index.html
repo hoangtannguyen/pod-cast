@@ -534,6 +534,8 @@
         const knownAuthors = new Set();
         // friend user id -> number of their messages to me that are still unread
         const unreadByFriend = new Map();
+        // number of group chats with messages I have not seen (kept by the chat code)
+        let unreadGroups = 0;
         // everyone who has entered a name ("users" collection): author -> { author, avatarUrl }
         const usersByAuthor = new Map();
 
@@ -857,7 +859,7 @@
             $("#btnLogin").toggle(!me);
             $("#btnMyProfile").toggle(!!me);
             $("#btnChat").toggle(!!me);
-            const unreadTotal = [...unreadByFriend.values()].reduce((sum, n) => sum + n, 0);
+            const unreadTotal = [...unreadByFriend.values()].reduce((sum, n) => sum + n, 0) + unreadGroups;
             $("#chatBadge").text(unreadTotal > 9 ? "9+" : unreadTotal).toggle(unreadTotal > 0);
             renderProfilePanel();
             if ($("#chatListView").is(":visible")) renderChatList();
@@ -2956,6 +2958,12 @@
                 openChat($(this).attr("data-who"));
                 return;
             }
+            if ($(this).attr("data-kind") === "group") {
+                const conv = myConversations.find((c) => c.id === $(this).attr("data-post-id"));
+                if (conv) openConversation(conv);
+                else showToast("Nhóm này không còn nữa");
+                return;
+            }
             const $post = $(`#feed .post[data-id="${$(this).attr("data-post-id")}"]`);
             if (!$post.length) {
                 showToast("Bài viết chưa được tải trong bảng tin");
@@ -3118,6 +3126,7 @@
                     if (editingMessageId && !chatAllMessages.some((m) => m.id === editingMessageId)) cancelMessageEdit();
                     renderVisibleMessages();
                     markChatRead();
+                    if (chatConv?.type === "group") markConvSeen(chatConv.id);
                 },
                 (err) => {
                     console.error(err);
@@ -3235,11 +3244,50 @@
         let unsubConvList = null;
         let myConversations = []; // newest activity first
 
+        // Group chats count as unread when their last message is from someone else and newer than
+        // the last time I opened them on this device (1-1 chats use the per-message "read" flag instead)
+        function seenKey() {
+            return `vibegram:chatSeen:${userIdOf(currentAuthor())}`;
+        }
+
+        function loadSeen() {
+            try {
+                return JSON.parse(localStorage.getItem(seenKey()) || "{}");
+            } catch (e) {
+                return {};
+            }
+        }
+
+        function isGroupUnread(conv, seen) {
+            const myId = userIdOf(currentAuthor());
+            return conv.type === "group" && !!conv.lastFromId && conv.lastFromId !== myId && (conv.lastAt || 0) > (seen[conv.id] || 0);
+        }
+
+        function updateGroupUnread() {
+            const seen = loadSeen();
+            unreadGroups = myConversations.filter((conv) => isGroupUnread(conv, seen)).length;
+            renderFriends(); // badge on the chat button, and the list when it is open
+        }
+
+        function markConvSeen(convId) {
+            const seen = loadSeen();
+            seen[convId] = Date.now();
+            try {
+                localStorage.setItem(seenKey(), JSON.stringify(seen));
+            } catch (e) {
+                // storage unavailable — the group shows as unread again after a reload
+            }
+            updateGroupUnread();
+        }
+
+        // Runs while signed in (started by watchMyMessages), so new groups and group messages
+        // are noticed even when the chat popup is closed
         function startConvList() {
             if (unsubConvList) return;
             const myId = userIdOf(currentAuthor());
             if (!myId) return;
             $("#chatList").html('<div class="spinner"></div>');
+            let isFirstSnapshot = true;
             // Sorted on the client so no composite index is needed
             unsubConvList = onSnapshot(
                 query(collection(db, "conversations"), where("memberIds", "array-contains", myId)),
@@ -3247,6 +3295,27 @@
                     myConversations = snapshot.docs
                         .map((d) => ({ id: d.id, ...d.data() }))
                         .sort((a, b) => (b.lastAt || 0) - (a.lastAt || 0));
+
+                    // Bell notifications for group activity by others (1-1 messages are notified by watchMyMessages)
+                    snapshot.docChanges().forEach((change) => {
+                        if (isFirstSnapshot || change.type === "removed") return;
+                        const conv = { id: change.doc.id, ...change.doc.data() };
+                        if (conv.type !== "group" || !conv.lastFromId || conv.lastFromId === myId) return;
+                        if (chatConv?.id === conv.id && $("#chatModal").is(":visible")) return;
+                        const who = authorOfId(conv.lastFromId);
+                        if (!who) return;
+                        addNotification({
+                            kind: "group",
+                            icon: change.type === "added" ? "fa-solid fa-user-group" : "fa-regular fa-paper-plane",
+                            who: who,
+                            action: change.type === "added" ? `đã thêm bạn vào nhóm "${conv.name}"` : `đã nhắn trong nhóm "${conv.name}":`,
+                            caption: conv.lastText,
+                            postId: conv.id,
+                            ms: conv.lastAt
+                        });
+                    });
+                    isFirstSnapshot = false;
+                    updateGroupUnread();
                     // Someone deleted the group I have open: leave it, otherwise my next message
                     // would recreate it (the deleter's own client is handled by the delete button)
                     const deleting = $("#chatDeleteGroup").prop("disabled");
@@ -3267,6 +3336,8 @@
         function stopConvList() {
             if (unsubConvList) unsubConvList();
             unsubConvList = null;
+            myConversations = [];
+            unreadGroups = 0;
         }
 
         function openChatList() {
@@ -3293,6 +3364,7 @@
             const $list = $("#chatList").empty();
 
             const chattedWith = new Set();
+            const seen = loadSeen();
             myConversations.forEach((conv) => {
                 const partner = conv.type === "direct" ? partnerOf(conv) : "";
                 if (conv.type === "direct") {
@@ -3302,7 +3374,7 @@
                 const title = partner ? nameOf(partner) : conv.name;
                 if (!matches(title)) return;
 
-                const unread = partner ? unreadByFriend.get(userIdOf(partner)) || 0 : 0;
+                const unread = partner ? unreadByFriend.get(userIdOf(partner)) || 0 : (isGroupUnread(conv, seen) ? "Mới" : 0);
                 const $avatar = partner
                     ? fillAvatar($("<span>", { class: "avatar avatar-md" }), partner)
                     : $("<span>", { class: "avatar avatar-md", text: "👥" });
@@ -3367,7 +3439,7 @@
         // Keeps the list entry (last message, time) up to date; creates it on the first message
         async function touchConversation(text) {
             if (!chatConv) return; // popup closed meanwhile
-            const data = { type: chatConv.type, memberIds: chatConv.memberIds, lastText: text, lastAt: Date.now() };
+            const data = { type: chatConv.type, memberIds: chatConv.memberIds, lastText: text, lastAt: Date.now(), lastFromId: userIdOf(currentAuthor()) };
             if (chatConv.name) data.name = chatConv.name;
             try {
                 await setDoc(doc(db, "conversations", chatConv.id), data, { merge: true });
@@ -3415,7 +3487,7 @@
 
             const $save = $("#chatGroupSave").prop("disabled", true);
             try {
-                const conv = { type: "group", name: name, memberIds: [myId, ...memberIds], createdBy: myId, lastText: "Nhóm vừa được tạo", lastAt: Date.now() };
+                const conv = { type: "group", name: name, memberIds: [myId, ...memberIds], createdBy: myId, lastText: "Nhóm vừa được tạo", lastAt: Date.now(), lastFromId: myId };
                 const ref = await addDoc(collection(db, "conversations"), conv);
                 openConversation({ id: ref.id, ...conv });
             } catch (err) {
@@ -3712,8 +3784,7 @@
         // The shared modal handlers only hide the popup, so stop listening once it is gone
         new MutationObserver(() => {
             if ($("#chatModal")[0].style.display !== "none") return;
-            stopChat();
-            stopConvList();
+            stopChat(); // the conversation list keeps listening, for the unread badge and notifications
         }).observe($("#chatModal")[0], { attributes: true, attributeFilter: ["style"] });
 
         // Unread messages to me: badges on the friends bar and bell notifications.
@@ -3730,8 +3801,10 @@
             watchedMessagesId = myId;
             unreadByFriend.clear();
             unreadRefsByFriend.clear();
+            stopConvList();
             renderFriends();
             if (!myId) return;
+            startConvList(); // group chats: unread badge and notifications
 
             let isFirstSnapshot = true;
             // Filtered by "read" on the client so no composite index is needed
