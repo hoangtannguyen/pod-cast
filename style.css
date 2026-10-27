@@ -128,12 +128,6 @@ img {
     background-color: var(--input);
 }
 
-.admin-btn.is-admin {
-    background: var(--ring);
-    border-color: transparent;
-    color: #fff;
-}
-
 .admin-btn-icon {
     width: 32px;
     height: 32px;
@@ -2655,5 +2649,121 @@ body.no-scroll {
     .logo-tagline {
         font-size: 9px;
         letter-spacing: 0;
+    }
+}
+
+/* ---------- Admin menu (header) ---------- */
+
+.admin-menu-wrap {
+    position: relative;
+}
+
+/* Gradient pill so admin mode is obvious at a glance */
+.admin-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 34px;
+    padding: 0 12px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 55%, #ec4899 100%);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.35);
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.admin-pill:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.45);
+}
+
+.admin-pill-caret {
+    font-size: 10px;
+    transition: transform 0.2s;
+}
+
+.admin-pill.is-open .admin-pill-caret {
+    transform: rotate(180deg);
+}
+
+.admin-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 30;
+    width: 220px;
+    padding: 6px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    animation: modal-in 0.15s ease;
+}
+
+.admin-menu-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px 10px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--border-soft);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+}
+
+.admin-menu-head i {
+    color: #8b5cf6;
+}
+
+.admin-menu-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: 8px;
+    font-size: 14px;
+    text-align: left;
+    color: var(--text);
+    transition: background 0.15s;
+}
+
+.admin-menu-item i {
+    width: 16px;
+    text-align: center;
+    color: var(--muted);
+}
+
+.admin-menu-item:hover {
+    background: var(--input);
+}
+
+.admin-menu-item.is-danger,
+.admin-menu-item.is-danger i {
+    color: var(--like);
+}
+
+.admin-menu-item.is-danger:hover {
+    background: var(--like-soft);
+}
+
+:root[data-theme="dark"] .admin-menu {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+
+/* Phones: icon-only pill to save room in the crowded header */
+@media (max-width: 500px) {
+    .admin-pill {
+        width: 34px;
+        padding: 0;
+        justify-content: center;
+    }
+
+    .admin-pill-label,
+    .admin-pill-caret {
+        display: none;
     }
 }

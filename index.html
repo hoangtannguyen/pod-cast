@@ -61,17 +61,37 @@
                         <p class="notify-empty" id="notifyEmpty">Chưa có thông báo nào</p>
                     </div>
                 </div>
-                <button type="button" class="admin-btn admin-btn-icon" id="btnStats" title="Dung lượng" aria-label="Xem dung lượng" style="display:none">
-                    <i class="fa-solid fa-chart-pie"></i>
-                </button>
-                <button type="button" class="admin-btn admin-btn-icon" id="btnUsers" title="Quản lý người dùng" aria-label="Quản lý người dùng" aria-haspopup="dialog" style="display:none">
-                    <i class="fa-solid fa-users"></i>
-                </button>
+                <!-- Admin tools grouped in one menu (only while logged in as admin) -->
+                <div class="admin-menu-wrap" id="adminMenuWrap" style="display:none">
+                    <button type="button" class="admin-pill" id="btnAdminMenu" title="Quản trị" aria-haspopup="menu" aria-expanded="false">
+                        <i class="fa-solid fa-user-shield"></i>
+                        <span class="admin-pill-label">Admin</span>
+                        <i class="fa-solid fa-chevron-down admin-pill-caret"></i>
+                    </button>
+                    <div class="admin-menu" id="adminMenu" role="menu" style="display:none">
+                        <div class="admin-menu-head">
+                            <i class="fa-solid fa-user-shield"></i>
+                            <span>Quản trị viên</span>
+                        </div>
+                        <button type="button" class="admin-menu-item" id="btnStats" role="menuitem">
+                            <i class="fa-solid fa-chart-pie"></i>
+                            <span>Dung lượng</span>
+                        </button>
+                        <button type="button" class="admin-menu-item" id="btnUsers" role="menuitem" aria-haspopup="dialog">
+                            <i class="fa-solid fa-users"></i>
+                            <span>Quản lý người dùng</span>
+                        </button>
+                        <button type="button" class="admin-menu-item is-danger" id="btnAdmin" role="menuitem">
+                            <i class="fa-solid fa-right-from-bracket"></i>
+                            <span>Đăng xuất admin</span>
+                        </button>
+                    </div>
+                </div>
                 <button type="button" class="admin-btn admin-btn-icon" id="btnLogin" title="Đăng nhập" aria-label="Đăng nhập" style="display:none">
                     <i class="fa-solid fa-right-to-bracket"></i>
                 </button>
-                <button type="button" class="admin-btn admin-btn-icon is-admin" id="btnAdmin" title="Đăng xuất admin" aria-label="Đăng xuất admin" style="display:none">
-                    <i class="fa-solid fa-user-shield"></i>
+                <button type="button" class="admin-btn admin-btn-icon" id="btnLogout" title="Đăng xuất" aria-label="Đăng xuất" style="display:none">
+                    <i class="fa-solid fa-right-from-bracket"></i>
                 </button>
             </div>
         </div>
@@ -879,6 +899,7 @@
             fillAvatar($("#selectedAvatar"), me, me ? undefined : "🙂");
             $("#authorName").text(me ? nameOf(me) : "Nhập tên của bạn");
             $("#btnLogin").toggle(!me);
+            $("#btnLogout").toggle(!!me);
             $("#btnMyProfile").toggle(!!me);
             $("#btnChat").toggle(!!me);
             const unreadTotal = [...unreadByFriend.values()].reduce((sum, n) => sum + n, 0) + unreadGroups;
@@ -1249,7 +1270,7 @@
             }
         });
 
-        $("#profileLogout").on("click", async function () {
+        async function logoutUser() {
             try {
                 if (auth.currentUser) await signOut(auth);
             } catch (err) {
@@ -1263,6 +1284,13 @@
             watchMyActivity();
             watchMyMessages();
             showToast("Đã đăng xuất 👋");
+        }
+
+        $("#profileLogout").on("click", logoutUser);
+
+        // The header button is one tap away, so it asks first
+        $("#btnLogout").on("click", function () {
+            if (confirm("Đăng xuất khỏi VibeGram?")) logoutUser();
         });
 
         $("#profileFile").on("change", function () {
@@ -1399,7 +1427,8 @@
 
         function renderAdmin() {
             // The admin button only shows while logged in (to log out); logging in is via the logo
-            $("#btnAdmin, #btnStats, #btnUsers").toggle(isAdmin);
+            $("#adminMenuWrap").toggle(isAdmin);
+            if (!isAdmin) closeAdminMenu();
             if (!isAdmin) $("#statsModal, #usersModal, #userEditModal").hide();
         }
 
@@ -1646,6 +1675,28 @@
                 $story.removeClass("is-busy");
                 showToast(errorMessage(err));
             }
+        });
+
+        /* Admin menu (header) */
+
+        function closeAdminMenu() {
+            $("#adminMenu").hide();
+            $("#btnAdminMenu").attr("aria-expanded", "false").removeClass("is-open");
+        }
+
+        $("#btnAdminMenu").on("click", function () {
+            const open = !$("#adminMenu").is(":visible");
+            $("#adminMenu").toggle(open);
+            $(this).attr("aria-expanded", String(open)).toggleClass("is-open", open);
+        });
+
+        // Picking an item runs its own handler, then the menu closes
+        $("#adminMenu").on("click", ".admin-menu-item", closeAdminMenu);
+        $(document).on("click", function (e) {
+            if (!$(e.target).closest("#adminMenuWrap").length) closeAdminMenu();
+        });
+        $(document).on("keydown", function (e) {
+            if (e.key === "Escape") closeAdminMenu();
         });
 
         $("#btnAdmin").on("click", function () {
