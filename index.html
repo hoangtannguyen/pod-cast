@@ -2696,6 +2696,10 @@
             unsubFeedLikes = onSnapshot(
                 query(collection(db, "photos"), orderBy("createdAt", "desc"), limit(size)),
                 (snapshot) => {
+                    // Posts deleted by someone else disappear here too
+                    snapshot.docChanges().forEach((change) => {
+                        if (change.type === "removed") removeIfDeleted(change.doc.id);
+                    });
                     snapshot.docs.forEach((docSnap) => {
                         const $post = $(`#feed .post[data-id="${docSnap.id}"]`);
                         if (!$post.length) return;
@@ -2716,6 +2720,34 @@
                 },
                 (err) => console.error(err)
             );
+        }
+
+        // A post can leave the listener's "newest N" window because newer posts pushed it out,
+        // so only remove it once it is confirmed gone from Firestore
+        async function removeIfDeleted(id) {
+            const $post = $(`#feed .post[data-id="${id}"]`);
+            if (!$post.length || $post.hasClass("is-removing")) return;
+            try {
+                if ((await getDoc(doc(db, "photos", id))).exists()) return;
+            } catch (err) {
+                console.error(err);
+                return;
+            }
+            removePostFromFeed($post);
+        }
+
+        // Called by both the delete button and the listener (which also sees my own deletes): run once
+        function removePostFromFeed($post) {
+            if ($post.hasClass("is-removing")) return;
+            const id = $post.attr("data-id");
+            $post.addClass("is-removing");
+            delete likesByPost[id];
+            stopCommentListeners(id);
+            $post.slideUp(250, function () {
+                $(this).remove();
+                if (!$("#feed .post").length) loadFeed();
+                else watchFeedLikes(); // one post fewer on screen
+            });
         }
 
         // A post someone else just published goes straight to the top of the feed
@@ -2888,12 +2920,7 @@
                 await Promise.all(snapshot.docs.map((docSnap) => deleteDoc(docSnap.ref)));
                 await deleteDoc(doc(db, "photos", id));
 
-                delete likesByPost[id];
-                stopCommentListeners(id);
-                $post.slideUp(250, function () {
-                    $(this).remove();
-                    if (!$("#feed .post").length) loadFeed();
-                });
+                removePostFromFeed($post);
                 showToast("Đã xoá bài viết");
             } catch (err) {
                 console.error(err);
