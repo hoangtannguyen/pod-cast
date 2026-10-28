@@ -441,6 +441,9 @@
         </form>
     </div>
 
+    <!-- "@" suggestions for the comment box being typed in -->
+    <div class="mention-popover" id="mentionPopover" style="display:none" role="listbox" aria-label="Gắn thẻ"></div>
+
     <!-- Emoji picker (shared by the composer and every comment box) -->
     <div class="emoji-popover" id="emojiPopover" style="display:none" role="dialog" aria-label="Chọn emoji"></div>
 
@@ -638,11 +641,16 @@
                 </div>
             </div>
 
+            <!-- Shown while replying to a comment -->
+            <div class="reply-bar" style="display:none">
+                <span class="reply-bar-text"></span>
+                <button type="button" class="link-btn reply-cancel">Huỷ</button>
+            </div>
             <form class="comment-form">
                 <button type="button" class="btn-emoji comment-emoji" aria-label="Chèn emoji">
                     <i class="fa-regular fa-face-smile"></i>
                 </button>
-                <input type="text" class="comment-input" placeholder="Thêm bình luận..." maxlength="500">
+                <input type="text" class="comment-input" placeholder="Thêm bình luận... (gõ @ để gắn thẻ)" maxlength="500" autocomplete="off">
                 <button type="submit" class="link-btn btn-send" disabled>Đăng</button>
             </form>
         </article>
@@ -3352,16 +3360,42 @@
 
         /* ---------- Comments ---------- */
 
-        function renderComment(comment) {
+        function escapeRegExp(text) {
+            return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        }
+
+        // Comment text with each "@Name" of a tagged user highlighted. Built from text nodes, never HTML.
+        function renderMentionText($el, text, mentions) {
+            $el.empty();
+            const names = (mentions || []).map(nameOf).filter(Boolean).sort((a, b) => b.length - a.length);
+            if (!names.length) return $el.text(text);
+            const pattern = new RegExp(`@(${names.map(escapeRegExp).join("|")})`, "g");
+            let last = 0;
+            text.replace(pattern, (match, name, offset) => {
+                $el.append(document.createTextNode(text.slice(last, offset)), $("<span>", { class: "mention", text: match }));
+                last = offset + match.length;
+                return match;
+            });
+            return $el.append(document.createTextNode(text.slice(last)));
+        }
+
+        // asReply: shown indented under its parent (a reply whose parent was deleted is shown as a normal comment)
+        function renderComment(comment, asReply) {
             const author = comment.author || "Anonymous";
-            const $comment = $("<div>", { class: "comment" }).attr("data-comment-id", comment.id).append(
-                fillAvatar($("<span>", { class: "avatar avatar-xs" }), author),
-                $("<div>", { class: "comment-body" }).append(
-                    $("<p>").append($("<strong>", { text: nameOf(author) }), $("<span>", { class: "comment-text", text: comment.text })),
-                    $("<span>", { class: "comment-time", text: timeAgo(comment.ms) }),
-                    $("<span>", { class: "comment-time comment-edited", text: " · đã chỉnh sửa" }).toggle(!!comment.editedAt)
-                )
-            );
+            const $comment = $("<div>", { class: "comment" + (asReply ? " is-reply" : "") })
+                .attr({ "data-comment-id": comment.id, "data-author": author, "data-reply-to": comment.replyTo || null })
+                .append(
+                    fillAvatar($("<span>", { class: "avatar avatar-xs" }), author),
+                    $("<div>", { class: "comment-body" }).append(
+                        $("<p>").append(
+                            $("<strong>", { text: nameOf(author) }),
+                            renderMentionText($("<span>", { class: "comment-text" }), comment.text, comment.mentions)
+                        ),
+                        $("<span>", { class: "comment-time", text: timeAgo(comment.ms) }),
+                        $("<span>", { class: "comment-time comment-edited", text: " · đã chỉnh sửa" }).toggle(!!comment.editedAt),
+                        $("<button>", { type: "button", class: "link-btn comment-reply", text: "Trả lời" })
+                    )
+                );
 
             // The comment's author or an admin can edit/delete it
             if (canEditComment(author)) {
@@ -3446,14 +3480,18 @@
         // Comments are always open; only the newest `commentLimit` are shown, "Xem thêm" reveals more
         const COMMENTS_PAGE_SIZE = 5;
 
+        // The limit counts top-level comments; replies follow their parent's visibility
         function applyCommentLimit($post) {
             const $comments = $post.find(".comment");
             const visible = $post.data("commentLimit") || COMMENTS_PAGE_SIZE;
-            const hidden = Math.max(0, $comments.length - visible);
+            let topLevel = 0;
+            let parentShown = true;
 
-            $comments.each(function (i) {
-                $(this).toggle(i < visible);
+            $comments.each(function () {
+                if (!$(this).hasClass("is-reply")) parentShown = ++topLevel <= visible;
+                $(this).toggle(parentShown);
             });
+            const hidden = Math.max(0, topLevel - visible);
             $post.find(".post-comments").toggle($comments.length > 0);
             $post.find(".btn-more-comments")
                 .toggle(hidden > 0)
@@ -3473,30 +3511,47 @@
             });
         }
 
-        // Full redraw from the cached comments (also re-applies edit/delete permissions)
+        // Full redraw from the cached comments (also re-applies edit/delete permissions).
+        // Order: top-level comments newest first, each followed by its replies oldest first.
         function renderCommentList($post) {
-            const comments = [...(commentsByPost.get($post.attr("data-id"))?.values() || [])].sort((a, b) => b.ms - a.ms);
-            $post.find(".comments-list").empty().append(comments.map((c) => renderComment(c).attr("data-ms", c.ms)));
+            const all = [...(commentsByPost.get($post.attr("data-id"))?.values() || [])];
+            const ids = new Set(all.map((c) => c.id));
+            const $list = $post.find(".comments-list").empty();
+            all.filter((c) => !c.replyTo || !ids.has(c.replyTo))
+                .sort((a, b) => b.ms - a.ms)
+                .forEach((c) => {
+                    $list.append(renderComment(c, false).attr("data-ms", c.ms));
+                    all.filter((r) => r.replyTo === c.id)
+                        .sort((a, b) => a.ms - b.ms)
+                        .forEach((r) => $list.append(renderComment(r, true).attr("data-ms", r.ms)));
+                });
             applyCommentLimit($post);
         }
 
-        // Applies one change in place, so an open edit form or the "Xem thêm" state survives
+        // Applies an added or edited comment in place, so an open edit form or the "Xem thêm" state survives
+        // (removals redraw the list, since a removed comment may have replies)
         function applyCommentChange($list, change) {
             const $existing = $list.children(`.comment[data-comment-id="${change.doc.id}"]`);
-            if (change.type === "removed") {
-                $existing.remove();
-                return;
-            }
             const data = change.doc.data();
             const comment = { ...data, id: change.doc.id, ms: toMillis(data.createdAt) };
             if ($existing.length) {
-                $existing.find(".comment-text").text(comment.text);
+                renderMentionText($existing.find(".comment-text"), comment.text, comment.mentions);
                 $existing.find(".comment-edited").toggle(!!comment.editedAt);
                 return;
             }
-            // Newest first
-            const $comment = renderComment(comment).attr("data-ms", comment.ms);
-            const $older = $list.children(".comment").filter(function () {
+
+            // A reply goes at the end of its parent's thread
+            const $parent = comment.replyTo ? $list.children(`.comment[data-comment-id="${comment.replyTo}"]`) : $();
+            if ($parent.length) {
+                let $end = $parent;
+                while ($end.next().is(`.is-reply[data-reply-to="${comment.replyTo}"]`)) $end = $end.next();
+                renderComment(comment, true).attr("data-ms", comment.ms).insertAfter($end);
+                return;
+            }
+
+            // Top level: newest first, placed before the first older top-level comment (and its replies)
+            const $comment = renderComment(comment, false).attr("data-ms", comment.ms);
+            const $older = $list.children(".comment:not(.is-reply)").filter(function () {
                 return Number($(this).attr("data-ms")) < comment.ms;
             }).first();
             if ($older.length) $comment.insertBefore($older);
@@ -3522,7 +3577,7 @@
                         if (change.type === "removed") cache.delete(change.doc.id);
                         else cache.set(change.doc.id, { ...change.doc.data(), id: change.doc.id, ms: toMillis(change.doc.data().createdAt) });
                     });
-                    if (isFirstSnapshot) {
+                    if (isFirstSnapshot || snapshot.docChanges().some((change) => change.type === "removed")) {
                         isFirstSnapshot = false;
                         renderCommentList($post);
                         return;
@@ -3549,14 +3604,20 @@
             $send.prop("disabled", true);
             $input.prop("disabled", true);
 
+            // Tags picked from the "@" list that are still in the text (the user may have deleted some)
+            const mentions = ($input.data("mentions") || []).filter((name) => text.includes(`@${nameOf(name)}`));
+            const reply = $post.data("replyTo");
             try {
                 await addDoc(collection(db, "comments"), {
                     postId: $post.attr("data-id"),
                     text: text,
                     author: currentAuthor(),
-                    createdAt: Date.now()
+                    createdAt: Date.now(),
+                    ...(mentions.length ? { mentions: mentions } : {}),
+                    ...(reply ? { replyTo: reply.id, replyToAuthor: reply.author } : {})
                 });
-                $input.val(""); // the live listener shows the new comment
+                $input.val("").data("mentions", []); // the live listener shows the new comment
+                clearReply($post);
             } catch (err) {
                 console.error(err);
                 $send.prop("disabled", false);
@@ -3565,6 +3626,128 @@
                 $input.prop("disabled", false).trigger("focus");
             }
         }
+
+        /* Replies */
+
+        function clearReply($post) {
+            $post.removeData("replyTo");
+            $post.find(".reply-bar").hide();
+        }
+
+        function addMention($input, name) {
+            const list = $input.data("mentions") || [];
+            if (!list.includes(name)) list.push(name);
+            $input.data("mentions", list);
+        }
+
+        // Replies stay one level deep: answering a reply joins the same thread
+        $("#feed")
+            .on("click", ".comment-reply", function () {
+                if (!requireAuthor()) return;
+                const $comment = $(this).closest(".comment");
+                const $post = $comment.closest(".post");
+                const author = $comment.attr("data-author");
+                $post.data("replyTo", { id: $comment.attr("data-reply-to") || $comment.attr("data-comment-id"), author: author });
+                $post.find(".reply-bar").show().find(".reply-bar-text").text(`Đang trả lời ${nameOf(author)}`);
+
+                const $input = $post.find(".comment-input");
+                if (author !== currentAuthor() && !$input.val().includes(`@${nameOf(author)}`)) {
+                    $input.val(`@${nameOf(author)} ${$input.val()}`);
+                    addMention($input, author);
+                }
+                $input.trigger("input").trigger("focus");
+                const end = $input.val().length;
+                $input[0].setSelectionRange(end, end);
+            })
+            .on("click", ".reply-cancel", function () {
+                clearReply($(this).closest(".post"));
+            });
+
+        /* "@" tags in comments */
+
+        let $mentionInput = null;
+
+        // The word being typed right after "@" (null when the caret is not in a tag)
+        function mentionQuery(input) {
+            const match = input.value.slice(0, input.selectionStart).match(/(^|\s)@([^\s@]*)$/);
+            return match ? match[2] : null;
+        }
+
+        function closeMentionPopover() {
+            $("#mentionPopover").hide();
+            $mentionInput = null;
+        }
+
+        function openMentionPopover($input) {
+            const q = mentionQuery($input[0]);
+            if (q === null) return closeMentionPopover();
+            const me = currentAuthor();
+            const lower = q.toLowerCase();
+            const users = [...usersByAuthor.keys()]
+                .filter((name) => name !== me && nameOf(name).toLowerCase().includes(lower))
+                .sort((a, b) => nameOf(a).localeCompare(nameOf(b), "vi"))
+                .slice(0, 6);
+            if (!users.length) return closeMentionPopover();
+
+            const $popover = $("#mentionPopover").empty();
+            users.forEach((name, i) => {
+                $popover.append(
+                    $("<button>", { type: "button", class: "mention-item" + (i === 0 ? " is-active" : ""), "data-author": name, role: "option" }).append(
+                        fillAvatar($("<span>", { class: "avatar avatar-xs" }), name),
+                        $("<span>", { text: nameOf(name) })
+                    )
+                );
+            });
+            $mentionInput = $input;
+            // Under the box, or above it when there is no room (e.g. the phone keyboard is up)
+            const offset = $input.offset();
+            const width = Math.min(260, $input.outerWidth() + 40);
+            $popover.css({ width: width }).show();
+            const height = $popover.outerHeight();
+            const $win = $(window);
+            let top = offset.top + $input.outerHeight() + 4;
+            if (top + height > $win.scrollTop() + $win.height()) top = offset.top - height - 4;
+            $popover.css({ top: top, left: Math.max(8, Math.min(offset.left - 30, $win.width() - width - 8)) });
+        }
+
+        // Replaces the "@query" being typed with the full name
+        function pickMention(name) {
+            if (!$mentionInput) return;
+            const input = $mentionInput[0];
+            const before = input.value.slice(0, input.selectionStart).replace(/@([^\s@]*)$/, `@${nameOf(name)} `);
+            input.value = before + input.value.slice(input.selectionStart);
+            input.setSelectionRange(before.length, before.length);
+            addMention($mentionInput, name);
+            const $input = $mentionInput;
+            closeMentionPopover();
+            $input.trigger("input").trigger("focus");
+        }
+
+        $("#feed")
+            .on("input click", ".comment-input", function () {
+                openMentionPopover($(this));
+            })
+            // Enter picks the highlighted name instead of sending; Escape closes the list
+            .on("keydown", ".comment-input", function (e) {
+                if (!$("#mentionPopover").is(":visible")) return;
+                if (e.key === "Enter") {
+                    e.preventDefault();
+                    pickMention($("#mentionPopover .mention-item.is-active").attr("data-author"));
+                } else if (e.key === "Escape") {
+                    closeMentionPopover();
+                }
+            });
+
+        $("#mentionPopover")
+            .on("mousedown", ".mention-item", (e) => e.preventDefault()) // keep the focus in the comment box
+            .on("click", ".mention-item", function () {
+                pickMention($(this).attr("data-author"));
+            });
+
+        $(document).on("click", function (e) {
+            if (!$(e.target).closest("#mentionPopover, .comment-input").length) closeMentionPopover();
+        });
+        $(window).on("resize", closeMentionPopover);
 
         /* ---------- Feed events (delegated) ---------- */
 
@@ -3776,13 +3959,19 @@
                     snapshot.docChanges().forEach((change) => {
                         if (change.type !== "added") return;
                         const data = change.doc.data();
-                        if (data.author === me || !myPosts.has(data.postId)) return;
+                        if (data.author === me) return;
+                        // One notification per comment: a reply to me beats a tag, which beats a comment on my post
+                        const isReply = data.replyToAuthor === me;
+                        const isMention = (data.mentions || []).includes(me);
+                        if (!isReply && !isMention && !myPosts.has(data.postId)) return;
                         addNotification({
                             kind: "comment",
-                            icon: "fa-regular fa-comment",
+                            icon: isReply ? "fa-solid fa-reply" : isMention ? "fa-solid fa-at" : "fa-regular fa-comment",
                             who: data.author,
-                            action: `đã bình luận: "${data.text}" vào bài viết`,
-                            caption: myPosts.get(data.postId).caption,
+                            action: isReply ? "đã trả lời bình luận của bạn:"
+                                : isMention ? "đã nhắc đến bạn trong một bình luận:"
+                                : `đã bình luận: "${data.text}" vào bài viết`,
+                            caption: isReply || isMention ? data.text : myPosts.get(data.postId).caption,
                             postId: data.postId,
                             ms: toMillis(data.createdAt)
                         });
