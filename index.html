@@ -36,22 +36,22 @@
             </h1>
             <div class="topbar-actions">
                 <!-- Smaller screens only: on wide screens the profile is always shown in the left column -->
-                <button type="button" class="admin-btn admin-btn-icon profile-open-btn" id="btnMyProfile" title="Trang cá nhân" aria-label="Trang cá nhân" style="display:none">
+                <button type="button" class="admin-btn admin-btn-icon profile-open-btn" id="btnMyProfile" data-tip="Trang cá nhân" aria-label="Trang cá nhân" style="display:none">
                     <i class="fa-regular fa-id-card"></i>
                 </button>
-                <button type="button" class="admin-btn admin-btn-icon" id="btnTheme" title="Chế độ tối" aria-label="Chế độ tối" aria-pressed="false">
+                <button type="button" class="admin-btn admin-btn-icon" id="btnTheme" data-tip="Chế độ tối" aria-label="Chế độ tối" aria-pressed="false">
                     <i class="fa-regular fa-moon"></i>
                 </button>
-                <button type="button" class="admin-btn admin-btn-icon notify-btn" id="btnChat" title="Tin nhắn" aria-label="Tin nhắn" style="display:none">
+                <button type="button" class="admin-btn admin-btn-icon notify-btn" id="btnChat" data-tip="Tin nhắn" aria-label="Tin nhắn" style="display:none">
                     <i class="fa-regular fa-paper-plane"></i>
                     <span class="notify-badge" id="chatBadge" style="display:none">0</span>
                 </button>
-                <div class="topbar-meta" title="Số thành viên">
+                <div class="topbar-meta" data-tip="Số thành viên">
                     <i class="fa-regular fa-user"></i>
                     <span id="friendCount">0</span>
                 </div>
                 <div class="notify-wrap">
-                    <button type="button" class="admin-btn admin-btn-icon notify-btn" id="btnNotify" title="Thông báo" aria-label="Thông báo" aria-haspopup="true" aria-expanded="false">
+                    <button type="button" class="admin-btn admin-btn-icon notify-btn" id="btnNotify" data-tip="Thông báo" aria-label="Thông báo" aria-haspopup="true" aria-expanded="false">
                         <i class="fa-regular fa-bell"></i>
                         <span class="notify-badge" id="notifyBadge" style="display:none">0</span>
                     </button>
@@ -81,21 +81,70 @@
                             <i class="fa-solid fa-users"></i>
                             <span>Quản lý người dùng</span>
                         </button>
+                        <button type="button" class="admin-menu-item" id="btnAdminPass" role="menuitem" aria-haspopup="dialog">
+                            <i class="fa-solid fa-key"></i>
+                            <span>Đổi mật khẩu</span>
+                        </button>
                         <button type="button" class="admin-menu-item is-danger" id="btnAdmin" role="menuitem">
                             <i class="fa-solid fa-right-from-bracket"></i>
                             <span>Đăng xuất admin</span>
                         </button>
                     </div>
                 </div>
-                <button type="button" class="admin-btn admin-btn-icon" id="btnLogin" title="Đăng nhập" aria-label="Đăng nhập" style="display:none">
+                <button type="button" class="admin-btn admin-btn-icon" id="btnLogin" data-tip="Đăng nhập" aria-label="Đăng nhập" style="display:none">
                     <i class="fa-solid fa-right-to-bracket"></i>
                 </button>
-                <button type="button" class="admin-btn admin-btn-icon" id="btnLogout" title="Đăng xuất" aria-label="Đăng xuất" style="display:none">
+                <button type="button" class="admin-btn admin-btn-icon" id="btnLogout" data-tip="Đăng xuất" aria-label="Đăng xuất" style="display:none">
                     <i class="fa-solid fa-right-from-bracket"></i>
                 </button>
+                <!-- Phones only: the less used header buttons move into this menu (items click the real buttons) -->
+                <div class="more-wrap" id="moreWrap">
+                    <button type="button" class="admin-btn admin-btn-icon" id="btnMore" data-tip="Thêm" aria-label="Thêm" aria-haspopup="menu" aria-expanded="false">
+                        <i class="fa-solid fa-ellipsis"></i>
+                    </button>
+                    <div class="admin-menu more-menu" id="moreMenu" role="menu" style="display:none">
+                        <button type="button" class="admin-menu-item" data-proxy="#btnTheme" role="menuitem">
+                            <i class="fa-regular fa-moon" id="moreThemeIcon"></i>
+                            <span id="moreThemeLabel">Chế độ tối</span>
+                        </button>
+                        <button type="button" class="admin-menu-item" data-proxy="#btnLogin" id="moreLogin" role="menuitem">
+                            <i class="fa-solid fa-right-to-bracket"></i>
+                            <span>Đăng nhập</span>
+                        </button>
+                        <button type="button" class="admin-menu-item is-danger" data-proxy="#btnLogout" id="moreLogout" role="menuitem">
+                            <i class="fa-solid fa-right-from-bracket"></i>
+                            <span>Đăng xuất</span>
+                        </button>
+                        <div class="more-meta">
+                            <i class="fa-regular fa-user"></i>
+                            <span id="moreMembers">0 thành viên</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </header>
+
+    <!-- Phones only: thumb-reachable navigation -->
+    <nav class="bottom-nav" id="bottomNav" aria-label="Điều hướng">
+        <button type="button" class="bottom-nav-btn" data-nav="home" aria-label="Trang chủ">
+            <i class="fa-solid fa-house"></i>
+            <span>Trang chủ</span>
+        </button>
+        <button type="button" class="bottom-nav-btn" data-nav="post" aria-label="Đăng bài">
+            <i class="fa-regular fa-square-plus"></i>
+            <span>Đăng bài</span>
+        </button>
+        <button type="button" class="bottom-nav-btn" data-nav="chat" aria-label="Tin nhắn">
+            <i class="fa-regular fa-paper-plane"></i>
+            <span>Tin nhắn</span>
+            <span class="notify-badge bottom-nav-badge" id="chatBadgeNav" style="display:none">0</span>
+        </button>
+        <button type="button" class="bottom-nav-btn" data-nav="profile" aria-label="Trang cá nhân">
+            <span class="avatar avatar-xs" id="navAvatar"></span>
+            <span>Cá nhân</span>
+        </button>
+    </nav>
 
     <div class="page-layout">
     <main class="container">
@@ -420,6 +469,23 @@
         </form>
     </div>
 
+    <!-- Change the admin password (admin only) -->
+    <div class="modal" id="adminPassModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="adminPassTitle">
+        <form class="modal-card" id="adminPassForm">
+            <h2 class="modal-title" id="adminPassTitle">Đổi mật khẩu admin 🔑</h2>
+            <p class="modal-desc">Nhập mật khẩu hiện tại để xác nhận.</p>
+            <input type="text" id="adminPassUser" class="modal-input" placeholder="Tài khoản" autocomplete="username">
+            <input type="password" id="adminPassCurrent" class="modal-input" placeholder="Mật khẩu hiện tại" autocomplete="current-password">
+            <input type="password" id="adminPassNew" class="modal-input" placeholder="Mật khẩu mới (ít nhất 6 ký tự)" autocomplete="new-password">
+            <input type="password" id="adminPassConfirm" class="modal-input" placeholder="Nhập lại mật khẩu mới" autocomplete="new-password">
+            <p class="modal-error" id="adminPassError" style="display:none"></p>
+            <div class="modal-actions">
+                <button type="button" class="btn-ghost modal-close">Huỷ</button>
+                <button type="submit" class="btn-primary" id="adminPassSave">Đổi mật khẩu</button>
+            </div>
+        </form>
+    </div>
+
     <!-- Storage stats popup (admin only) -->
     <div class="modal" id="statsModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="statsTitle">
         <div class="modal-card stats-card">
@@ -577,6 +643,7 @@
             collection,
             addDoc,
             getDocs,
+            getDoc,
             query,
             orderBy,
             deleteDoc,
@@ -634,6 +701,8 @@
         const ADMIN_KEY = "friendgram:admin";
         // SHA-256 of "username:password" — the plain password is never stored in code.
         // UI-level check only: Firestore Rules do not enforce it.
+        // Initial password only: once changed from the admin menu, adminKeys/{hash} holds the valid one
+        // and this value stops working (see isAdminHash).
         const ADMIN_HASH = "850cb1df2b608f49a62536364613648d504f1b7a19c7704ca46e65702f84df74";
         const AVATAR_EMOJIS = ["😎", "🧑‍💻", "👩‍🎨", "🧑‍🚀", "👩‍🌾", "🐱", "🦊", "🌸"];
 
@@ -970,7 +1039,12 @@
             $("#btnMyProfile").toggle(!!me);
             $("#btnChat").toggle(!!me);
             const unreadTotal = [...unreadByFriend.values()].reduce((sum, n) => sum + n, 0) + unreadGroups;
-            $("#chatBadge").text(unreadTotal > 9 ? "9+" : unreadTotal).toggle(unreadTotal > 0);
+            $("#chatBadge, #chatBadgeNav").text(unreadTotal > 9 ? "9+" : unreadTotal).toggle(unreadTotal > 0);
+            // Phone menus mirror the header
+            $("#moreLogin").toggle(!me);
+            $("#moreLogout").toggle(!!me);
+            $("#moreMembers").text(`${total} thành viên`);
+            fillAvatar($("#navAvatar"), me, me ? undefined : "🙂");
             renderProfilePanel();
             if ($("#chatListView").is(":visible")) renderChatList();
         }
@@ -984,9 +1058,53 @@
         function renderThemeButton() {
             const isDark = document.documentElement.getAttribute("data-theme") === "dark";
             const label = isDark ? "Chế độ sáng" : "Chế độ tối";
-            $("#btnTheme").attr({ title: label, "aria-label": label, "aria-pressed": isDark })
+            $("#btnTheme").attr({ "data-tip": label, "aria-label": label, "aria-pressed": isDark })
                 .find("i").attr("class", isDark ? "fa-regular fa-sun" : "fa-regular fa-moon");
+            $("#moreThemeIcon").attr("class", isDark ? "fa-regular fa-sun" : "fa-regular fa-moon");
+            $("#moreThemeLabel").text(label);
         }
+
+        /* ---------- Phone navigation: "more" menu + bottom bar ---------- */
+
+        function closeMoreMenu() {
+            $("#moreMenu").hide();
+            $("#btnMore").attr("aria-expanded", "false");
+        }
+
+        $("#btnMore").on("click", function () {
+            const open = !$("#moreMenu").is(":visible");
+            $("#moreMenu").toggle(open);
+            $(this).attr("aria-expanded", String(open));
+        });
+
+        // Menu items run the (hidden on phones) header buttons, so there is one code path for each action
+        $("#moreMenu").on("click", "[data-proxy]", function () {
+            closeMoreMenu();
+            $($(this).attr("data-proxy")).trigger("click");
+        });
+
+        $(document).on("click", function (e) {
+            if (!$(e.target).closest("#moreWrap").length) closeMoreMenu();
+        });
+        $(document).on("keydown", function (e) {
+            if (e.key === "Escape") closeMoreMenu();
+        });
+
+        $("#bottomNav").on("click", ".bottom-nav-btn", function () {
+            const target = $(this).attr("data-nav");
+            if (target === "home") {
+                window.scrollTo({ top: 0, behavior: "smooth" });
+            } else if (target === "post") {
+                if (!requireAuthor()) return;
+                $("#newPostForm")[0].scrollIntoView({ behavior: "smooth", block: "start" });
+                $("#comment")[0].focus({ preventScroll: true }); // let the smooth scroll finish its own way
+            } else if (target === "chat") {
+                openChatList();
+            } else if (target === "profile") {
+                if (currentAuthor()) showProfile(currentAuthor());
+                else openProfileModal();
+            }
+        });
 
         $("#btnTheme").on("click", function () {
             const next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
@@ -1804,7 +1922,15 @@
                 return;
             }
 
-            if (hash !== ADMIN_HASH) {
+            let valid;
+            try {
+                valid = await isAdminHash(hash);
+            } catch (err) {
+                console.error(err);
+                $("#adminError").text(errorMessage(err)).show();
+                return;
+            }
+            if (!valid) {
                 $("#adminError").text("Sai tài khoản hoặc mật khẩu.").show();
                 $("#adminPass").val("").trigger("focus");
                 return;
@@ -1814,6 +1940,64 @@
             $("#adminModal").fadeOut(150);
             setAdmin(true);
             showToast("Đã đăng nhập admin 🔐");
+        });
+
+        /* Admin password (stored as a hash, used as the document id) */
+
+        // Valid hashes are document ids in adminKeys: the rules allow reading one document by id but not
+        // listing them, so a hash can only be checked, never read. The built-in ADMIN_HASH works until
+        // the first password change creates adminMeta/initialized.
+        async function isAdminHash(hash) {
+            if ((await getDoc(doc(db, "adminKeys", hash))).exists()) return true;
+            if (hash !== ADMIN_HASH) return false;
+            return !(await getDoc(doc(db, "adminMeta", "initialized"))).exists();
+        }
+
+        $("#btnAdminPass").on("click", function () {
+            $("#adminPassForm")[0].reset();
+            $("#adminPassError").hide();
+            $("#adminPassModal").fadeIn(150);
+            $("#adminPassUser").trigger("focus");
+        });
+
+        $("#adminPassForm").on("submit", async function (e) {
+            e.preventDefault();
+            if (!isAdmin) return;
+            const user = $.trim($("#adminPassUser").val());
+            const current = $("#adminPassCurrent").val();
+            const next = $("#adminPassNew").val();
+            const fail = (message) => $("#adminPassError").text(message).show();
+
+            if (!user || !current || !next) return fail("Nhập đủ tài khoản, mật khẩu hiện tại và mật khẩu mới.");
+            if (next.length < MIN_PASSWORD) return fail(`Mật khẩu mới cần ít nhất ${MIN_PASSWORD} ký tự.`);
+            if (next !== $("#adminPassConfirm").val()) return fail("Nhập lại mật khẩu mới chưa khớp.");
+            if (next === current) return fail("Mật khẩu mới phải khác mật khẩu hiện tại.");
+
+            const $save = $("#adminPassSave").prop("disabled", true);
+            try {
+                const oldHash = await sha256(`${user}:${current}`);
+                if (!(await isAdminHash(oldHash))) return fail("Sai tài khoản hoặc mật khẩu hiện tại.");
+                const newHash = await sha256(`${user}:${next}`);
+
+                // One batch: the rules check "prev" against the keys that exist before it runs
+                const batch = writeBatch(db);
+                batch.set(doc(db, "adminKeys", newHash), { prev: oldHash, createdAt: Date.now() });
+                batch.delete(doc(db, "adminKeys", oldHash)); // no-op for the built-in password
+                // First change: retire the built-in password. The marker must not hold the new hash,
+                // since anyone can read it (the rules tie it to the new key by requiring both in one batch).
+                if (oldHash === ADMIN_HASH) {
+                    batch.set(doc(db, "adminMeta", "initialized"), { createdAt: Date.now() });
+                }
+                await batch.commit();
+
+                $("#adminPassModal").fadeOut(150);
+                showToast("Đã đổi mật khẩu admin 🔑");
+            } catch (err) {
+                console.error(err);
+                fail(errorMessage(err));
+            } finally {
+                $save.prop("disabled", false);
+            }
         });
 
         /* ---------- Storage stats (admin) ---------- */
