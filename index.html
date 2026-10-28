@@ -245,6 +245,14 @@
             <h2 class="profile-panel-name" id="profilePanelName"></h2>
             <div class="profile-panel-actions" id="profilePanelActions"></div>
         </div>
+        <!-- Items still for sale, always beside the feed (wide screens only); a tile opens #itemDetailModal -->
+        <section class="pass-widget card" id="passWidget" aria-labelledby="passWidgetTitle">
+            <div class="pass-widget-head">
+                <h3 class="pass-widget-title" id="passWidgetTitle">🛍️ Góc Pass đồ Nhà Gô</h3>
+                <button type="button" class="link-btn" id="passWidgetAll">Xem tất cả</button>
+            </div>
+            <div class="pass-grid" id="passGrid"></div>
+        </section>
     </aside>
     </div>
 
@@ -441,6 +449,17 @@
                 <button type="submit" class="btn-primary">Xong</button>
             </div>
         </form>
+    </div>
+
+    <!-- "Pass đồ" item opened from the sidebar: the feed keeps its scroll position underneath -->
+    <div class="modal" id="itemDetailModal" style="display:none" role="dialog" aria-modal="true" aria-label="Chi tiết món đồ">
+        <div class="modal-card item-detail">
+            <div class="item-detail-media" id="itemDetailMedia"></div>
+            <div class="item-card" id="itemDetailCard"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn-ghost modal-close">Đóng</button>
+            </div>
+        </div>
     </div>
 
     <!-- Guest list of an event post -->
@@ -3546,6 +3565,150 @@
                 track.scrollTo({ left: Number($(this).attr("data-index")) * track.clientWidth, behavior: "smooth" });
             });
 
+        /* "Góc Pass đồ" sidebar: items still for sale, opened in a popup so the feed keeps its place */
+
+        const PASS_WIDGET_SIZE = 6;
+        let passItems = []; // [{ id, data }], newest first
+        let passDetail = { id: "", index: 0 }; // item shown in #itemDetailModal, and its photo
+
+        function mediaThumb(m) {
+            return m.type === "video" ? videoPoster(m.url) : m.url;
+        }
+
+        function renderPassWidget() {
+            const $grid = $("#passGrid").empty();
+            if (!passItems.length) {
+                $grid.append($("<p>", { class: "pass-empty", text: "Chưa có món đồ nào đang bán" }));
+                return;
+            }
+            passItems.slice(0, PASS_WIDGET_SIZE).forEach(({ id, data }) => {
+                const first = postMedia(data)[0];
+                const src = first ? mediaThumb(first) : "";
+                $grid.append(
+                    $("<button>", { type: "button", class: "pass-tile", "data-id": id, "aria-label": `${data.item.name} - ${formatMoney(data.item.price)}` }).append(
+                        src ? $("<img>", { src: src, alt: "", loading: "lazy" }) : $("<span>", { class: "pass-tile-empty", text: "🛍️" }),
+                        $("<span>", { class: "pass-tile-price", text: formatMoney(data.item.price) })
+                    )
+                );
+            });
+        }
+
+        function renderPassDetail() {
+            const entry = passItems.find((p) => p.id === passDetail.id);
+            if (!entry) return false;
+            const { data } = entry;
+            const item = data.item;
+            const media = postMedia(data);
+            const seller = data.auth || "";
+            const isMine = !!seller && seller === currentAuthor();
+            const index = Math.min(passDetail.index, Math.max(media.length - 1, 0));
+
+            const $media = $("#itemDetailMedia").empty().toggle(media.length > 0);
+            if (media.length) {
+                $media.append($("<button>", { type: "button", class: "item-detail-photo", "aria-label": "Xem ảnh lớn" })
+                    .append($("<img>", { src: mediaThumb(media[index]), alt: "" })));
+                if (media.length > 1) {
+                    const $thumbs = $("<div>", { class: "item-thumbs" });
+                    media.forEach((m, i) => {
+                        $thumbs.append($("<button>", { type: "button", class: "item-thumb", "data-index": i, "aria-label": `Ảnh ${i + 1}` })
+                            .toggleClass("is-active", i === index)
+                            .append($("<img>", { src: mediaThumb(m), alt: "", loading: "lazy" })));
+                    });
+                    $media.append($thumbs);
+                }
+            }
+
+            const $actions = $("<div>", { class: "event-actions" });
+            if (isMine) {
+                $actions.append($("<button>", { type: "button", class: "event-btn item-sold", text: "✓ Đánh dấu đã bán" }));
+            } else {
+                $actions.append(
+                    $("<button>", { type: "button", class: "event-btn item-chat", text: "💬 Chat hỏi chủ đồ" }),
+                    $("<button>", { type: "button", class: "event-btn item-buy", text: "⚡ Chốt nhanh" })
+                );
+            }
+            $("#itemDetailCard").empty().append(
+                $("<div>", { class: "item-head" }).append($("<span>", { class: "item-badge", text: "🛍️ Pass đồ" })),
+                $("<strong>", { class: "item-name", text: item.name }),
+                $("<div>", { class: "item-meta" }).append(
+                    $("<span>", { class: "item-price", text: formatMoney(item.price) }),
+                    $("<span>", { class: "item-tag", text: item.condition }),
+                    item.size ? $("<span>", { class: "item-tag", text: item.size }) : null
+                ),
+                data.comment ? $("<p>", { class: "item-detail-desc", text: data.comment }) : null,
+                $("<span>", { class: "item-detail-seller", text: `Người bán: ${nameOf(seller)}` }),
+                $actions
+            );
+            return true;
+        }
+
+        function closePassDetail() {
+            passDetail = { id: "", index: 0 };
+            $("#itemDetailModal").fadeOut(150);
+        }
+
+        // Equality only (no orderBy), so no composite index is needed; sorted here instead
+        function watchPassItems() {
+            onSnapshot(
+                query(collection(db, "photos"), where("item.sold", "==", false)),
+                (snapshot) => {
+                    passItems = snapshot.docs
+                        .map((docSnap) => ({ id: docSnap.id, data: docSnap.data() }))
+                        .sort((a, b) => toMillis(b.data.createdAt) - toMillis(a.data.createdAt));
+                    renderPassWidget();
+                    if (passDetail.id && $("#itemDetailModal").is(":visible") && !renderPassDetail()) {
+                        closePassDetail();
+                        showToast("Món đồ này vừa được chốt hoặc đã bị xoá");
+                    }
+                },
+                (err) => {
+                    console.error(err);
+                    $("#passGrid").empty().append($("<p>", { class: "pass-empty", text: "Không tải được danh sách đồ" }));
+                }
+            );
+        }
+
+        $("#passGrid").on("click", ".pass-tile", function () {
+            passDetail = { id: $(this).attr("data-id"), index: 0 };
+            if (renderPassDetail()) $("#itemDetailModal").fadeIn(150);
+        });
+
+        $("#passWidgetAll").on("click", function () {
+            $('#feedTabs .feed-tab[data-filter="item"]').trigger("click");
+            document.getElementById("feedTabs").scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+
+        $("#itemDetailModal")
+            .on("click", ".item-detail-photo", function () {
+                const entry = passItems.find((p) => p.id === passDetail.id);
+                if (entry) openLightbox(postMedia(entry.data), passDetail.index);
+            })
+            .on("click", ".item-thumb", function () {
+                passDetail.index = Number($(this).attr("data-index"));
+                renderPassDetail();
+            })
+            .on("click", ".item-chat", function () {
+                const seller = passItems.find((p) => p.id === passDetail.id)?.data.auth;
+                closePassDetail();
+                if (seller) openChat(seller);
+            })
+            .on("click", ".item-buy", function () {
+                const entry = passItems.find((p) => p.id === passDetail.id);
+                closePassDetail();
+                if (entry) messageSeller(entry.data.auth, `Mình muốn lấy món này! (${entry.data.item.name})`);
+            })
+            .on("click", ".item-sold", async function () {
+                // Closed first: the listener drops the item right away and would report it as "just sold"
+                const id = passDetail.id;
+                closePassDetail();
+                try {
+                    await updateDoc(doc(db, "photos", id), { "item.sold": true });
+                } catch (err) {
+                    console.error(err);
+                    showToast(errorMessage(err));
+                }
+            });
+
         /* Feed filter tabs */
 
         $("#feedTabs").on("click", ".feed-tab", function () {
@@ -5176,6 +5339,7 @@
         watchMyActivity();
 
         loadFeed();
+        watchPassItems();
         if (!currentAuthor()) openProfileModal();
     </script>
 </body>

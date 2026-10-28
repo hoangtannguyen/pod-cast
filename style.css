@@ -2214,6 +2214,10 @@ body.no-scroll {
         display: none;
     }
 
+    .profile-panel .pass-widget {
+        display: block;
+    }
+
     #btnMyProfile {
         display: none !important;
     }
@@ -3404,6 +3408,130 @@ body.no-scroll {
 .post.is-sold .item-name,
 .post.is-sold .item-meta {
     opacity: 0.5;
+}
+
+/* "Góc Pass đồ" sidebar widget: only in the wide-screen left column (the panel is a profile popup on phones) */
+.pass-widget {
+    display: none;
+    margin-top: 16px;
+    padding: 14px;
+}
+
+.pass-widget-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.pass-widget-title {
+    font-size: 15px;
+}
+
+.pass-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+}
+
+.pass-tile {
+    position: relative;
+    aspect-ratio: 1;
+    padding: 0;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: var(--input);
+}
+
+.pass-tile img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.2s ease;
+}
+
+.pass-tile:hover img {
+    transform: scale(1.05);
+}
+
+.pass-tile-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    font-size: 24px;
+}
+
+/* Price over the bottom of the photo */
+.pass-tile-price {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 12px 4px 4px;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pass-empty {
+    grid-column: 1 / -1;
+    padding: 12px 0;
+    font-size: 13px;
+    color: var(--muted);
+    text-align: center;
+}
+
+/* Item popup opened from the widget */
+.item-detail {
+    max-width: 420px;
+    text-align: left;
+}
+
+.item-detail .item-card {
+    margin: 0;
+}
+
+.item-detail .item-thumbs {
+    padding: 8px 0 0;
+}
+
+.item-detail .item-thumb.is-active {
+    border-color: #f97316;
+}
+
+.item-detail-photo {
+    width: 100%;
+    padding: 0;
+    border-radius: 12px;
+    overflow: hidden;
+    border: none;
+    cursor: zoom-in;
+}
+
+.item-detail-photo img {
+    width: 100%;
+    max-height: 320px;
+    object-fit: cover;
+    display: block;
+}
+
+.item-detail-desc {
+    font-size: 14px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.item-detail-seller {
+    font-size: 13px;
+    color: var(--muted);
 }
 
 /* Feed filter tabs */
