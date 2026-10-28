@@ -449,6 +449,13 @@
         <form class="modal-card" id="loginForm">
             <h2 class="modal-title" id="loginTitle">Đăng nhập 🔑</h2>
             <p class="modal-desc">Nhập tên đăng nhập và mật khẩu.</p>
+            <div class="google-login">
+                <button type="button" class="btn-google" id="btnGoogleLoginAlt">
+                    <i class="fa-brands fa-google"></i>
+                    <span>Đăng nhập với Google</span>
+                </button>
+                <p class="google-divider"><span>hoặc dùng tên và mật khẩu</span></p>
+            </div>
             <input type="text" id="loginUser" class="modal-input" placeholder="Tên đăng nhập" maxlength="40" autocomplete="username">
             <input type="password" id="loginPassword" class="modal-input" placeholder="Mật khẩu" autocomplete="current-password">
             <p class="modal-hint" id="loginNoPassword" style="display:none">Tên này chưa có mật khẩu — bấm Đăng nhập để dùng ngay.</p>
@@ -1413,18 +1420,23 @@
             refreshPermissions();
         }
 
-        $("#btnGoogleLogin").on("click", async function () {
-            const $button = $(this).prop("disabled", true);
-            $("#profileError").hide();
+        // Used by the profile popup and the login popup. showError(message) shows a failure in the popup used.
+        async function signInWithGoogle(showError) {
             try {
                 const { user } = await signInWithPopup(auth, new GoogleAuthProvider());
                 const linked = [...usersByAuthor].find(([, account]) => account.googleUid === user.uid)?.[0];
                 if (linked) {
+                    $("#loginModal").fadeOut(150);
                     enterAs(linked);
                     showToast(`Xin chào, ${nameOf(linked)}! 👋`);
                     return;
                 }
-                // First time with this Google account: pick a VibeGram name (prefilled from Google)
+                // First time with this Google account: pick a VibeGram name (prefilled from Google),
+                // which happens in the profile popup
+                if (!$("#profileModal").is(":visible")) {
+                    $("#loginModal").fadeOut(150);
+                    openProfileModal(); // resets pendingGoogle, so it is set below
+                }
                 pendingGoogle = { uid: user.uid, email: user.email || "" };
                 $("#googleLoginRow").hide();
                 $("#googleLinked").text(`✓ Đã xác thực Google${user.email ? ` (${user.email})` : ""}. Chọn tên hiển thị rồi bấm Lưu để tạo tài khoản.`).show();
@@ -1433,10 +1445,22 @@
             } catch (err) {
                 if (err?.code === "auth/popup-closed-by-user" || err?.code === "auth/cancelled-popup-request") return;
                 console.error(err);
-                showProfileError(errorMessage(err));
-            } finally {
-                $button.prop("disabled", false);
+                showError(errorMessage(err));
             }
+        }
+
+        $("#btnGoogleLogin").on("click", async function () {
+            const $button = $(this).prop("disabled", true);
+            $("#profileError").hide();
+            await signInWithGoogle(showProfileError);
+            $button.prop("disabled", false);
+        });
+
+        $("#btnGoogleLoginAlt").on("click", async function () {
+            const $button = $(this).prop("disabled", true);
+            $("#loginError").hide();
+            await signInWithGoogle((message) => $("#loginError").text(message).show());
+            $button.prop("disabled", false);
         });
 
         function renderProfileSaveLabel() {
@@ -1523,7 +1547,7 @@
             const user = usersByAuthor.get(name);
 
             if (user.googleUid) {
-                $("#loginError").text("Tài khoản này đăng nhập bằng Google — bấm \"Tạo tên mới\" rồi chọn \"Đăng nhập với Google\".").show();
+                $("#loginError").text("Tài khoản này đăng nhập bằng Google — bấm \"Đăng nhập với Google\" ở trên.").show();
                 return;
             }
             const password = $("#loginPassword").val();
