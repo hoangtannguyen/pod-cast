@@ -3175,3 +3175,33 @@ body.no-scroll {
     background: #12301a;
     color: #a5d6a7;
 }
+
+/* ---------- Notifications on phones ---------- */
+
+/* The bell is not at the screen's right edge (the "more" button follows it), so a dropdown
+   anchored to it slid off the left side. On phones it is pinned to the screen instead. */
+@media (max-width: 600px) {
+    .notify-dropdown {
+        position: fixed;
+        top: 68px; /* header 60 + 8 */
+        left: 12px;
+        right: 12px;
+        width: auto;
+        /* stop above the bottom bar (58) with a small margin */
+        max-height: calc(100dvh - 68px - 58px - 16px - env(safe-area-inset-bottom));
+        border-radius: 14px;
+        animation: modal-in 0.15s ease;
+    }
+
+    .notify-item {
+        padding-top: 12px;
+        padding-bottom: 12px; /* easier to tap */
+    }
+}
+
+@media (max-width: 500px) {
+    .notify-dropdown {
+        top: 62px; /* header is 54px tall here */
+        max-height: calc(100dvh - 62px - 58px - 16px - env(safe-area-inset-bottom));
+    }
+}
