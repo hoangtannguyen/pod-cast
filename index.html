@@ -240,6 +240,15 @@
         <form class="modal-card" id="profileForm">
             <h2 class="modal-title" id="profileTitle">Bạn là ai? 👋</h2>
             <p class="modal-desc">Nhập tên để đăng bài, thích và bình luận.</p>
+            <!-- Signed out only -->
+            <div class="google-login" id="googleLoginRow">
+                <button type="button" class="btn-google" id="btnGoogleLogin">
+                    <i class="fa-brands fa-google"></i>
+                    <span>Đăng nhập với Google</span>
+                </button>
+                <p class="google-divider"><span>hoặc dùng tên</span></p>
+            </div>
+            <p class="google-linked" id="googleLinked" style="display:none"></p>
             <div class="profile-photo">
                 <span class="avatar avatar-xl" id="profilePreview"></span>
                 <div class="profile-photo-actions">
@@ -666,6 +675,8 @@
             signInWithEmailAndPassword,
             signOut,
             updatePassword,
+            GoogleAuthProvider,
+            signInWithPopup,
         } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
         const firebaseConfig = {
@@ -818,7 +829,10 @@
             "auth/too-many-requests": "Nhập sai quá nhiều lần, thử lại sau ít phút.",
             "auth/weak-password": `Mật khẩu cần ít nhất ${MIN_PASSWORD} ký tự.`,
             "auth/operation-not-allowed": "Chưa bật đăng nhập Email/Password trong Firebase Console.",
-            "auth/network-request-failed": "Mất kết nối mạng, thử lại sau."
+            "auth/network-request-failed": "Mất kết nối mạng, thử lại sau.",
+            "auth/popup-blocked": "Trình duyệt đã chặn cửa sổ đăng nhập Google, hãy cho phép popup rồi thử lại.",
+            "auth/unauthorized-domain": "Trang web này chưa được thêm vào Authorized domains của Firebase Auth.",
+            "auth/account-exists-with-different-credential": "Email Google này đã gắn với cách đăng nhập khác."
         };
 
         function errorMessage(err) {
@@ -1300,6 +1314,9 @@
 
             const me = currentAuthor();
             profilePhoto = avatarOf(me) ? { url: avatarOf(me) } : null;
+            pendingGoogle = null;
+            $("#googleLoginRow").toggle(!me);
+            $("#googleLinked").hide();
             $("#profileFile").val("");
             $("#profileCurrentPassword, #profileNewPassword").val("");
             $("#profileLogout").toggle(!!me);
@@ -1329,11 +1346,18 @@
         // "login"  — another account's name that is protected, so its password is required
         // "change" — the current user's own account, which already has a password
         // "create" — a name without a password; setting one is optional
+        // "google" — a Google account (my own, or the one just verified for a new name): no password
+        // "google-login" — another account's name that signs in with Google, so the Google button is needed
         function profilePasswordMode() {
             const me = currentAuthor();
+            if (!me && pendingGoogle) return "google";
             const target = findUserByName(typedProfileName(), me);
-            if (me && !target) return usersByAuthor.get(me)?.authEmail ? "change" : "create";
-            return usersByAuthor.get(target)?.authEmail ? "login" : "create";
+            if (me && !target) {
+                const mine = usersByAuthor.get(me);
+                return mine?.googleUid ? "google" : mine?.authEmail ? "change" : "create";
+            }
+            const account = usersByAuthor.get(target);
+            return account?.googleUid ? "google-login" : account?.authEmail ? "login" : "create";
         }
 
         // Names are unique whatever the emoji: if "😎 Gô" exists, "Gô" is taken. Returns the existing
@@ -1352,16 +1376,18 @@
             const hints = {
                 login: "Tên này đã có mật khẩu — nhập mật khẩu để đăng nhập:",
                 change: "Đổi mật khẩu (để trống nếu không đổi):",
-                create: "Tạo mật khẩu để bảo vệ tên của bạn (không bắt buộc):"
+                create: "Tạo mật khẩu để bảo vệ tên của bạn (không bắt buộc):",
+                google: "Tài khoản đăng nhập bằng Google — không cần mật khẩu.",
+                "google-login": "Tài khoản này đăng nhập bằng Google — bấm \"Đăng nhập với Google\" ở trên."
             };
             // An existing name without a password: signing in needs nothing more
             $("#profilePasswordHint").text(isProfileLogin() && mode === "create"
                 ? "Tên này đã có người dùng — bấm Đăng nhập để vào. Có thể đặt mật khẩu bảo vệ (không bắt buộc):"
                 : hints[mode]);
             $("#profileCurrentPassword")
-                .toggle(mode !== "create")
+                .toggle(mode === "login" || mode === "change")
                 .attr("placeholder", mode === "login" ? "Mật khẩu" : "Mật khẩu hiện tại");
-            $("#profileNewPassword").toggle(mode !== "login");
+            $("#profileNewPassword").toggle(mode === "create" || mode === "change");
             $("#profileError").hide();
             renderProfileSaveLabel();
         }
@@ -1369,8 +1395,49 @@
         // Typing a name that already exists while signed out signs in to it, so the button says so.
         // (Signed in, taking an existing name is refused on submit, so the button stays "Lưu".)
         function isProfileLogin() {
-            return !currentAuthor() && !!findUserByName(typedProfileName());
+            return !currentAuthor() && !pendingGoogle && !!findUserByName(typedProfileName());
         }
+
+        /* Google sign-in */
+
+        // A verified Google account that has no VibeGram name yet: { uid, email } (null otherwise)
+        let pendingGoogle = null;
+
+        function enterAs(name) {
+            author = name;
+            saveProfile(author);
+            watchMyActivity();
+            watchMyMessages();
+            closeProfileModal();
+            renderFriends();
+            refreshPermissions();
+        }
+
+        $("#btnGoogleLogin").on("click", async function () {
+            const $button = $(this).prop("disabled", true);
+            $("#profileError").hide();
+            try {
+                const { user } = await signInWithPopup(auth, new GoogleAuthProvider());
+                const linked = [...usersByAuthor].find(([, account]) => account.googleUid === user.uid)?.[0];
+                if (linked) {
+                    enterAs(linked);
+                    showToast(`Xin chào, ${nameOf(linked)}! 👋`);
+                    return;
+                }
+                // First time with this Google account: pick a VibeGram name (prefilled from Google)
+                pendingGoogle = { uid: user.uid, email: user.email || "" };
+                $("#googleLoginRow").hide();
+                $("#googleLinked").text(`✓ Đã xác thực Google${user.email ? ` (${user.email})` : ""}. Chọn tên hiển thị rồi bấm Lưu để tạo tài khoản.`).show();
+                if (user.photoURL) setProfilePhoto({ url: user.photoURL });
+                $("#profileName").val(user.displayName || "").trigger("input").trigger("focus");
+            } catch (err) {
+                if (err?.code === "auth/popup-closed-by-user" || err?.code === "auth/cancelled-popup-request") return;
+                console.error(err);
+                showProfileError(errorMessage(err));
+            } finally {
+                $button.prop("disabled", false);
+            }
+        });
 
         function renderProfileSaveLabel() {
             $("#profileSave").text(isProfileLogin() ? "Đăng nhập" : "Lưu");
@@ -1383,6 +1450,8 @@
         // Signs in to, creates, or updates the Firebase Auth account behind the name.
         // Returns the account email to keep on the users entry ("" when the name has no password).
         async function applyPassword(mode, next, currentPassword, newPassword) {
+            // Google accounts keep their Google session; the email lets checkSession() match it
+            if (mode === "google") return pendingGoogle ? pendingGoogle.email : usersByAuthor.get(currentAuthor()).authEmail;
             if (mode === "login") {
                 const email = usersByAuthor.get(next).authEmail;
                 await signInWithEmailAndPassword(auth, email, currentPassword);
@@ -1453,6 +1522,10 @@
             const name = matches[0];
             const user = usersByAuthor.get(name);
 
+            if (user.googleUid) {
+                $("#loginError").text("Tài khoản này đăng nhập bằng Google — bấm \"Tạo tên mới\" rồi chọn \"Đăng nhập với Google\".").show();
+                return;
+            }
             const password = $("#loginPassword").val();
             if (user.authEmail && !password) {
                 $("#loginError").text("Nhập mật khẩu để đăng nhập.").show();
@@ -1536,8 +1609,9 @@
 
             const previous = currentAuthor();
             const existing = findUserByName(name, previous);
-            // Taking someone else's name would merge their posts into ours
-            if (previous && existing) {
+            // Taking someone else's name would merge their posts into ours.
+            // A new Google account must also get a name nobody has.
+            if ((previous || pendingGoogle) && existing) {
                 showToast("Tên này đã có người dùng, hãy chọn tên khác");
                 return;
             }
@@ -1546,8 +1620,13 @@
             const isRename = !!previous && previous !== next;
 
             const mode = profilePasswordMode();
-            const currentPassword = $("#profileCurrentPassword").val();
-            const newPassword = $("#profileNewPassword").val();
+            if (mode === "google-login") {
+                showProfileError("Tài khoản này đăng nhập bằng Google — bấm \"Đăng nhập với Google\".");
+                return;
+            }
+            // Hidden fields may still hold text typed in another mode
+            const currentPassword = mode === "login" || mode === "change" ? $("#profileCurrentPassword").val() : "";
+            const newPassword = mode === "create" || mode === "change" ? $("#profileNewPassword").val() : "";
             if (mode === "login" && !currentPassword) {
                 showProfileError("Nhập mật khẩu để đăng nhập.");
                 return;
@@ -1577,8 +1656,15 @@
                         ? (await uploadMedia(profilePhoto.file)).url
                         : (profilePhoto?.url || "");
 
-                await saveUser(next, avatarUrl, authEmail, isRename ? userIdOf(previous) : undefined,
-                    isRename ? { coverUrl: usersByAuthor.get(previous)?.coverUrl || "" } : {});
+                // A rename creates a new document, so carry over the profile fields that are not re-entered here
+                const extra = {};
+                if (isRename) {
+                    extra.coverUrl = usersByAuthor.get(previous)?.coverUrl || "";
+                    if (usersByAuthor.get(previous)?.googleUid) extra.googleUid = usersByAuthor.get(previous).googleUid;
+                }
+                if (pendingGoogle) extra.googleUid = pendingGoogle.uid;
+                await saveUser(next, avatarUrl, authEmail, isRename ? userIdOf(previous) : undefined, extra);
+                pendingGoogle = null;
                 if (isRename) {
                     $save.text("Đang cập nhật bài viết...");
                     await renameUser(previous, next);
@@ -1808,7 +1894,8 @@
             const $fields = $("#userEditForm").find("input, button").prop("disabled", true);
             $("#userEditError").hide();
             try {
-                await saveUser(next, user.avatarUrl || "", user.authEmail || "", user.id, { coverUrl: user.coverUrl || "" });
+                await saveUser(next, user.avatarUrl || "", user.authEmail || "", user.id,
+                    { coverUrl: user.coverUrl || "", ...(user.googleUid ? { googleUid: user.googleUid } : {}) });
                 await renameUser(previous, next);
                 await deleteDoc(doc(db, "users", userDocId(previous)));
                 usersByAuthor.delete(previous);

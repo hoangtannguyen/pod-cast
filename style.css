@@ -3107,3 +3107,71 @@ body.no-scroll {
     from { opacity: 0; }
     to { opacity: 1; }
 }
+
+/* ---------- Google sign-in (profile popup) ---------- */
+
+.google-login {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.btn-google {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--card);
+    color: var(--text);
+    font-weight: 600;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.btn-google:hover {
+    background: var(--input);
+}
+
+.btn-google:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.btn-google i {
+    color: #4285f4;
+    font-size: 16px;
+}
+
+/* "hoặc dùng tên" with a line on each side */
+.google-divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.google-divider::before,
+.google-divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--border-soft);
+}
+
+.google-linked {
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: #e8f5e9;
+    color: #1b5e20;
+    font-size: 13px;
+    text-align: left;
+}
+
+:root[data-theme="dark"] .google-linked {
+    background: #12301a;
+    color: #a5d6a7;
+}
