@@ -1331,10 +1331,20 @@
         // "create" — a name without a password; setting one is optional
         function profilePasswordMode() {
             const me = currentAuthor();
-            const next = `${selectedEmoji()} ${typedProfileName()}`;
-            const target = usersByAuthor.get(next);
-            if (me && (next === me || !target)) return usersByAuthor.get(me)?.authEmail ? "change" : "create";
-            return target?.authEmail ? "login" : "create";
+            const target = findUserByName(typedProfileName(), me);
+            if (me && !target) return usersByAuthor.get(me)?.authEmail ? "change" : "create";
+            return usersByAuthor.get(target)?.authEmail ? "login" : "create";
+        }
+
+        // Names are unique whatever the emoji: if "😎 Gô" exists, "Gô" is taken. Returns the existing
+        // account (other than `except`) with that name, preferring the one with the selected emoji
+        // in case older data has the same name twice; "" when the name is free.
+        function findUserByName(name, except) {
+            if (!name) return "";
+            const lower = name.toLowerCase();
+            const matches = [...usersByAuthor.keys()].filter((a) => a !== except && nameOf(a).toLowerCase() === lower);
+            const exact = `${selectedEmoji()} ${name}`;
+            return matches.includes(exact) ? exact : matches[0] || "";
         }
 
         function renderPasswordFields() {
@@ -1344,7 +1354,10 @@
                 change: "Đổi mật khẩu (để trống nếu không đổi):",
                 create: "Tạo mật khẩu để bảo vệ tên của bạn (không bắt buộc):"
             };
-            $("#profilePasswordHint").text(hints[mode]);
+            // An existing name without a password: signing in needs nothing more
+            $("#profilePasswordHint").text(isProfileLogin() && mode === "create"
+                ? "Tên này đã có người dùng — bấm Đăng nhập để vào. Có thể đặt mật khẩu bảo vệ (không bắt buộc):"
+                : hints[mode]);
             $("#profileCurrentPassword")
                 .toggle(mode !== "create")
                 .attr("placeholder", mode === "login" ? "Mật khẩu" : "Mật khẩu hiện tại");
@@ -1356,7 +1369,7 @@
         // Typing a name that already exists while signed out signs in to it, so the button says so.
         // (Signed in, taking an existing name is refused on submit, so the button stays "Lưu".)
         function isProfileLogin() {
-            return !currentAuthor() && usersByAuthor.has(`${selectedEmoji()} ${typedProfileName()}`);
+            return !currentAuthor() && !!findUserByName(typedProfileName());
         }
 
         function renderProfileSaveLabel() {
@@ -1522,14 +1535,15 @@
             if (!name) return;
 
             const previous = currentAuthor();
-            const next = `${selectedEmoji()} ${name}`;
-            const isRename = !!previous && previous !== next;
-
+            const existing = findUserByName(name, previous);
             // Taking someone else's name would merge their posts into ours
-            if (isRename && usersByAuthor.has(next)) {
-                showToast("Tên và emoji này đã có người dùng, hãy chọn tên hoặc emoji khác");
+            if (previous && existing) {
+                showToast("Tên này đã có người dùng, hãy chọn tên khác");
                 return;
             }
+            // Signed out + existing name = sign in to that account, with its own emoji and avatar
+            const next = existing || `${selectedEmoji()} ${name}`;
+            const isRename = !!previous && previous !== next;
 
             const mode = profilePasswordMode();
             const currentPassword = $("#profileCurrentPassword").val();
@@ -1557,9 +1571,11 @@
                 // Check the password before changing anything else
                 const authEmail = await applyPassword(mode, next, currentPassword, newPassword);
 
-                const avatarUrl = profilePhoto?.file
-                    ? (await uploadMedia(profilePhoto.file)).url
-                    : (profilePhoto?.url || (mode === "login" ? avatarOf(next) : ""));
+                const avatarUrl = existing
+                    ? avatarOf(next) // signing in does not change that account's avatar
+                    : profilePhoto?.file
+                        ? (await uploadMedia(profilePhoto.file)).url
+                        : (profilePhoto?.url || "");
 
                 await saveUser(next, avatarUrl, authEmail, isRename ? userIdOf(previous) : undefined,
                     isRename ? { coverUrl: usersByAuthor.get(previous)?.coverUrl || "" } : {});
