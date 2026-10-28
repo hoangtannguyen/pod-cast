@@ -3284,3 +3284,156 @@ body.no-scroll {
 .mention-item.is-active {
     background: var(--input);
 }
+
+/* ---------- "Pass đồ" posts & feed filter ---------- */
+
+/* Three type buttons on one row: labels never wrap; if still too wide, the row scrolls sideways */
+.post-type {
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.post-type::-webkit-scrollbar {
+    display: none;
+}
+
+.post-type-btn {
+    flex: 1 0 auto;
+    white-space: nowrap;
+    padding-left: 12px;
+    padding-right: 12px;
+}
+
+.label-short {
+    display: none;
+}
+
+@media (max-width: 420px) {
+    .label-long {
+        display: none;
+    }
+
+    .label-short {
+        display: inline;
+    }
+
+    .post-type-btn {
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+}
+
+.item-card {
+    margin: 12px 12px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.item-head {
+    display: flex;
+    gap: 6px;
+}
+
+.item-badge {
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #f97316 0%, #a855f7 100%);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.item-badge.is-sold {
+    background: #16a34a;
+    letter-spacing: 0.5px;
+}
+
+.item-name {
+    font-size: 16px;
+    overflow-wrap: anywhere;
+}
+
+.item-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.item-price {
+    margin-right: 4px;
+    font-size: 18px;
+    font-weight: 800;
+    color: #f97316;
+}
+
+.item-tag {
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: var(--input);
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.item-thumbs {
+    display: flex;
+    gap: 6px;
+    padding: 8px 12px 0;
+    overflow-x: auto;
+}
+
+.item-thumb {
+    flex: 0 0 52px;
+    height: 52px;
+    padding: 0;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+}
+
+.item-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Sold: faded, so nobody keeps asking */
+.post.is-sold .post-media,
+.post.is-sold .item-thumbs,
+.post.is-sold .item-name,
+.post.is-sold .item-meta {
+    opacity: 0.5;
+}
+
+/* Feed filter tabs */
+.feed-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.feed-tab {
+    flex-shrink: 0;
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--card);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+}
+
+.feed-tab.is-active {
+    border-color: transparent;
+    background: var(--text);
+    color: var(--card);
+}
+
+#feed[data-filter="post"] .post:not([data-kind="post"]),
+#feed[data-filter="party"] .post:not([data-kind="party"]),
+#feed[data-filter="item"] .post:not([data-kind="item"]) {
+    display: none;
+}

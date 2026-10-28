@@ -165,8 +165,16 @@
             </div>
 
             <div class="post-type" role="radiogroup" aria-label="Loại bài đăng">
-                <button type="button" class="post-type-btn is-active" data-type="post" role="radio" aria-checked="true">📝 Bài viết thường</button>
-                <button type="button" class="post-type-btn" data-type="party" role="radio" aria-checked="false">🎉 Tạo sự kiện</button>
+                <!-- Short labels replace the long ones on narrow phones (see .label-short) -->
+                <button type="button" class="post-type-btn is-active" data-type="post" role="radio" aria-checked="true">
+                    📝 <span class="label-long">Bài viết thường</span><span class="label-short">Bài viết</span>
+                </button>
+                <button type="button" class="post-type-btn" data-type="party" role="radio" aria-checked="false">
+                    🎉 <span class="label-long">Tạo sự kiện</span><span class="label-short">Sự kiện</span>
+                </button>
+                <button type="button" class="post-type-btn" data-type="item" role="radio" aria-checked="false">
+                    🛍️ <span class="label-long">Đăng món đồ</span><span class="label-short">Pass đồ</span>
+                </button>
             </div>
             <!-- Filled from the event popup; the first picked photo is the event cover -->
             <div class="party-chip" id="composerParty" style="display:none">
@@ -198,7 +206,14 @@
         </section>
 
         <!-- Feed -->
-        <section class="feed" id="feed"></section>
+        <!-- Feed filter: hides posts of other kinds with CSS (see #feed[data-filter]) -->
+        <div class="feed-tabs" id="feedTabs" role="tablist" aria-label="Lọc bảng tin">
+            <button type="button" class="feed-tab is-active" data-filter="all" role="tab" aria-selected="true">Tất cả</button>
+            <button type="button" class="feed-tab" data-filter="post" role="tab" aria-selected="false">Bài viết</button>
+            <button type="button" class="feed-tab" data-filter="party" role="tab" aria-selected="false">Sự kiện</button>
+            <button type="button" class="feed-tab" data-filter="item" role="tab" aria-selected="false">🛒 Góc Pass đồ</button>
+        </div>
+        <section class="feed" id="feed" data-filter="all"></section>
         <div class="spinner" id="feedLoader" style="display:none"></div>
         <div class="feed-end" id="feedEnd" style="display:none">Bạn đã xem hết bài viết 🎉</div>
         <button type="button" class="btn-ghost feed-retry" id="feedRetry" style="display:none">
@@ -388,6 +403,42 @@
             <div class="modal-actions">
                 <button type="button" class="btn-ghost modal-close">Huỷ</button>
                 <button type="submit" class="btn-primary" id="partySave">Xong</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- "Pass đồ" item details (composer) -->
+    <div class="modal" id="itemModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="itemFormTitle">
+        <form class="modal-card event-form" id="itemForm">
+            <h2 class="modal-title" id="itemFormTitle">Đăng món đồ 🛍️</h2>
+            <label class="event-field">Tên món đồ
+                <input type="text" id="itemName" class="modal-input" maxlength="80" placeholder="vd: Áo khoác Denim Vintage" required>
+            </label>
+            <label class="event-field">Giá bán
+                <span class="money-input">
+                    <input type="text" id="itemPrice" class="modal-input" inputmode="numeric" maxlength="13" placeholder="0" autocomplete="off">
+                    <span class="money-unit">đ</span>
+                </span>
+            </label>
+            <div class="event-row">
+                <label class="event-field">Tình trạng
+                    <select id="itemCondition" class="modal-input">
+                        <option>Mới 100%</option>
+                        <option>Mới 99%</option>
+                        <option>Mới 95%</option>
+                        <option>Đã qua sử dụng</option>
+                        <option>Đồ độc lạ</option>
+                    </select>
+                </label>
+                <label class="event-field">Size / Thông số
+                    <input type="text" id="itemSize" class="modal-input" maxlength="40" placeholder="vd: Size L, unisex">
+                </label>
+            </div>
+            <p class="modal-hint">Ảnh sản phẩm: chọn nhiều ảnh ở nút "Ảnh/Video" khi đăng bài.</p>
+            <p class="modal-error" id="itemError" style="display:none"></p>
+            <div class="modal-actions">
+                <button type="button" class="btn-ghost modal-close">Huỷ</button>
+                <button type="submit" class="btn-primary">Xong</button>
             </div>
         </form>
     </div>
@@ -609,6 +660,8 @@
 
             <!-- Event posts only -->
             <div class="party-card" style="display:none"></div>
+            <!-- "Pass đồ" posts only -->
+            <div class="item-card" style="display:none"></div>
 
             <div class="post-actions">
                 <button type="button" class="icon-btn btn-like" aria-label="Thích" aria-pressed="false">
@@ -1754,6 +1807,7 @@
                 const $post = $(this);
                 renderLikes($post);
                 renderParty($post); // my answer and host buttons depend on who is signed in
+                renderItem($post);
                 $post.find(".post-tools").toggle(canEditPost($post.attr("data-auth")));
                 closePostEdit($post);
                 loadComments($post);
@@ -2511,6 +2565,8 @@
         let composerMedia = [];
         // Event details of the post being written (null = a normal post)
         let composerParty = null;
+        // "Pass đồ" details of the post being written (null = not an item post)
+        let composerItem = null;
 
         function setPosting(isPosting, label) {
             $("#btnPost")
@@ -2555,8 +2611,9 @@
 
             if (!requireAuthor()) return;
             // An event needs a cover photo; its caption is optional (the event has a title)
-            if (!composerMedia.length || (!comment && !composerParty)) {
-                showToast(composerParty ? "Chọn ảnh bìa cho sự kiện nhé!" : "Chọn ảnh/video và nhập nội dung nhé!");
+            if (!composerMedia.length || (!comment && !composerParty && !composerItem)) {
+                showToast(composerParty ? "Chọn ảnh bìa cho sự kiện nhé!"
+                    : composerItem ? "Chọn ảnh sản phẩm nhé!" : "Chọn ảnh/video và nhập nội dung nhé!");
                 return;
             }
             const myId = userIdOf(currentAuthor());
@@ -2574,7 +2631,8 @@
                     auth: currentAuthor(),
                     likes: [],
                     createdAt: Date.now(),
-                    ...(composerParty ? { party: { ...composerParty, hostId: myId, going: [], maybe: [], declined: [], pending: [] } } : {})
+                    ...(composerParty ? { party: { ...composerParty, hostId: myId, going: [], maybe: [], declined: [], pending: [] } } : {}),
+                    ...(composerItem ? { item: { ...composerItem, sold: false } } : {})
                 });
                 resetComposer();
                 showToast("Đã đăng bài ✨");
@@ -2611,6 +2669,10 @@
             renderLikes($post);
             $post.data("party", data.party || null);
             renderParty($post);
+            $post.data("item", data.item || null);
+            renderItem($post);
+            // For the feed filter tabs
+            $post.attr("data-kind", data.party ? "party" : data.item ? "item" : "post");
             return $post;
         }
 
@@ -2713,6 +2775,11 @@
                         if (!$post.length) return;
                         // Event posts: guest answers and edits are live too
                         const party = docSnap.data().party || null;
+                        const item = docSnap.data().item || null;
+                        if (JSON.stringify(item) !== JSON.stringify($post.data("item"))) {
+                            $post.data("item", item);
+                            renderItem($post); // sold / reopened
+                        }
                         const oldParty = $post.data("party");
                         if (JSON.stringify(party) !== JSON.stringify(oldParty)) {
                             notifyPartyChange(docSnap.id, oldParty, party);
@@ -3166,17 +3233,21 @@
 
         let partyEditPostId = ""; // "" = filling the composer's event
 
+        // type: "post" | "party" | "item". The summary chip shows whichever details were filled in.
         function setPostType(type) {
-            if (type === "post") composerParty = null;
+            if (type !== "party") composerParty = null;
+            if (type !== "item") composerItem = null;
             $(".post-type-btn").each(function () {
                 const on = $(this).attr("data-type") === type;
                 $(this).toggleClass("is-active", on).attr("aria-checked", on);
             });
-            $("#composerParty").toggle(!!composerParty);
+            $("#composerParty").toggle(!!(composerParty || composerItem));
             if (composerParty) $("#composerPartyText").text(`🎉 ${composerParty.title} · ${partyWhen(composerParty)}`);
-            $("#comment").attr("placeholder", composerParty ? "Lời mời / mô tả sự kiện (không bắt buộc) ✨" : "Bạn đang nghĩ gì? ✨");
+            if (composerItem) $("#composerPartyText").text(`🛍️ ${composerItem.name} · ${formatMoney(composerItem.price)}`);
+            $("#comment").attr("placeholder", composerParty ? "Lời mời / mô tả sự kiện (không bắt buộc) ✨"
+                : composerItem ? "Mô tả thêm về món đồ (không bắt buộc) ✨" : "Bạn đang nghĩ gì? ✨");
             // The label's first text node ("Ảnh/Video "), before the file count
-            $("label[for='mediaFiles'] > span").contents()[0].nodeValue = composerParty ? "Ảnh bìa " : "Ảnh/Video ";
+            $("label[for='mediaFiles'] > span").contents()[0].nodeValue = composerParty ? "Ảnh bìa " : composerItem ? "Ảnh sản phẩm " : "Ảnh/Video ";
         }
 
         function openPartyForm(postId) {
@@ -3196,14 +3267,15 @@
             $("#partyTitle").trigger("focus");
         }
 
+        // Event / item switch once their form is filled in
         $(".post-type").on("click", ".post-type-btn", function () {
-            if ($(this).attr("data-type") === "post") {
-                setPostType("post");
-            } else if (requireAuthor()) {
-                openPartyForm(null); // switches to "event" once the form is filled
-            }
+            const type = $(this).attr("data-type");
+            if (type === "post") setPostType("post");
+            else if (!requireAuthor()) return;
+            else if (type === "party") openPartyForm(null);
+            else openItemForm();
         });
-        $("#composerPartyEdit").on("click", () => openPartyForm(null));
+        $("#composerPartyEdit").on("click", () => (composerItem ? openItemForm() : openPartyForm(null)));
 
         $("#partyForm").on("submit", async function (e) {
             e.preventDefault();
@@ -3357,6 +3429,134 @@
             .on("click", ".party-chat", function () {
                 openPartyChat($(this).closest(".post"));
             });
+
+        /* ---------- "Pass đồ" posts ("item" field on a post) ---------- */
+
+        function openItemForm() {
+            $("#itemName").val(composerItem?.name || "");
+            $("#itemPrice").val(composerItem?.price ? formatMoneyInput(composerItem.price) : "");
+            $("#itemCondition").val(composerItem?.condition || "Mới 99%");
+            $("#itemSize").val(composerItem?.size || "");
+            $("#itemError").hide();
+            $("#itemModal").fadeIn(150);
+            $("#itemName").trigger("focus");
+        }
+
+        $("#itemForm").on("submit", function (e) {
+            e.preventDefault();
+            const item = {
+                name: $.trim($("#itemName").val()),
+                price: parseMoneyInput($("#itemPrice").val()),
+                condition: $("#itemCondition").val(),
+                size: $.trim($("#itemSize").val())
+            };
+            if (!item.name || !item.price) {
+                $("#itemError").text("Nhập tên món đồ và giá bán.").show();
+                return;
+            }
+            composerItem = item;
+            setPostType("item");
+            $("#itemModal").fadeOut(150);
+        });
+
+        function renderItem($post) {
+            const item = $post.data("item");
+            const $card = $post.find(".item-card").empty().toggle(!!item);
+            $post.toggleClass("is-sold", !!item?.sold);
+            $post.find(".item-thumbs").remove();
+            if (!item) return;
+
+            const seller = $post.attr("data-auth");
+            const isMine = !!seller && seller === currentAuthor();
+            $card.append(
+                $("<div>", { class: "item-head" }).append(
+                    $("<span>", { class: "item-badge", text: "🛍️ Pass đồ" }),
+                    item.sold ? $("<span>", { class: "item-badge is-sold", text: "ĐÃ CHỐT" }) : null
+                ),
+                $("<strong>", { class: "item-name", text: item.name }),
+                $("<div>", { class: "item-meta" }).append(
+                    $("<span>", { class: "item-price", text: formatMoney(item.price) }),
+                    $("<span>", { class: "item-tag", text: item.condition }),
+                    item.size ? $("<span>", { class: "item-tag", text: item.size }) : null
+                )
+            );
+            const $actions = $("<div>", { class: "event-actions" });
+            if (isMine) {
+                $actions.append($("<button>", { type: "button", class: "event-btn item-sold", text: item.sold ? "Mở bán lại" : "✓ Đánh dấu đã bán" }));
+            } else if (!item.sold) {
+                $actions.append(
+                    $("<button>", { type: "button", class: "event-btn item-chat", text: "💬 Chat hỏi chủ đồ" }),
+                    $("<button>", { type: "button", class: "event-btn item-buy", text: "⚡ Chốt nhanh" })
+                );
+            }
+            if ($actions.children().length) $card.append($actions);
+
+            // Thumbnails under the main photo: tap one to show it
+            const media = $post.data("media") || [];
+            if (media.length > 1) {
+                const $thumbs = $("<div>", { class: "item-thumbs" });
+                media.forEach((m, i) => {
+                    $thumbs.append($("<button>", { type: "button", class: "item-thumb", "data-index": i, "aria-label": `Ảnh ${i + 1}` })
+                        .append($("<img>", { src: m.type === "video" ? videoPoster(m.url) : m.url, alt: "", loading: "lazy" })));
+                });
+                $post.find(".post-media").after($thumbs);
+            }
+        }
+
+        // Sends a message to the seller without opening the chat first, then shows the chat
+        async function messageSeller(seller, text) {
+            if (!requireAuthor()) return;
+            const myId = userIdOf(currentAuthor());
+            const sellerId = userIdOf(seller);
+            if (!myId || !sellerId) {
+                showToast("Chưa nhắn tin được với người này, thử tải lại trang");
+                return;
+            }
+            const chatId = chatIdOf(myId, sellerId);
+            try {
+                await addDoc(collection(db, "messages"), { chatId: chatId, fromId: myId, toId: sellerId, text: text, createdAt: Date.now(), read: false });
+                await setDoc(doc(db, "conversations", chatId),
+                    { type: "direct", memberIds: [myId, sellerId], lastText: text, lastAt: Date.now(), lastFromId: myId }, { merge: true });
+                openChat(seller);
+            } catch (err) {
+                console.error(err);
+                showToast(errorMessage(err));
+            }
+        }
+
+        $("#feed")
+            .on("click", ".item-chat", function () {
+                openChat($(this).closest(".post").attr("data-auth"));
+            })
+            .on("click", ".item-buy", function () {
+                const $post = $(this).closest(".post");
+                messageSeller($post.attr("data-auth"), `Mình muốn lấy món này! (${$post.data("item").name})`);
+            })
+            .on("click", ".item-sold", async function () {
+                const $post = $(this).closest(".post");
+                try {
+                    await updateDoc(doc(db, "photos", $post.attr("data-id")), { "item.sold": !$post.data("item").sold });
+                } catch (err) {
+                    console.error(err);
+                    showToast(errorMessage(err));
+                }
+            })
+            .on("click", ".item-thumb", function () {
+                const track = $(this).closest(".post").find(".media-track")[0];
+                track.scrollTo({ left: Number($(this).attr("data-index")) * track.clientWidth, behavior: "smooth" });
+            });
+
+        /* Feed filter tabs */
+
+        $("#feedTabs").on("click", ".feed-tab", function () {
+            $(".feed-tab").removeClass("is-active").attr("aria-selected", "false");
+            $(this).addClass("is-active").attr("aria-selected", "true");
+            $("#feed").attr("data-filter", $(this).attr("data-filter"));
+            // Fewer posts on screen may bring the "load more" sentinel into view
+            const sentinel = document.getElementById("feedSentinel");
+            feedObserver.unobserve(sentinel);
+            feedObserver.observe(sentinel);
+        });
 
         /* ---------- Comments ---------- */
 
@@ -4629,7 +4829,7 @@
             return Number(String(text).replace(/\D/g, "")) || 0;
         }
 
-        $("#eventCost").on("input", function () {
+        $("#eventCost, #itemPrice").on("input", function () {
             // Keep the caret at the same digit after the separators are re-inserted
             const digitsBeforeCaret = this.value.slice(0, this.selectionStart).replace(/\D/g, "").length;
             const digits = this.value.replace(/\D/g, "").replace(/^0+(?=\d)/, "").slice(0, 10);
