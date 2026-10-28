@@ -313,7 +313,7 @@
                 <button type="button" class="icon-btn chat-back" aria-label="Quay lại danh sách"><i class="fa-solid fa-chevron-left"></i></button>
                 <span class="avatar avatar-md" id="chatAvatar"></span>
                 <h2 class="chat-title" id="chatTitle"></h2>
-                <button type="button" class="btn-ghost chat-event-btn" id="chatCreateEvent" style="display:none" title="Tạo kèo cầu lông">
+                <button type="button" class="btn-ghost chat-event-btn" id="chatCreateEvent" style="display:none" title="Tạo kèo">
                     🏸 <span>Tạo kèo</span>
                 </button>
                 <button type="button" class="icon-btn chat-delete-group" id="chatDeleteGroup" style="display:none" title="Xoá nhóm" aria-label="Xoá nhóm">
@@ -397,7 +397,7 @@
     <!-- Create / edit a badminton event (group chats) -->
     <div class="modal" id="eventModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="eventFormTitle">
         <form class="modal-card event-form" id="eventForm">
-            <h2 class="modal-title" id="eventFormTitle">Tạo kèo cầu lông 🏸</h2>
+            <h2 class="modal-title" id="eventFormTitle">Tạo kèo 🏸</h2>
             <label class="event-field">Ngày chơi
                 <input type="date" id="eventDate" class="modal-input" required>
             </label>
@@ -410,7 +410,7 @@
                 </label>
             </div>
             <label class="event-field">Sân / địa điểm
-                <input type="text" id="eventPlace" class="modal-input" maxlength="100" placeholder="vd: Sân Hoà Bình, Q.10" required>
+                <input type="text" id="eventPlace" class="modal-input" maxlength="100" placeholder="" required>
             </label>
             <div class="event-row">
                 <label class="event-field">Số người tối đa
@@ -704,7 +704,11 @@
         // Initial password only: once changed from the admin menu, adminKeys/{hash} holds the valid one
         // and this value stops working (see isAdminHash).
         const ADMIN_HASH = "850cb1df2b608f49a62536364613648d504f1b7a19c7704ca46e65702f84df74";
-        const AVATAR_EMOJIS = ["😎", "🧑‍💻", "👩‍🎨", "🧑‍🚀", "👩‍🌾", "🐱", "🦊", "🌸"];
+        // Only append: the emoji is part of each stored name ("😎 Gô"), and the first one is the default
+        const AVATAR_EMOJIS = [
+            "😎", "🧑‍💻", "👩‍🎨", "🧑‍🚀", "👩‍🌾", "🐱", "🦊", "🌸",
+            "🐶", "🐼", "🦁", "🐯", "🐻", "🐰", "🐧", "🦄", "🌻", "🎧", "⚽", "🔥"
+        ];
 
         // postId -> array of author names who liked the post
         const likesByPost = {};
@@ -1346,6 +1350,17 @@
                 .attr("placeholder", mode === "login" ? "Mật khẩu" : "Mật khẩu hiện tại");
             $("#profileNewPassword").toggle(mode !== "login");
             $("#profileError").hide();
+            renderProfileSaveLabel();
+        }
+
+        // Typing a name that already exists while signed out signs in to it, so the button says so.
+        // (Signed in, taking an existing name is refused on submit, so the button stays "Lưu".)
+        function isProfileLogin() {
+            return !currentAuthor() && usersByAuthor.has(`${selectedEmoji()} ${typedProfileName()}`);
+        }
+
+        function renderProfileSaveLabel() {
+            $("#profileSave").text(isProfileLogin() ? "Đăng nhập" : "Lưu");
         }
 
         function showProfileError(message) {
@@ -1537,7 +1552,7 @@
             const $fields = $("#profileForm").find("input, button");
 
             $fields.prop("disabled", true);
-            $save.text(profilePhoto?.file ? "Đang tải ảnh..." : "Đang lưu...");
+            $save.text(profilePhoto?.file ? "Đang tải ảnh..." : isProfileLogin() ? "Đang đăng nhập..." : "Đang lưu...");
             try {
                 // Check the password before changing anything else
                 const authEmail = await applyPassword(mode, next, currentPassword, newPassword);
@@ -1579,7 +1594,7 @@
                 }
             } finally {
                 $fields.prop("disabled", false);
-                $save.text("Lưu");
+                renderProfileSaveLabel();
             }
         });
 
@@ -4308,7 +4323,7 @@
 
             $card.toggleClass("is-cancelled", !!ev.cancelled).append(
                 $("<div>", { class: "event-card-head" }).append(
-                    $("<strong>", { text: "🏸 Kèo cầu lông" }),
+                    $("<strong>", { text: "🏸 Kèo" }),
                     $("<span>", { class: "event-status" + (ev.cancelled ? " is-cancelled" : ""), text: status })
                 ),
                 $("<p>", { class: "event-line" }).append($("<i>", { class: "fa-regular fa-clock" }), $("<span>", { text: eventDateText(ev) })),
@@ -4346,7 +4361,7 @@
 
         function openEventForm(ev) {
             editingEventId = ev ? ev.id : "";
-            $("#eventFormTitle").text(ev ? "Sửa kèo cầu lông 🏸" : "Tạo kèo cầu lông 🏸");
+            $("#eventFormTitle").text(ev ? "Sửa kèo 🏸" : "Tạo kèo 🏸");
             $("#eventSave").text(ev ? "Lưu" : "Tạo kèo");
             $("#eventDate").val(ev?.date || "");
             $("#eventStart").val(ev?.start || "");
@@ -4390,7 +4405,7 @@
                     const ref = await addDoc(collection(db, "events"), {
                         ...ev, conversationId: chatConv.id, createdBy: myId, going: [myId], declined: [], cancelled: false, createdAt: Date.now()
                     });
-                    const text = `🏸 Kèo cầu lông ${ev.start} ngày ${ev.date.split("-").reverse().join("/")}`;
+                    const text = `🏸 Kèo ${ev.start} ngày ${ev.date.split("-").reverse().join("/")}`;
                     chatStickBottom = true;
                     await addDoc(collection(db, "messages"), {
                         chatId: chatConv.id, fromId: myId, toId: "", text: text, createdAt: Date.now(), read: false, type: "event", eventId: ref.id
