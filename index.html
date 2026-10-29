@@ -1310,10 +1310,11 @@
                 $actions.append($("<button>", { type: "button", class: "btn-primary profile-edit", text: "Nhập tên của bạn" }));
             } else if (isMine) {
                 $actions.append(
-                    $("<button>", { type: "button", class: "btn-ghost profile-edit" })
-                        .append($("<i>", { class: "fa-solid fa-pen" }), $("<span>", { text: "Chỉnh sửa trang cá nhân" })),
-                    $("<button>", { type: "button", class: "btn-ghost profile-about-edit" })
-                        .append($("<i>", { class: "fa-regular fa-address-card" }), $("<span>", { text: "Sửa giới thiệu" }))
+                    // Icon only; the label shows on hover (title) and is read by screen readers (aria-label)
+                    $("<button>", { type: "button", class: "btn-ghost profile-icon-btn profile-edit", title: "Chỉnh sửa trang cá nhân", "aria-label": "Chỉnh sửa trang cá nhân" })
+                        .append($("<i>", { class: "fa-solid fa-pen" })),
+                    $("<button>", { type: "button", class: "btn-ghost profile-icon-btn profile-about-edit", title: "Sửa giới thiệu", "aria-label": "Sửa giới thiệu" })
+                        .append($("<i>", { class: "fa-regular fa-address-card" }))
                 );
             } else if (me) {
                 if (userIdOf(name)) {
