@@ -243,6 +243,7 @@
             </div>
             <span class="ring profile-panel-ring"><span class="avatar avatar-xl" id="profilePanelAvatar"></span></span>
             <h2 class="profile-panel-name" id="profilePanelName"></h2>
+            <div class="profile-about" id="profileAbout"></div>
             <div class="profile-panel-actions" id="profilePanelActions"></div>
         </div>
         <!-- Items still for sale, always beside the feed (wide screens only); a tile opens #itemDetailModal -->
@@ -306,6 +307,40 @@
     </div>
 
     <!-- Chat popup: conversation list -> conversation (1-1 or group); "new group" form -->
+    <!-- About me on the profile. Phone / area are only stored while their switch is on -->
+    <div class="modal" id="aboutModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="aboutTitle">
+        <form class="modal-card event-form" id="aboutForm">
+            <h2 class="modal-title" id="aboutTitle">Giới thiệu bản thân ✨</h2>
+            <label class="event-field">
+                <span class="about-label">Giới thiệu <span class="about-count" id="aboutBioCount"></span></span>
+                <textarea id="aboutBio" class="modal-input about-bio" rows="2" maxlength="150" placeholder="vd: Mê cầu lông, hay pass đồ vintage"></textarea>
+            </label>
+            <div class="event-field">
+                <span class="about-label">Link</span>
+                <div class="about-links" id="aboutLinks"></div>
+                <button type="button" class="link-btn about-add-link" id="aboutAddLink">
+                    <i class="fa-solid fa-plus"></i> Thêm link
+                </button>
+            </div>
+            <label class="about-switch">
+                <input type="checkbox" id="aboutShowPhone">
+                <span>Hiện số điện thoại</span>
+            </label>
+            <input type="tel" id="aboutPhone" class="modal-input" maxlength="20" placeholder="vd: 0901 234 567" autocomplete="tel" style="display:none">
+            <label class="about-switch">
+                <input type="checkbox" id="aboutShowAddress">
+                <span>Hiện khu vực / địa chỉ</span>
+            </label>
+            <input type="text" id="aboutAddress" class="modal-input" maxlength="100" placeholder="vd: Quận 7, TP.HCM" style="display:none">
+            <p class="modal-hint">SĐT và địa chỉ hiện công khai cho mọi người dùng app. Tắt công tắc thì thông tin bị xoá, không được lưu.</p>
+            <p class="modal-error" id="aboutError" style="display:none"></p>
+            <div class="modal-actions">
+                <button type="button" class="btn-ghost modal-close">Huỷ</button>
+                <button type="submit" class="btn-primary" id="aboutSave">Lưu</button>
+            </div>
+        </form>
+    </div>
+
     <div class="modal" id="chatModal" style="display:none" role="dialog" aria-modal="true" aria-label="Tin nhắn">
         <div class="modal-card chat-card">
             <div class="chat-view" id="chatListView">
@@ -664,6 +699,25 @@
                 </div>
             </header>
 
+            <!-- Caption above the media; long ones show 3 lines until "Xem thêm" -->
+            <div class="post-text">
+                <p class="post-caption"><span class="post-caption-text"></span></p>
+                <button type="button" class="link-btn post-caption-more" style="display:none">Xem thêm</button>
+                <form class="edit-form post-edit-form" style="display:none">
+                    <div class="media-grid edit-media"></div>
+                    <label class="btn-ghost edit-add-media">
+                        <i class="fa-regular fa-images"></i>
+                        <span>Thêm ảnh/video</span>
+                        <input type="file" class="edit-files" accept="image/*,video/*" multiple hidden>
+                    </label>
+                    <textarea class="edit-input" rows="3" maxlength="2000"></textarea>
+                    <div class="edit-actions">
+                        <button type="button" class="link-btn btn-edit-cancel">Huỷ</button>
+                        <button type="submit" class="link-btn btn-send btn-edit-save">Lưu</button>
+                    </div>
+                </form>
+            </div>
+
             <div class="post-media">
                 <div class="media-track"></div>
                 <button type="button" class="media-nav media-prev" aria-label="Ảnh trước">
@@ -693,20 +747,6 @@
 
             <div class="post-body">
                 <button type="button" class="post-likes"></button>
-                <p class="post-caption"><strong class="post-caption-author"></strong><span class="post-caption-text"></span></p>
-                <form class="edit-form post-edit-form" style="display:none">
-                    <div class="media-grid edit-media"></div>
-                    <label class="btn-ghost edit-add-media">
-                        <i class="fa-regular fa-images"></i>
-                        <span>Thêm ảnh/video</span>
-                        <input type="file" class="edit-files" accept="image/*,video/*" multiple hidden>
-                    </label>
-                    <textarea class="edit-input" rows="3" maxlength="2000"></textarea>
-                    <div class="edit-actions">
-                        <button type="button" class="link-btn btn-edit-cancel">Huỷ</button>
-                        <button type="submit" class="link-btn btn-send btn-edit-save">Lưu</button>
-                    </div>
-                </form>
                 <div class="post-comments" style="display:none">
                     <div class="comments-list"></div>
                     <button type="button" class="link-btn btn-more-comments" style="display:none"></button>
@@ -991,6 +1031,18 @@
             usersByAuthor.set(name, { ...usersByAuthor.get(name), ...data });
         }
 
+        // Profile fields kept on rename (a rename creates a new users document)
+        function carriedProfile(user) {
+            return {
+                coverUrl: user?.coverUrl || "",
+                bio: user?.bio || "",
+                links: Array.isArray(user?.links) ? user.links : [],
+                phone: user?.phone || "",
+                address: user?.address || "",
+                ...(user?.googleUid ? { googleUid: user.googleUid } : {})
+            };
+        }
+
         // Users created before ids existed get one the first time anybody loads the list
         async function ensureUserId(name) {
             const ref = doc(db, "users", userDocId(name));
@@ -1247,6 +1299,8 @@
             fillAvatar($("#profilePanelAvatar"), name, name ? undefined : "🙂");
             $("#profilePanelName").text(name ? nameOf(name) : "Bạn là ai? 👋");
 
+            renderProfileAbout(usersByAuthor.get(name) || {});
+
             $("#profileCoverActions").toggle(isMine);
             $("#profileCoverLabel").text(cover ? "Đổi ảnh bìa" : "Thêm ảnh bìa");
             $("#profileCoverRemove").toggle(isMine && !!cover);
@@ -1257,7 +1311,9 @@
             } else if (isMine) {
                 $actions.append(
                     $("<button>", { type: "button", class: "btn-ghost profile-edit" })
-                        .append($("<i>", { class: "fa-solid fa-pen" }), $("<span>", { text: "Chỉnh sửa trang cá nhân" }))
+                        .append($("<i>", { class: "fa-solid fa-pen" }), $("<span>", { text: "Chỉnh sửa trang cá nhân" })),
+                    $("<button>", { type: "button", class: "btn-ghost profile-about-edit" })
+                        .append($("<i>", { class: "fa-regular fa-address-card" }), $("<span>", { text: "Sửa giới thiệu" }))
                 );
             } else if (me) {
                 if (userIdOf(name)) {
@@ -1310,7 +1366,126 @@
                 closeProfilePanel();
                 openChat(name);
             })
-            .on("click", ".profile-back", () => showProfile(currentAuthor()));
+            .on("click", ".profile-back", () => showProfile(currentAuthor()))
+            .on("click", ".profile-about-edit", function () {
+                closeProfilePanel();
+                openAboutModal();
+            });
+
+        /* About me: bio, links, phone, area (shown under the name on the profile) */
+
+        const MAX_PROFILE_LINKS = 3;
+
+        // "facebook.com/abc" -> "https://facebook.com/abc"; null for anything that is not http(s)
+        function parseProfileLink(text) {
+            try {
+                const url = new URL(/^[a-z][a-z0-9+.-]*:/i.test(text) ? text : `https://${text}`);
+                return url.protocol === "http:" || url.protocol === "https:" ? url.href : null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function renderProfileAbout(user) {
+            const $about = $("#profileAbout").empty();
+            if (user.bio) $about.append($("<p>", { class: "profile-about-bio", text: user.bio }));
+            (Array.isArray(user.links) ? user.links : []).forEach((href) => {
+                if (!parseProfileLink(href)) return; // never render a stored non-http(s) link
+                const url = new URL(href);
+                $about.append($("<a>", { class: "profile-about-row is-link", href: url.href, target: "_blank", rel: "noopener noreferrer nofollow" })
+                    .append($("<i>", { class: "fa-solid fa-link" }), $("<span>", { text: (url.host + url.pathname).replace(/\/$/, "") })));
+            });
+            if (user.phone) {
+                $about.append($("<a>", { class: "profile-about-row", href: `tel:${user.phone.replace(/[^\d+]/g, "")}` })
+                    .append($("<i>", { class: "fa-solid fa-phone" }), $("<span>", { text: user.phone })));
+            }
+            if (user.address) {
+                $about.append($("<span>", { class: "profile-about-row" })
+                    .append($("<i>", { class: "fa-solid fa-location-dot" }), $("<span>", { text: user.address })));
+            }
+            $about.toggle($about.children().length > 0);
+        }
+
+        function openAboutModal() {
+            if (!requireAuthor()) return;
+            const user = usersByAuthor.get(currentAuthor()) || {};
+            $("#aboutBio").val(user.bio || "").trigger("input");
+            $("#aboutLinks").empty();
+            const links = Array.isArray(user.links) ? user.links : [];
+            (links.length ? links : [""]).forEach(addAboutLinkInput);
+            $("#aboutPhone").val(user.phone || "");
+            $("#aboutAddress").val(user.address || "");
+            $("#aboutShowPhone").prop("checked", !!user.phone).trigger("change");
+            $("#aboutShowAddress").prop("checked", !!user.address).trigger("change");
+            $("#aboutError").hide();
+            $("#aboutModal").fadeIn(150);
+        }
+
+        // One input per link; "Thêm link" adds another until the limit
+        function addAboutLinkInput(value) {
+            $("#aboutLinks").append(
+                $("<div>", { class: "about-link" }).append(
+                    $("<i>", { class: "fa-solid fa-link" }),
+                    $("<input>", { type: "text", class: "modal-input", maxlength: 200, placeholder: "facebook.com/ten-cua-ban", inputmode: "url", autocomplete: "off" }).val(value),
+                    $("<button>", { type: "button", class: "icon-btn about-link-remove", "aria-label": "Xoá link" }).append($("<i>", { class: "fa-solid fa-xmark" }))
+                )
+            );
+            $("#aboutAddLink").toggle($("#aboutLinks .about-link").length < MAX_PROFILE_LINKS);
+        }
+
+        $("#aboutAddLink").on("click", function () {
+            addAboutLinkInput("");
+            $("#aboutLinks .about-link:last input").trigger("focus");
+        });
+
+        $("#aboutLinks").on("click", ".about-link-remove", function () {
+            $(this).closest(".about-link").remove();
+            if (!$("#aboutLinks .about-link").length) addAboutLinkInput(""); // always keep one box
+            $("#aboutAddLink").toggle($("#aboutLinks .about-link").length < MAX_PROFILE_LINKS);
+        });
+
+        $("#aboutBio").on("input", function () {
+            $("#aboutBioCount").text(`${this.value.length}/150`);
+        });
+
+        $("#aboutShowPhone").on("change", function () {
+            $("#aboutPhone").toggle(this.checked);
+        });
+        $("#aboutShowAddress").on("change", function () {
+            $("#aboutAddress").toggle(this.checked);
+        });
+
+        $("#aboutForm").on("submit", async function (e) {
+            e.preventDefault();
+            const me = currentAuthor();
+            if (!me) return;
+            const showError = (text) => $("#aboutError").text(text).show();
+
+            const lines = $("#aboutLinks input").map((i, el) => $.trim(el.value)).get().filter(Boolean);
+            const links = lines.slice(0, MAX_PROFILE_LINKS).map(parseProfileLink);
+            if (links.includes(null)) return showError("Link không hợp lệ (chỉ nhận link web http/https)");
+
+            // Switched off = not stored at all, so a hidden number cannot be read from the users list
+            const phone = $("#aboutShowPhone").prop("checked") ? $.trim($("#aboutPhone").val()) : "";
+            if (phone && !/^\+?\d{8,15}$/.test(phone.replace(/[\s.-]/g, ""))) return showError("Số điện thoại không hợp lệ");
+            const address = $("#aboutShowAddress").prop("checked") ? $.trim($("#aboutAddress").val()) : "";
+
+            const about = { bio: $.trim($("#aboutBio").val()), links: links, phone: phone, address: address };
+            const $save = $("#aboutSave").prop("disabled", true).text("Đang lưu...");
+            $("#aboutError").hide();
+            try {
+                await setDoc(doc(db, "users", userDocId(me)), { ...about, updatedAt: Date.now() }, { merge: true });
+                usersByAuthor.set(me, { ...usersByAuthor.get(me), ...about });
+                renderProfilePanel();
+                $("#aboutModal").fadeOut(150);
+                showToast("Đã cập nhật giới thiệu");
+            } catch (err) {
+                console.error(err);
+                showError(errorMessage(err));
+            } finally {
+                $save.prop("disabled", false).text("Lưu");
+            }
+        });
 
         // Cover photos are stored on Cloudinary like post images; the link lives on the users entry
         async function saveCover(file) {
@@ -1761,11 +1936,7 @@
                         : (profilePhoto?.url || "");
 
                 // A rename creates a new document, so carry over the profile fields that are not re-entered here
-                const extra = {};
-                if (isRename) {
-                    extra.coverUrl = usersByAuthor.get(previous)?.coverUrl || "";
-                    if (usersByAuthor.get(previous)?.googleUid) extra.googleUid = usersByAuthor.get(previous).googleUid;
-                }
+                const extra = isRename ? carriedProfile(usersByAuthor.get(previous)) : {};
                 if (pendingGoogle) extra.googleUid = pendingGoogle.uid;
                 await saveUser(next, avatarUrl, authEmail, isRename ? userIdOf(previous) : undefined, extra);
                 pendingGoogle = null;
@@ -1999,8 +2170,7 @@
             const $fields = $("#userEditForm").find("input, button").prop("disabled", true);
             $("#userEditError").hide();
             try {
-                await saveUser(next, user.avatarUrl || "", user.authEmail || "", user.id,
-                    { coverUrl: user.coverUrl || "", ...(user.googleUid ? { googleUid: user.googleUid } : {}) });
+                await saveUser(next, user.avatarUrl || "", user.authEmail || "", user.id, carriedProfile(user));
                 await renameUser(previous, next);
                 await deleteDoc(doc(db, "users", userDocId(previous)));
                 usersByAuthor.delete(previous);
@@ -2666,6 +2836,19 @@
 
         /* ---------- Feed ---------- */
 
+        // Long captions are cut to 3 lines (CSS) with a "Xem thêm" button; estimated from the text
+        // because posts are built before they are on the page and cannot be measured yet
+        const CAPTION_CLAMP_CHARS = 180;
+        const CAPTION_CLAMP_LINES = 3;
+
+        function renderCaption($post, text) {
+            const isLong = text.length > CAPTION_CLAMP_CHARS || text.split("\n").length > CAPTION_CLAMP_LINES;
+            $post.find(".post-caption-text").text(text);
+            $post.find(".post-text").toggle(!!text); // no empty gap under the header
+            $post.find(".post-caption").show().toggleClass("is-clamped", isLong); // hidden while editing
+            $post.find(".post-caption-more").toggle(isLong);
+        }
+
         function buildPost(id, data) {
             const $post = $($("#postTemplate").html()).attr({ "data-id": id, "data-auth": data.auth || "" });
             const createdAt = toMillis(data.createdAt);
@@ -2677,8 +2860,7 @@
             $post.find(".post-time")
                 .text(timeAgo(createdAt))
                 .attr("title", createdAt ? new Date(createdAt).toLocaleString("vi-VN") : "");
-            $post.find(".post-caption-author").text(nameOf(data.auth));
-            $post.find(".post-caption-text").text(data.comment || "");
+            renderCaption($post, data.comment || "");
 
             const media = postMedia(data);
             $post.data("media", media);
@@ -2938,7 +3120,8 @@
             $form.find(".edit-files").val("");
             renderMediaGrid($form.find(".edit-media"), items);
 
-            $post.find(".post-caption").hide();
+            $post.find(".post-caption, .post-caption-more").hide();
+            $post.find(".post-text").show();
             $form.show()
                 .find(".edit-input").val($post.find(".post-caption-text").text()).trigger("focus");
         }
@@ -2947,7 +3130,7 @@
             const $form = $post.find(".post-edit-form");
             releaseMedia($form.data("media") || []);
             $form.removeData("media").hide();
-            $post.find(".post-caption").show();
+            renderCaption($post, $post.find(".post-caption-text").text());
         }
 
         async function savePostEdit($post) {
@@ -4164,6 +4347,9 @@
             })
             .on("input", ".comment-input", function () {
                 $(this).siblings(".btn-send").prop("disabled", !$.trim($(this).val()));
+            })
+            .on("click", ".post-caption-more", function () {
+                $(this).hide().siblings(".post-caption").removeClass("is-clamped");
             })
             .on("submit", ".comment-form", function (e) {
                 e.preventDefault();
