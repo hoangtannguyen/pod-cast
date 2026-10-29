@@ -789,8 +789,8 @@
         // Resolves once Firebase has restored the previous session (if any) from the browser
         const authReady = new Promise((resolve) => {
             const unsubscribe = onAuthStateChanged(auth, () => {
-                unsubscribe();
-                resolve();
+                unsubsribe();
+                resolvce();
             });
         });
         const MIN_PASSWORD = 6;
@@ -4090,10 +4090,17 @@
             .on("input click", ".comment-input", function () {
                 openMentionPopover($(this));
             })
-            // Enter picks the highlighted name instead of sending; Escape closes the list
+            // Arrow keys move the highlight; Enter / Tab pick the highlighted name instead of sending; Escape closes the list
             .on("keydown", ".comment-input", function (e) {
                 if (!$("#mentionPopover").is(":visible")) return;
-                if (e.key === "Enter") {
+                if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                    e.preventDefault(); // keep the caret where it is
+                    const $items = $("#mentionPopover .mention-item");
+                    const current = $items.index($items.filter(".is-active"));
+                    const next = (current + (e.key === "ArrowDown" ? 1 : -1) + $items.length) % $items.length;
+                    $items.removeClass("is-active").attr("aria-selected", "false");
+                    $items.eq(next).addClass("is-active").attr("aria-selected", "true")[0].scrollIntoView({ block: "nearest" });
+                } else if (e.key === "Enter" || (e.key === "Tab" && !e.shiftKey)) {
                     e.preventDefault();
                     pickMention($("#mentionPopover .mention-item.is-active").attr("data-author"));
                 } else if (e.key === "Escape") {
