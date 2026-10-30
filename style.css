@@ -3891,6 +3891,41 @@ a.profile-about-row:hover {
     gap: 10px;
 }
 
+/* Thumbnail: tap to view all photos / videos; play icon for a video, count when there are several */
+.archive-thumb {
+    position: relative;
+    flex: 0 0 52px;
+    padding: 0;
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: zoom-in;
+}
+
+.archive-thumb-play {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 14px;
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.archive-thumb-count {
+    position: absolute;
+    right: 2px;
+    bottom: 2px;
+    min-width: 16px;
+    padding: 0 4px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.65);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 16px;
+}
+
 .archive-item img,
 .archive-item .pass-tile-empty {
     flex: 0 0 52px;

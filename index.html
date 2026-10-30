@@ -1423,10 +1423,18 @@
                 return;
             }
             posts.forEach(({ id, data }) => {
-                const first = postMedia(data)[0];
+                const media = postMedia(data);
+                const first = media[0];
                 $list.append(
                     $("<div>", { class: "archive-item", "data-id": id }).append(
-                        first ? $("<img>", { src: mediaThumb(first, 200), alt: "", loading: "lazy" }) : $("<span>", { class: "pass-tile-empty", text: "📝" }),
+                        // Opens every photo / video of the post in the lightbox
+                        first
+                            ? $("<button>", { type: "button", class: "archive-thumb", "aria-label": `Xem ${media.length} ảnh/video` }).append(
+                                $("<img>", { src: mediaThumb(first, 200), alt: "", loading: "lazy" }),
+                                first.type === "video" ? $("<i>", { class: "fa-solid fa-play archive-thumb-play" }) : null,
+                                media.length > 1 ? $("<span>", { class: "archive-thumb-count", text: media.length }) : null
+                            )
+                            : $("<span>", { class: "pass-tile-empty", text: "📝" }),
                         $("<div>", { class: "archive-info" }).append(
                             $("<span>", { class: "archive-caption", text: data.item?.name || data.comment || "(Không có nội dung)" }),
                             $("<span>", { class: "archive-time", text: timeAgo(toMillis(data.createdAt)) })
@@ -1460,6 +1468,11 @@
             $(this).addClass("is-active").attr("aria-selected", "true");
             archiveShowHidden = $(this).attr("data-archived") === "true";
             renderArchiveList();
+        });
+
+        $("#archiveList").on("click", ".archive-thumb", function () {
+            const post = archivePosts.find((p) => p.id === $(this).closest(".archive-item").attr("data-id"));
+            if (post) openLightbox(postMedia(post.data), 0);
         });
 
         // "Ẩn" hides a post from the feed, "Khôi phục" brings it back
