@@ -3837,3 +3837,38 @@ a.profile-about-row:hover {
 #feed[data-filter="item"] .post:not([data-kind="item"]) {
     display: none;
 }
+
+/* "Góc Pass đồ" strip above the feed (below 1120px): tiles swipe sideways */
+.pass-strip {
+    margin-bottom: 12px;
+    padding: 12px 0 12px 12px;
+}
+
+.pass-strip .pass-widget-head {
+    padding-right: 12px;
+}
+
+.pass-strip-track {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    padding-right: 12px;
+}
+
+.pass-strip-track::-webkit-scrollbar {
+    display: none;
+}
+
+.pass-strip-track .pass-tile {
+    flex: 0 0 96px;
+    scroll-snap-align: start;
+}
+
+@media (min-width: 1120px) {
+    .pass-strip {
+        display: none !important; /* the sidebar widget shows the same items */
+    }
+}

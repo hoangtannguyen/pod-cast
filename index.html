@@ -207,6 +207,14 @@
 
         <!-- Feed -->
         <!-- Feed filter: hides posts of other kinds with CSS (see #feed[data-filter]) -->
+        <!-- Below 1120px: "Góc Pass đồ" as a swipeable strip (wide screens have the sidebar widget) -->
+        <section class="pass-strip card" id="passStrip" aria-labelledby="passStripTitle" style="display:none">
+            <div class="pass-widget-head">
+                <h3 class="pass-widget-title" id="passStripTitle">🛍️ Góc Pass đồ Nhà Gô</h3>
+                <button type="button" class="link-btn" id="passStripAll">Xem tất cả</button>
+            </div>
+            <div class="pass-strip-track" id="passStripTrack"></div>
+        </section>
         <div class="feed-tabs" id="feedTabs" role="tablist" aria-label="Lọc bảng tin">
             <button type="button" class="feed-tab is-active" data-filter="all" role="tab" aria-selected="true">Tất cả</button>
             <button type="button" class="feed-tab" data-filter="post" role="tab" aria-selected="false">Bài viết</button>
@@ -1013,7 +1021,7 @@
             const url = avatarOf(name);
             $el.empty().attr("data-avatar-of", name || "").toggleClass("has-photo", !!url);
             if (url) {
-                $el.append($("<img>", { src: url, alt: "", loading: "lazy" }));
+                $el.append($("<img>", { src: imageUrl(url, 160), alt: "", loading: "lazy" }));
             } else {
                 $el.text(fallback ?? emojiOf(name));
             }
@@ -1299,7 +1307,7 @@
             const cover = usersByAuthor.get(name)?.coverUrl || "";
 
             const $cover = $("#profileCover").empty().toggleClass("has-photo", !!cover);
-            if (cover) $cover.append($("<img>", { src: cover, alt: "" }));
+            if (cover) $cover.append($("<img>", { src: imageUrl(cover, 720), alt: "" }));
             fillAvatar($("#profilePanelAvatar"), name, name ? undefined : "🙂");
             $("#profilePanelName").text(name ? nameOf(name) : "Bạn là ai? 👋");
 
@@ -2924,11 +2932,19 @@
             renderItem($post);
             // For the feed filter tabs
             $post.attr("data-kind", data.party ? "party" : data.item ? "item" : "post");
+            commentObserver.observe($post[0]);
             return $post;
         }
 
         // Phones do not paint a frame for preload="metadata" until playback starts, so videos showed black.
         // Cloudinary serves a frame of the video as an image: "so_0" = first frame, ".jpg" = image format.
+        // Cloudinary image resized for where it is shown: at most `width` px wide (never upscaled),
+        // best format / quality for the browser. The lightbox keeps the original.
+        function imageUrl(url, width) {
+            if (!/res\.cloudinary\.com\/.+\/image\/upload\//.test(url)) return url;
+            return url.replace("/image/upload/", `/image/upload/w_${width},c_limit,f_auto,q_auto/`);
+        }
+
         function videoPoster(url) {
             if (!/res\.cloudinary\.com\/.+\/video\/upload\//.test(url)) return "";
             return url.replace("/video/upload/", "/video/upload/so_0/").replace(/\.[a-z0-9]+(\?.*)?$/i, ".jpg");
@@ -2992,7 +3008,7 @@
                     );
                 } else {
                     $slide.append(
-                        $("<img>", { src: item.url, alt: "", loading: "lazy" }).on("error", function () {
+                        $("<img>", { src: imageUrl(item.url, 960), alt: "", loading: "lazy" }).on("error", function () {
                             $(this).closest(".media-slide").addClass("is-broken");
                         })
                     );
@@ -3137,6 +3153,7 @@
             hasMore = true;
             knownAuthors.clear();
             stopCommentListeners();
+            commentObserver.disconnect();
             $("#feed").empty();
             $("#feedEnd, #feedRetry").hide();
             await loadNextPage();
@@ -3793,7 +3810,7 @@
                 const $thumbs = $("<div>", { class: "item-thumbs" });
                 media.forEach((m, i) => {
                     $thumbs.append($("<button>", { type: "button", class: "item-thumb", "data-index": i, "aria-label": `Ảnh ${i + 1}` })
-                        .append($("<img>", { src: m.type === "video" ? videoPoster(m.url) : m.url, alt: "", loading: "lazy" })));
+                        .append($("<img>", { src: m.type === "video" ? videoPoster(m.url) : imageUrl(m.url, 200), alt: "", loading: "lazy" })));
                 });
                 $post.find(".post-media").after($thumbs);
             }
@@ -3845,29 +3862,33 @@
         /* "Góc Pass đồ" sidebar: items still for sale, opened in a popup so the feed keeps its place */
 
         const PASS_WIDGET_SIZE = 6;
+        const PASS_STRIP_SIZE = 12;
         let passItems = []; // [{ id, data }], newest first
         let passDetail = { id: "", index: 0 }; // item shown in #itemDetailModal, and its photo
 
-        function mediaThumb(m) {
-            return m.type === "video" ? videoPoster(m.url) : m.url;
+        function mediaThumb(m, width) {
+            return m.type === "video" ? videoPoster(m.url) : imageUrl(m.url, width);
         }
 
+        function buildPassTile({ id, data }) {
+            const first = postMedia(data)[0];
+            const src = first ? mediaThumb(first, 300) : "";
+            return $("<button>", { type: "button", class: "pass-tile", "data-id": id, "aria-label": `${data.item.name} - ${formatMoney(data.item.price)}` }).append(
+                src ? $("<img>", { src: src, alt: "", loading: "lazy" }) : $("<span>", { class: "pass-tile-empty", text: "🛍️" }),
+                $("<span>", { class: "pass-tile-price", text: formatMoney(data.item.price) })
+            );
+        }
+
+        // Sidebar grid (wide screens) and the swipeable strip above the feed (smaller screens; hidden when empty)
         function renderPassWidget() {
             const $grid = $("#passGrid").empty();
+            $("#passStrip").toggle(passItems.length > 0);
+            $("#passStripTrack").empty().append(passItems.slice(0, PASS_STRIP_SIZE).map(buildPassTile));
             if (!passItems.length) {
                 $grid.append($("<p>", { class: "pass-empty", text: "Chưa có món đồ nào đang bán" }));
                 return;
             }
-            passItems.slice(0, PASS_WIDGET_SIZE).forEach(({ id, data }) => {
-                const first = postMedia(data)[0];
-                const src = first ? mediaThumb(first) : "";
-                $grid.append(
-                    $("<button>", { type: "button", class: "pass-tile", "data-id": id, "aria-label": `${data.item.name} - ${formatMoney(data.item.price)}` }).append(
-                        src ? $("<img>", { src: src, alt: "", loading: "lazy" }) : $("<span>", { class: "pass-tile-empty", text: "🛍️" }),
-                        $("<span>", { class: "pass-tile-price", text: formatMoney(data.item.price) })
-                    )
-                );
-            });
+            $grid.append(passItems.slice(0, PASS_WIDGET_SIZE).map(buildPassTile));
         }
 
         function renderPassDetail() {
@@ -3883,13 +3904,13 @@
             const $media = $("#itemDetailMedia").empty().toggle(media.length > 0);
             if (media.length) {
                 $media.append($("<button>", { type: "button", class: "item-detail-photo", "aria-label": "Xem ảnh lớn" })
-                    .append($("<img>", { src: mediaThumb(media[index]), alt: "" })));
+                    .append($("<img>", { src: mediaThumb(media[index], 840), alt: "" })));
                 if (media.length > 1) {
                     const $thumbs = $("<div>", { class: "item-thumbs" });
                     media.forEach((m, i) => {
                         $thumbs.append($("<button>", { type: "button", class: "item-thumb", "data-index": i, "aria-label": `Ảnh ${i + 1}` })
                             .toggleClass("is-active", i === index)
-                            .append($("<img>", { src: mediaThumb(m), alt: "", loading: "lazy" })));
+                            .append($("<img>", { src: mediaThumb(m, 200), alt: "", loading: "lazy" })));
                     });
                     $media.append($thumbs);
                 }
@@ -3945,12 +3966,12 @@
             );
         }
 
-        $("#passGrid").on("click", ".pass-tile", function () {
+        $("#passGrid, #passStripTrack").on("click", ".pass-tile", function () {
             passDetail = { id: $(this).attr("data-id"), index: 0 };
             if (renderPassDetail()) $("#itemDetailModal").fadeIn(150);
         });
 
-        $("#passWidgetAll").on("click", function () {
+        $("#passWidgetAll, #passStripAll").on("click", function () {
             $('#feedTabs .feed-tab[data-filter="item"]').trigger("click");
             document.getElementById("feedTabs").scrollIntoView({ behavior: "smooth", block: "start" });
         });
@@ -4197,6 +4218,17 @@
             if ($older.length) $comment.insertBefore($older);
             else $list.append($comment);
         }
+
+        // Only posts near the screen keep a live comment listener (each one is an open connection);
+        // a post scrolled far away (or hidden by a filter tab) is stopped and restarted when it comes back
+        const commentObserver = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                const $post = $(entry.target);
+                if ($post.hasClass("is-removing")) return;
+                if (entry.isIntersecting) loadComments($post);
+                else stopCommentListeners($post.attr("data-id"));
+            });
+        }, { rootMargin: "1500px 0px" });
 
         function loadComments($post) {
             const id = $post.attr("data-id");
