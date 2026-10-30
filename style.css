@@ -893,10 +893,74 @@ body.no-scroll {
     background: var(--primary);
 }
 
+/* Quality pill (Gốc / 720p / 480p) after the repeat button */
+.media-quality {
+    position: absolute;
+    top: 10px;
+    left: 82px;
+    height: 30px;
+    padding: 0 10px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    opacity: 0;
+    transition: opacity 0.15s, background 0.15s;
+}
+
+.media-quality.is-active {
+    opacity: 1;
+    background: var(--primary);
+}
+
+.media-quality[aria-expanded="true"] {
+    opacity: 1;
+}
+
+/* Small dropdown under the quality pill */
+.media-quality-menu {
+    position: absolute;
+    top: 44px;
+    left: 82px;
+    z-index: 2;
+    min-width: 84px;
+    padding: 4px;
+    border-radius: 10px;
+    background: rgba(20, 20, 20, 0.92);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+    display: flex;
+    flex-direction: column;
+}
+
+.media-quality-option {
+    padding: 6px 10px;
+    border-radius: 6px;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    text-align: left;
+}
+
+.media-quality-option:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+/* Current choice: blue with a check mark */
+.media-quality-option.is-active {
+    color: #4cb5f9;
+}
+
+.media-quality-option.is-active::after {
+    content: " ✓";
+}
+
 .media-slide:hover .media-expand,
 .media-expand:focus-visible,
 .media-slide:hover .media-loop,
-.media-loop:focus-visible {
+.media-loop:focus-visible,
+.media-slide:hover .media-quality,
+.media-quality:focus-visible {
     opacity: 1;
 }
 
@@ -907,7 +971,8 @@ body.no-scroll {
 
 @media (hover: none) {
     .media-expand,
-    .media-loop {
+    .media-loop,
+    .media-quality {
         opacity: 1;
     }
 }
@@ -1906,6 +1971,21 @@ body.no-scroll {
 
     .media-loop {
         left: 52px; /* 10 + 36 + 6 gap */
+    }
+
+    .media-quality {
+        left: 94px; /* 52 + 36 + 6 gap */
+        height: 36px;
+    }
+
+    .media-quality-menu {
+        top: 50px;
+        left: 94px;
+    }
+
+    .media-quality-option {
+        padding: 9px 12px; /* bigger tap targets */
+        font-size: 13px;
     }
 }
 

@@ -2891,6 +2891,36 @@
         // Videos the user switched to "repeat" (by URL, so the choice survives re-renders and carries into the lightbox)
         const loopingVideos = new Set();
 
+        // Choices in the quality menu ("" = the uploaded file)
+        const VIDEO_QUALITIES = ["", "1080", "720", "480"];
+
+        // Cloudinary resizes on request: the short side becomes `quality` px (c_limit: never upscaled), as mp4
+        function videoQualityUrl(url, quality, isPortrait) {
+            if (!quality) return url;
+            const size = isPortrait ? `w_${quality}` : `h_${quality}`;
+            return url
+                .replace("/video/upload/", `/video/upload/${size},c_limit,q_auto/`)
+                .replace(/\.[a-z0-9]+(\?.*)?$/i, ".mp4");
+        }
+
+        function closeQualityMenus() {
+            $(".media-quality-menu").hide();
+            $(".media-quality").attr("aria-expanded", "false");
+        }
+
+        $(document).on("click", function (e) {
+            if (!$(e.target).closest(".media-quality, .media-quality-menu").length) closeQualityMenus();
+        });
+        $(document).on("keydown", function (e) {
+            if (e.key === "Escape") closeQualityMenus();
+        });
+
+        function setVideoQuality($btn, quality) {
+            $btn.attr({ "data-quality": quality, "aria-label": `Chất lượng video: ${quality ? `${quality}p` : "Gốc"}` })
+                .text(quality ? `${quality}p` : "Gốc")
+                .toggleClass("is-active", !!quality);
+        }
+
         function renderPostMedia($post, media) {
             const $wrap = $post.find(".post-media");
             const $track = $wrap.find(".media-track").empty();
@@ -2904,10 +2934,15 @@
                     const poster = videoPoster(item.url);
                     const isLoop = loopingVideos.has(item.url);
                     $slide.append(
-                        $("<video>", { src: item.url, preload: "metadata" }).prop("loop", isLoop).attr({ controls: "", playsinline: "", ...(poster ? { poster } : {}) }),
+                        $("<video>", { src: item.url, preload: "metadata", "data-original": item.url }).prop("loop", isLoop).attr({ controls: "", playsinline: "", ...(poster ? { poster } : {}) }),
                         $("<button>", { type: "button", class: "media-loop", "aria-label": "Lặp lại video", title: "Lặp lại video", "aria-pressed": String(isLoop) })
                             .toggleClass("is-active", isLoop)
-                            .append($("<i>", { class: "fa-solid fa-repeat" }))
+                            .append($("<i>", { class: "fa-solid fa-repeat" })),
+                        // Only Cloudinary can serve smaller versions
+                        poster ? $("<button>", { type: "button", class: "media-quality", "data-quality": "", title: "Chất lượng video", "aria-label": "Chất lượng video: Gốc", "aria-haspopup": "menu", "aria-expanded": "false", text: "Gốc" }) : null,
+                        poster ? $("<div>", { class: "media-quality-menu", role: "menu" }).hide().append(
+                            VIDEO_QUALITIES.map((q) => $("<button>", { type: "button", class: "media-quality-option", role: "menuitemradio", "data-quality": q, text: q ? `${q}p` : "Gốc" }))
+                        ) : null
                     );
                 } else {
                     $slide.append(
@@ -4349,10 +4384,53 @@
             .on("click", ".media-loop", function () {
                 const video = $(this).siblings("video")[0];
                 video.loop = !video.loop;
-                if (video.loop) loopingVideos.add(video.getAttribute("src"));
-                else loopingVideos.delete(video.getAttribute("src"));
+                if (video.loop) loopingVideos.add(video.dataset.original);
+                else loopingVideos.delete(video.dataset.original);
                 $(this).toggleClass("is-active", video.loop).attr("aria-pressed", String(video.loop));
                 showToast(video.loop ? "Đã bật lặp lại video 🔁" : "Đã tắt lặp lại video");
+            })
+            .on("click", ".media-quality", function () {
+                const $menu = $(this).siblings(".media-quality-menu");
+                const willOpen = !$menu.is(":visible");
+                closeQualityMenus();
+                if (!willOpen) return;
+                const current = $(this).attr("data-quality");
+                $menu.find(".media-quality-option").each(function () {
+                    const isCurrent = $(this).attr("data-quality") === current;
+                    $(this).toggleClass("is-active", isCurrent).attr("aria-checked", String(isCurrent));
+                });
+                $menu.show();
+                $(this).attr("aria-expanded", "true");
+            })
+            // Switches the source but keeps the position (and playback) where it was
+            .on("click", ".media-quality-option", function () {
+                const next = $(this).attr("data-quality");
+                const $btn = $(this).closest(".media-slide").find(".media-quality");
+                closeQualityMenus();
+                if (next === $btn.attr("data-quality")) return;
+                const video = $btn.siblings("video")[0];
+                const original = video.dataset.original;
+                const time = video.currentTime;
+                const wasPlaying = !video.paused;
+
+                const onReady = () => {
+                    video.removeEventListener("error", onError);
+                    video.currentTime = time;
+                    if (wasPlaying) video.play().catch(() => {});
+                };
+                // A version Cloudinary cannot make (yet): back to the uploaded file
+                const onError = () => {
+                    video.removeEventListener("loadedmetadata", onReady);
+                    setVideoQuality($btn, "");
+                    video.src = original;
+                    video.addEventListener("loadedmetadata", () => { video.currentTime = time; }, { once: true });
+                    showToast(`Chưa tải được bản ${next}p, đang phát bản gốc`);
+                };
+                video.addEventListener("loadedmetadata", onReady, { once: true });
+                if (next) video.addEventListener("error", onError, { once: true });
+
+                video.src = videoQualityUrl(original, next, video.videoHeight > video.videoWidth);
+                setVideoQuality($btn, next);
             })
             // Only images: double-clicking a video is the browser's fullscreen gesture
             .on("dblclick", ".media-slide img", function () {
