@@ -870,17 +870,44 @@ body.no-scroll {
     transition: opacity 0.15s, background 0.15s;
 }
 
+/* Repeat toggle on videos, next to the expand button; stays visible while switched on */
+.media-loop {
+    position: absolute;
+    top: 10px;
+    left: 46px;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    font-size: 13px;
+    opacity: 0;
+    transition: opacity 0.15s, background 0.15s;
+}
+
+.media-loop.is-active {
+    opacity: 1;
+    background: var(--primary);
+}
+
 .media-slide:hover .media-expand,
-.media-expand:focus-visible {
+.media-expand:focus-visible,
+.media-slide:hover .media-loop,
+.media-loop:focus-visible {
     opacity: 1;
 }
 
-.media-expand:hover {
+.media-expand:hover,
+.media-loop:not(.is-active):hover {
     background: rgba(0, 0, 0, 0.8);
 }
 
 @media (hover: none) {
-    .media-expand {
+    .media-expand,
+    .media-loop {
         opacity: 1;
     }
 }
@@ -975,6 +1002,22 @@ body.no-scroll {
     display: flex;
     gap: 2px;
     padding: 4px 6px 0;
+}
+
+/* "Next post" sits at the right end of the like/comment row */
+.btn-next-post {
+    margin-left: auto;
+    font-size: 20px;
+    color: var(--muted);
+}
+
+.btn-next-post:hover {
+    color: var(--primary);
+}
+
+/* Scrolled to by "next post": keep the top clear of the sticky header */
+#feed .post {
+    scroll-margin-top: 72px;
 }
 
 .post-body {
@@ -1855,9 +1898,14 @@ body.no-scroll {
         height: 40px;
     }
 
-    .media-expand {
+    .media-expand,
+    .media-loop {
         width: 36px;
         height: 36px;
+    }
+
+    .media-loop {
+        left: 52px; /* 10 + 36 + 6 gap */
     }
 }
 

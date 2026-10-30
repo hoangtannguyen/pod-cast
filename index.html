@@ -743,6 +743,9 @@
                 <button type="button" class="icon-btn btn-comment-focus" aria-label="Bình luận">
                     <i class="fa-regular fa-comment"></i>
                 </button>
+                <button type="button" class="icon-btn btn-next-post" aria-label="Bài viết tiếp theo" title="Bài viết tiếp theo">
+                    <i class="fa-solid fa-circle-chevron-down"></i>
+                </button>
             </div>
 
             <div class="post-body">
@@ -2510,7 +2513,7 @@
             const $stage = $("#lightboxStage").empty();
 
             if (item.type === "video") {
-                $stage.append($("<video>", { src: item.url }).attr({ controls: "", playsinline: "", autoplay: "" }));
+                $stage.append($("<video>", { src: item.url }).prop("loop", loopingVideos.has(item.url)).attr({ controls: "", playsinline: "", autoplay: "" }));
             } else {
                 $stage.append($("<img>", { src: item.url, alt: "" }));
             }
@@ -2885,6 +2888,9 @@
             return url.replace("/video/upload/", "/video/upload/so_0/").replace(/\.[a-z0-9]+(\?.*)?$/i, ".jpg");
         }
 
+        // Videos the user switched to "repeat" (by URL, so the choice survives re-renders and carries into the lightbox)
+        const loopingVideos = new Set();
+
         function renderPostMedia($post, media) {
             const $wrap = $post.find(".post-media");
             const $track = $wrap.find(".media-track").empty();
@@ -2896,7 +2902,13 @@
                 const $slide = $("<div>", { class: "media-slide" });
                 if (item.type === "video") {
                     const poster = videoPoster(item.url);
-                    $slide.append($("<video>", { src: item.url, preload: "metadata" }).attr({ controls: "", playsinline: "", ...(poster ? { poster } : {}) }));
+                    const isLoop = loopingVideos.has(item.url);
+                    $slide.append(
+                        $("<video>", { src: item.url, preload: "metadata" }).prop("loop", isLoop).attr({ controls: "", playsinline: "", ...(poster ? { poster } : {}) }),
+                        $("<button>", { type: "button", class: "media-loop", "aria-label": "Lặp lại video", title: "Lặp lại video", "aria-pressed": String(isLoop) })
+                            .toggleClass("is-active", isLoop)
+                            .append($("<i>", { class: "fa-solid fa-repeat" }))
+                    );
                 } else {
                     $slide.append(
                         $("<img>", { src: item.url, alt: "", loading: "lazy" }).on("error", function () {
@@ -4324,6 +4336,23 @@
             })
             .on("click", ".media-expand", function () {
                 openLightboxFrom($(this));
+            })
+            // Next post still shown by the current filter tab; at the end, load the next page first
+            .on("click", ".btn-next-post", async function () {
+                const $post = $(this).closest(".post");
+                const nextVisible = () => $post.nextAll(".post:visible").first();
+                if (!nextVisible().length && hasMore) await loadNextPage();
+                const $next = nextVisible();
+                if ($next.length) $next[0].scrollIntoView({ behavior: "smooth", block: "start" });
+                else showToast("Bạn đã xem hết bài viết 🎉");
+            })
+            .on("click", ".media-loop", function () {
+                const video = $(this).siblings("video")[0];
+                video.loop = !video.loop;
+                if (video.loop) loopingVideos.add(video.getAttribute("src"));
+                else loopingVideos.delete(video.getAttribute("src"));
+                $(this).toggleClass("is-active", video.loop).attr("aria-pressed", String(video.loop));
+                showToast(video.loop ? "Đã bật lặp lại video 🔁" : "Đã tắt lặp lại video");
             })
             // Only images: double-clicking a video is the browser's fullscreen gesture
             .on("dblclick", ".media-slide img", function () {
