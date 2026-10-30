@@ -632,7 +632,15 @@
         <div class="modal-card users-card">
             <h2 class="modal-title" id="usersTitle">Quản lý người dùng 👥</h2>
             <p class="modal-desc">Tìm kiếm, chỉnh sửa tên hoặc xoá người dùng.</p>
-            <input type="search" id="usersSearch" class="modal-input" placeholder="Tìm theo tên người dùng..." aria-label="Tìm kiếm người dùng">
+            <div class="users-tools">
+                <input type="search" id="usersSearch" class="modal-input" placeholder="Tìm theo tên người dùng..." aria-label="Tìm kiếm người dùng">
+                <select id="usersSort" class="modal-input" aria-label="Sắp xếp người dùng">
+                    <option value="name">Tên A–Z</option>
+                    <option value="posts">Nhiều bài nhất</option>
+                    <option value="comments">Nhiều bình luận nhất</option>
+                    <option value="idle">Chưa có bài nào</option>
+                </select>
+            </div>
             <p class="users-count" id="usersCount"></p>
             <p class="users-status" id="usersStatus" role="status" style="display:none"></p>
             <ul class="users-list" id="usersList"></ul>
@@ -797,6 +805,7 @@
             onSnapshot,
             runTransaction,
             writeBatch,
+            getCountFromServer,
         } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import {
             getAuth,
@@ -1137,7 +1146,7 @@
 
         /* ---------- Friends ---------- */
 
-        // `author` is the full stored name ("😎 Gô"), used for the avatar photo and the admin delete button
+        // `author` is the full stored name ("😎 Gô"), used for the avatar photo
         function buildStory(name, emoji, isMe, author) {
             const $story = $(isMe ? "<button>" : "<div>", {
                 class: "story" + (isMe ? " is-active" : ""),
@@ -1147,7 +1156,7 @@
                 .append($("<span>", { class: "ring" }).append(fillAvatar($("<span>", { class: "avatar avatar-lg" }), author, emoji)))
                 .append($("<span>", { class: "story-name", text: name }));
 
-            // Friends are a <div> (the admin delete button sits inside), so act as a button via role/tabindex.
+            // Friends are a <div> (the chat button sits inside), so act as a button via role/tabindex.
             // Clicking opens their profile; the small chat icon opens the chat directly.
             if (!isMe) {
                 $story.attr({ role: "button", tabindex: 0, "data-profile": author, "aria-label": `Xem trang cá nhân của ${name}` });
@@ -1166,14 +1175,6 @@
                         $("<span>", { class: "story-unread", text: unread > 9 ? "9+" : unread, title: `${unread} tin nhắn chưa đọc` })
                     );
                 }
-            }
-
-            if (!isMe && isAdmin) {
-                $story.append(
-                    $("<button>", { type: "button", class: "story-delete", title: `Xoá người dùng ${name}`, "aria-label": `Xoá người dùng ${name}` })
-                        .attr("data-author", author)
-                        .append($("<i>", { class: "fa-solid fa-xmark" }))
-                );
             }
             return $story;
         }
@@ -2059,11 +2060,35 @@
             return { posts: posts.size, comments: comments.size, likes: liked.size };
         }
 
+        // Post / comment counts per user for the admin list (null while loading)
+        const userCounts = new Map();
+
+        // Count queries cost ~1 read each, instead of reading every post and comment
+        async function loadUserCounts() {
+            const names = [...usersByAuthor.keys()];
+            await Promise.all(names.map(async (name) => {
+                try {
+                    const [posts, comments] = await Promise.all([
+                        getCountFromServer(query(collection(db, "photos"), where("auth", "==", name))),
+                        getCountFromServer(query(collection(db, "comments"), where("author", "==", name)))
+                    ]);
+                    userCounts.set(name, { posts: posts.data().count, comments: comments.data().count });
+                } catch (err) {
+                    console.error(err);
+                }
+            }));
+            if ($("#usersModal").is(":visible")) renderUserList();
+        }
+
         function renderUserList() {
             const search = $.trim($("#usersSearch").val()).toLowerCase();
+            const sort = $("#usersSort").val();
+            const countOf = (name, key) => userCounts.get(name)?.[key] ?? -1;
             const users = [...usersByAuthor.keys()]
                 .filter((name) => name.toLowerCase().includes(search) || nameOf(name).toLowerCase().includes(search))
-                .sort((a, b) => a.localeCompare(b, "vi"));
+                .filter((name) => sort !== "idle" || countOf(name, "posts") === 0)
+                .sort((a, b) => (sort === "posts" || sort === "comments" ? countOf(b, sort) - countOf(a, sort) : 0)
+                    || a.localeCompare(b, "vi"));
             const $list = $("#usersList").empty();
 
             $("#usersCount").text(`Đang hiển thị ${users.length}/${usersByAuthor.size} người dùng`);
@@ -2076,9 +2101,12 @@
             users.forEach((name) => {
                 const $avatar = $("<span>", { class: "avatar avatar-md user-list-avatar" });
                 fillAvatar($avatar, name);
+                const user = usersByAuthor.get(name) || {};
+                const counts = userCounts.get(name);
+                const login = [user.authEmail ? "🔑 Mật khẩu" : "", user.googleUid ? "Google" : ""].filter(Boolean).join(" · ") || "Không mật khẩu";
                 const $identity = $("<div>", { class: "user-list-identity" }).append(
                     $("<strong>", { class: "user-list-name", text: nameOf(name) }),
-                    $("<span>", { class: "user-list-author", text: name })
+                    $("<span>", { class: "user-list-author", text: counts ? `${counts.posts} bài · ${counts.comments} bình luận · ${login}` : `Đang đếm... · ${login}` })
                 );
                 const $actions = $("<div>", { class: "user-list-actions" }).append(
                     $("<button>", {
@@ -2105,6 +2133,8 @@
         async function openUsersModal() {
             if (!isAdmin) return;
             $("#usersSearch").val("");
+            $("#usersSort").val("name");
+            userCounts.clear();
             $("#usersList").empty();
             $("#usersCount").text("");
             $("#usersStatus").text("Đang tải danh sách người dùng...").show();
@@ -2118,6 +2148,7 @@
                     if (data.author) usersByAuthor.set(data.author, data);
                 });
                 renderUserList();
+                loadUserCounts(); // fills in the counts when they arrive
             } catch (err) {
                 console.error("Error loading user management list:", err);
                 $("#usersList").empty();
@@ -2130,6 +2161,7 @@
 
         $("#btnUsers").on("click", openUsersModal);
         $("#usersSearch").on("input", renderUserList);
+        $("#usersSort").on("change", renderUserList);
 
         $("#usersList").on("click", ".user-edit", function () {
             if (!isAdmin) return;
@@ -2204,7 +2236,15 @@
             if (!isAdmin) return;
             const name = $(this).attr("data-author");
             const displayName = nameOf(name);
-            if (!confirm(`Xoá người dùng "${displayName}"?\n\nToàn bộ bài viết, bình luận và lượt thích của người này sẽ bị xoá vĩnh viễn. Tài khoản đăng nhập Firebase (nếu có) cần được xoá riêng trong Firebase Console.`)) return;
+            // Typing the name back guards against deleting the wrong row by accident
+            const counts = userCounts.get(name);
+            const scope = counts ? `${counts.posts} bài viết và ${counts.comments} bình luận` : "Toàn bộ bài viết, bình luận";
+            const typed = prompt(`Xoá vĩnh viễn "${displayName}"?\n\n${scope} cùng lượt thích của người này sẽ bị xoá, không khôi phục được. Tài khoản đăng nhập Firebase (nếu có) cần được xoá riêng trong Firebase Console.\n\nGõ lại tên "${displayName}" để xác nhận:`);
+            if (typed === null) return;
+            if ($.trim(typed) !== displayName) {
+                showToast("Tên không khớp, chưa xoá");
+                return;
+            }
 
             const $row = $(this).closest(".user-list-item").addClass("is-busy");
             $row.find("button").prop("disabled", true);
@@ -2239,26 +2279,6 @@
             e.preventDefault();
             this.scrollLeft += e.deltaY;
         }, { passive: false });
-
-        $("#friendsList").on("click", ".story-delete", async function () {
-            if (!isAdmin) return;
-
-            const author = $(this).attr("data-author");
-            const name = nameOf(author);
-            if (!confirm(`Xoá người dùng "${name}"?\n\nToàn bộ bài viết, bình luận và lượt thích của người này sẽ bị xoá vĩnh viễn.`)) return;
-
-            const $story = $(this).closest(".story").addClass("is-busy");
-            try {
-                const result = await deleteUser(author);
-                knownAuthors.delete(author);
-                showToast(`Đã xoá ${name}: ${result.posts} bài, ${result.comments} bình luận, ${result.likes} lượt thích`);
-                await loadFeed();
-            } catch (err) {
-                console.error(err);
-                $story.removeClass("is-busy");
-                showToast(errorMessage(err));
-            }
-        });
 
         /* Admin menu (header) */
 
@@ -2405,6 +2425,10 @@
         // bandwidth and transformations, so 25 GB is the ceiling when storage uses all of them)
         const CLOUDINARY_FREE_BYTES = 25 * 1024 ** 3;
 
+        // Collections besides photos/comments, counted for the stats ([collection, label])
+        const STATS_EXTRA_COLLECTIONS = [["users", "người dùng"], ["messages", "tin nhắn"], ["conversations", "cuộc trò chuyện"], ["events", "kèo cầu lông"]];
+        const STATS_SAMPLE_SIZE = 20;
+
         // Rough Firestore size: document id + JSON of its fields + fixed per-document overhead
         function docBytes(id, data) {
             return new TextEncoder().encode(id + JSON.stringify(data)).length + 32;
@@ -2472,6 +2496,23 @@
                     firestoreBytes += docBytes(docSnap.id, docSnap.data());
                 });
 
+                // Other collections: exact count, size estimated from a small sample (reading every chat message
+                // would cost one read each). A collection the rules do not let the admin read is skipped.
+                const extras = await Promise.all(STATS_EXTRA_COLLECTIONS.map(async ([name, label]) => {
+                    try {
+                        const ref = collection(db, name);
+                        const [count, sample] = await Promise.all([getCountFromServer(ref), getDocs(query(ref, limit(STATS_SAMPLE_SIZE)))]);
+                        const total = count.data().count;
+                        const avg = sample.size ? sample.docs.reduce((sum, d) => sum + docBytes(d.id, d.data()), 0) / sample.size : 0;
+                        return { label, count: total, bytes: Math.round(avg * total) };
+                    } catch (err) {
+                        console.error(`Stats for ${name}:`, err);
+                        return { label, count: null, bytes: 0 };
+                    }
+                }));
+                firestoreBytes += extras.reduce((sum, e) => sum + e.bytes, 0);
+                const unreadable = extras.filter((e) => e.count === null).map((e) => e.label);
+
                 const sizes = await Promise.all(media.map((item) => item.bytes || remoteSize(item.url)));
                 const mediaBytes = sizes.reduce((sum, size) => sum + (size || 0), 0);
                 const unknown = sizes.filter((size) => !size).length;
@@ -2481,7 +2522,12 @@
 
                 $body.empty().append(
                     statBlock("fa-solid fa-database", "Firestore", `${formatBytes(firestoreBytes)} / 1 GB`,
-                        [`${photos.size} bài viết · ${comments.size} bình luận`], percent),
+                        [
+                            `${photos.size} bài viết · ${comments.size} bình luận`,
+                            extras.filter((e) => e.count !== null).map((e) => `${e.count.toLocaleString("vi-VN")} ${e.label}`).join(" · "),
+                            unreadable.length ? `Không đọc được: ${unreadable.join(", ")} (bị Firestore rules chặn)` : null,
+                            `Ước tính: ${STATS_EXTRA_COLLECTIONS.map(([, label]) => label).join(", ")} tính theo mẫu ${STATS_SAMPLE_SIZE} bản ghi; chưa gồm dung lượng index. Số chính xác xem ở Firebase Console → Firestore → Usage.`
+                        ], percent),
                     statBlock("fa-regular fa-images", "Ảnh & video (Cloudinary)", `${formatBytes(mediaBytes)} / 25 GB`,
                         [
                             `${media.length - videos} ảnh · ${videos} video`,
@@ -5493,8 +5539,7 @@
                 e.stopPropagation(); // the story itself opens the profile
                 openChat($(this).attr("data-chat"));
             })
-            .on("click", ".story[data-profile]", function (e) {
-                if ($(e.target).closest(".story-delete").length) return;
+            .on("click", ".story[data-profile]", function () {
                 showProfile($(this).attr("data-profile"));
             })
             // Enter/Space on the story itself; inner buttons handle their own keys
