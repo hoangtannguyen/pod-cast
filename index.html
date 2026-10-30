@@ -316,6 +316,22 @@
 
     <!-- Chat popup: conversation list -> conversation (1-1 or group); "new group" form -->
     <!-- About me on the profile. Phone / area are only stored while their switch is on -->
+    <!-- Archive: my posts hidden from the feed -->
+    <div class="modal" id="archiveModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="archiveTitle">
+        <div class="modal-card archive-card">
+            <h2 class="modal-title" id="archiveTitle">Kho lưu trữ 🗄️</h2>
+            <p class="modal-desc">Tất cả bài viết của bạn. Bài "Đã ẩn" không hiện trên bảng tin.</p>
+            <div class="feed-tabs archive-tabs" id="archiveTabs" role="tablist">
+                <button type="button" class="feed-tab is-active" data-archived="false" role="tab" aria-selected="true">Đã đăng</button>
+                <button type="button" class="feed-tab" data-archived="true" role="tab" aria-selected="false">Đã ẩn</button>
+            </div>
+            <div class="archive-list" id="archiveList"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn-primary modal-close">Đóng</button>
+            </div>
+        </div>
+    </div>
+
     <div class="modal" id="aboutModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="aboutTitle">
         <form class="modal-card event-form" id="aboutForm">
             <h2 class="modal-title" id="aboutTitle">Giới thiệu bản thân ✨</h2>
@@ -708,6 +724,9 @@
                 <div class="post-tools">
                     <button type="button" class="icon-btn btn-edit" aria-label="Sửa bài viết" title="Sửa bài viết">
                         <i class="fa-regular fa-pen-to-square"></i>
+                    </button>
+                    <button type="button" class="icon-btn btn-archive" aria-label="Lưu trữ bài viết" title="Lưu trữ (ẩn khỏi bảng tin)">
+                        <i class="fa-solid fa-box-archive"></i>
                     </button>
                     <button type="button" class="icon-btn btn-delete" aria-label="Xoá bài viết" title="Xoá bài viết">
                         <i class="fa-regular fa-trash-can"></i>
@@ -1326,7 +1345,9 @@
                     $("<button>", { type: "button", class: "btn-ghost profile-icon-btn profile-edit", title: "Chỉnh sửa trang cá nhân", "aria-label": "Chỉnh sửa trang cá nhân" })
                         .append($("<i>", { class: "fa-solid fa-pen" })),
                     $("<button>", { type: "button", class: "btn-ghost profile-icon-btn profile-about-edit", title: "Sửa giới thiệu", "aria-label": "Sửa giới thiệu" })
-                        .append($("<i>", { class: "fa-regular fa-address-card" }))
+                        .append($("<i>", { class: "fa-regular fa-address-card" })),
+                    $("<button>", { type: "button", class: "btn-ghost profile-icon-btn profile-archive", title: "Kho lưu trữ", "aria-label": "Kho lưu trữ" })
+                        .append($("<i>", { class: "fa-solid fa-box-archive" }))
                 );
             } else if (me) {
                 if (userIdOf(name)) {
@@ -1383,7 +1404,88 @@
             .on("click", ".profile-about-edit", function () {
                 closeProfilePanel();
                 openAboutModal();
+            })
+            .on("click", ".profile-archive", function () {
+                closeProfilePanel();
+                openArchiveModal();
             });
+
+        /* Archive: all my posts in two tabs, "Đã đăng" (in the feed) and "Đã ẩn" (hidden, not deleted) */
+
+        let archivePosts = []; // [{ id, data }] newest first
+        let archiveShowHidden = false;
+
+        function renderArchiveList() {
+            const $list = $("#archiveList").empty();
+            const posts = archivePosts.filter((p) => !!p.data.archived === archiveShowHidden);
+            if (!posts.length) {
+                $list.append($("<p>", { class: "pass-empty", text: archiveShowHidden ? "Chưa có bài nào bị ẩn" : "Bạn chưa đăng bài nào" }));
+                return;
+            }
+            posts.forEach(({ id, data }) => {
+                const first = postMedia(data)[0];
+                $list.append(
+                    $("<div>", { class: "archive-item", "data-id": id }).append(
+                        first ? $("<img>", { src: mediaThumb(first, 200), alt: "", loading: "lazy" }) : $("<span>", { class: "pass-tile-empty", text: "📝" }),
+                        $("<div>", { class: "archive-info" }).append(
+                            $("<span>", { class: "archive-caption", text: data.item?.name || data.comment || "(Không có nội dung)" }),
+                            $("<span>", { class: "archive-time", text: timeAgo(toMillis(data.createdAt)) })
+                        ),
+                        $("<button>", { type: "button", class: "btn-ghost archive-toggle", text: archiveShowHidden ? "Khôi phục" : "Ẩn" })
+                    )
+                );
+            });
+        }
+
+        async function openArchiveModal() {
+            const me = currentAuthor();
+            if (!me) return;
+            $("#archiveList").empty().append($("<div>", { class: "spinner" }));
+            $("#archiveModal").fadeIn(150);
+            try {
+                // Equality on one field only (no composite index); split into the two tabs here
+                const snapshot = await getDocs(query(collection(db, "photos"), where("auth", "==", me)));
+                archivePosts = snapshot.docs
+                    .map((d) => ({ id: d.id, data: d.data() }))
+                    .sort((a, b) => toMillis(b.data.createdAt) - toMillis(a.data.createdAt));
+                renderArchiveList();
+            } catch (err) {
+                console.error(err);
+                $("#archiveList").empty().append($("<p>", { class: "pass-empty", text: errorMessage(err) }));
+            }
+        }
+
+        $("#archiveTabs").on("click", ".feed-tab", function () {
+            $("#archiveTabs .feed-tab").removeClass("is-active").attr("aria-selected", "false");
+            $(this).addClass("is-active").attr("aria-selected", "true");
+            archiveShowHidden = $(this).attr("data-archived") === "true";
+            renderArchiveList();
+        });
+
+        // "Ẩn" hides a post from the feed, "Khôi phục" brings it back
+        $("#archiveList").on("click", ".archive-toggle", async function () {
+            const $btn = $(this).prop("disabled", true);
+            const id = $btn.closest(".archive-item").attr("data-id");
+            const post = archivePosts.find((p) => p.id === id);
+            const hide = !post.data.archived;
+            try {
+                await updateDoc(doc(db, "photos", id), { archived: hide });
+                post.data.archived = hide;
+                renderArchiveList();
+                if (hide) {
+                    const $post = $(`#feed .post[data-id="${id}"]`);
+                    if ($post.length) removePostFromFeed($post);
+                    showToast("Đã ẩn bài khỏi bảng tin");
+                } else {
+                    showToast("Đã khôi phục bài viết về bảng tin");
+                    loadFeed(); // back at its original place (sorted by date)
+                }
+            } catch (err) {
+                console.error(err);
+                $btn.prop("disabled", false);
+                showToast(errorMessage(err));
+            }
+        });
 
         /* About me: bio, links, phone, area (shown under the name on the profile) */
 
@@ -2012,6 +2114,7 @@
                 renderParty($post); // my answer and host buttons depend on who is signed in
                 renderItem($post);
                 $post.find(".post-tools").toggle(canEditPost($post.attr("data-auth")));
+                $post.find(".btn-archive").toggle(!!currentAuthor() && $post.attr("data-auth") === currentAuthor());
                 closePostEdit($post);
                 loadComments($post);
             });
@@ -2912,6 +3015,7 @@
             const createdAt = toMillis(data.createdAt);
 
             $post.find(".post-tools").toggle(canEditPost(data.auth));
+            $post.find(".btn-archive").toggle(!!data.auth && data.auth === currentAuthor()); // admins can delete, not archive
             $post.find(".post-edited").toggle(!!data.editedAt);
             fillAvatar($post.find(".post-avatar"), data.auth);
             $post.find(".post-name").text(nameOf(data.auth));
@@ -3084,6 +3188,8 @@
                     snapshot.docs.forEach((docSnap) => {
                         const $post = $(`#feed .post[data-id="${docSnap.id}"]`);
                         if (!$post.length) return;
+                        // Archived by its author on another device
+                        if (docSnap.data().archived) return removePostFromFeed($post);
                         // Event posts: guest answers and edits are live too
                         const party = docSnap.data().party || null;
                         const item = docSnap.data().item || null;
@@ -3138,7 +3244,7 @@
 
         // A post someone else just published goes straight to the top of the feed
         function prependNewPost(id, data) {
-            if ($(`#feed .post[data-id="${id}"]`).length) return;
+            if (data.archived || $(`#feed .post[data-id="${id}"]`).length) return;
             $("#feed .feed-state").remove(); // "no posts yet"
             if (data.auth) knownAuthors.add(data.auth);
             const $post = buildPost(id, data);
@@ -3183,6 +3289,7 @@
 
                 snapshot.forEach((docSnap) => {
                     const data = docSnap.data();
+                    if (data.archived) return; // only its author sees it, in the archive
                     if (data.auth) knownAuthors.add(data.auth);
                     // Already inserted live by prependNewPost() while this page was loading
                     if ($feed.children(`.post[data-id="${docSnap.id}"]`).length) return;
@@ -3952,6 +4059,7 @@
                 (snapshot) => {
                     passItems = snapshot.docs
                         .map((docSnap) => ({ id: docSnap.id, data: docSnap.data() }))
+                        .filter((p) => !p.data.archived)
                         .sort((a, b) => toMillis(b.data.createdAt) - toMillis(a.data.createdAt));
                     renderPassWidget();
                     if (passDetail.id && $("#itemDetailModal").is(":visible") && !renderPassDetail()) {
@@ -4543,6 +4651,19 @@
             })
             .on("click", ".btn-delete", function () {
                 deletePost($(this).closest(".post"));
+            })
+            .on("click", ".btn-archive", async function () {
+                const $post = $(this).closest(".post");
+                $(this).prop("disabled", true);
+                try {
+                    await updateDoc(doc(db, "photos", $post.attr("data-id")), { archived: true });
+                    removePostFromFeed($post);
+                    showToast("Đã chuyển vào Kho lưu trữ, xem lại ở trang cá nhân");
+                } catch (err) {
+                    console.error(err);
+                    $(this).prop("disabled", false);
+                    showToast(errorMessage(err));
+                }
             })
             .on("click", ".btn-delete-comment", function () {
                 deleteComment($(this).closest(".post"), $(this).closest(".comment"));
