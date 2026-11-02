@@ -5,15 +5,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <!-- Apply the saved light/dark theme before the page paints, so a dark page does not flash white.
-         No saved choice: follow the device setting. -->
+    <!-- Apply the theme before the page paints, so a dark page does not flash white.
+         By the clock: light 06:00-18:00, dark otherwise. A theme picked with the button lasts until
+         the next of those two times ("vibegram:themeUntil"), then the clock takes over again. -->
     <script>
         (function () {
-            var theme = null;
-            try { theme = localStorage.getItem("vibegram:theme"); } catch (e) {}
-            if (theme !== "light" && theme !== "dark") {
-                theme = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-            }
+            var hour = new Date().getHours();
+            var theme = hour >= 6 && hour < 18 ? "light" : "dark";
+            try {
+                var picked = localStorage.getItem("vibegram:theme");
+                var until = Number(localStorage.getItem("vibegram:themeUntil")) || 0;
+                if ((picked === "light" || picked === "dark") && Date.now() < until) theme = picked;
+            } catch (e) {}
             document.documentElement.setAttribute("data-theme", theme);
         })();
     </script>
@@ -149,7 +152,12 @@
     <div class="page-layout">
     <main class="container">
         <!-- Friends (stories) -->
-        <section class="stories" id="friendsList" aria-label="Bạn bè"></section>
+        <!-- The arrows show on hover (mouse screens) when there is more to scroll that way -->
+        <div class="stories-wrap">
+            <button type="button" class="stories-arrow is-prev" aria-label="Cuộn trái" tabindex="-1"><i class="fa-solid fa-chevron-left"></i></button>
+            <section class="stories" id="friendsList" aria-label="Bạn bè"></section>
+            <button type="button" class="stories-arrow is-next" aria-label="Cuộn phải" tabindex="-1"><i class="fa-solid fa-chevron-right"></i></button>
+        </div>
 
         <!-- New post form -->
         <section class="composer card" id="newPostForm">
@@ -326,6 +334,18 @@
                 <button type="button" class="feed-tab" data-archived="true" role="tab" aria-selected="false">Đã ẩn</button>
             </div>
             <div class="archive-list" id="archiveList"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn-primary modal-close">Đóng</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Saved posts (bookmarks), newest saved first -->
+    <div class="modal" id="savedModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="savedTitle">
+        <div class="modal-card archive-card">
+            <h2 class="modal-title" id="savedTitle">Bài đã lưu 🔖</h2>
+            <p class="modal-desc">Bài viết bạn đã bấm lưu để xem lại.</p>
+            <div class="archive-list" id="savedList"></div>
             <div class="modal-actions">
                 <button type="button" class="btn-primary modal-close">Đóng</button>
             </div>
@@ -778,6 +798,9 @@
                 <button type="button" class="icon-btn btn-comment-focus" aria-label="Bình luận">
                     <i class="fa-regular fa-comment"></i>
                 </button>
+                <button type="button" class="icon-btn btn-save" aria-label="Lưu bài viết" title="Lưu bài viết" aria-pressed="false">
+                    <i class="fa-regular fa-bookmark"></i>
+                </button>
                 <button type="button" class="icon-btn btn-next-post" aria-label="Bài viết tiếp theo" title="Bài viết tiếp theo">
                     <i class="fa-solid fa-circle-chevron-down"></i>
                 </button>
@@ -868,8 +891,8 @@
         // Resolves once Firebase has restored the previous session (if any) from the browser
         const authReady = new Promise((resolve) => {
             const unsubscribe = onAuthStateChanged(auth, () => {
-                unsubsribe();
-                resolvce();
+                unsubscribe();
+                resolve();
             });
         });
         const MIN_PASSWORD = 6;
@@ -891,6 +914,20 @@
         const likesByPost = {};
         // authors seen in the feed, used for the friends bar
         const knownAuthors = new Set();
+        // author -> time of their newest post seen in the feed (friends bar order)
+        const lastPostByAuthor = new Map();
+        // friend user id -> time of the last message in our 1-1 chat (kept by the conversation list)
+        const lastChatByFriend = new Map();
+        // The friends bar shows the most contacted people first, FRIENDS_PAGE at a time
+        const FRIENDS_PAGE = 6;
+        let friendsShown = FRIENDS_PAGE;
+
+        function noteAuthor(data) {
+            if (!data.auth) return;
+            knownAuthors.add(data.auth);
+            const ms = toMillis(data.createdAt);
+            if (ms > (lastPostByAuthor.get(data.auth) || 0)) lastPostByAuthor.set(data.auth, ms);
+        }
         // friend user id -> number of their messages to me that are still unread
         const unreadByFriend = new Map();
         // number of group chats with messages I have not seen (kept by the chat code)
@@ -1078,6 +1115,7 @@
                 links: Array.isArray(user?.links) ? user.links : [],
                 phone: user?.phone || "",
                 address: user?.address || "",
+                savedPosts: Array.isArray(user?.savedPosts) ? user.savedPosts : [],
                 ...(user?.googleUid ? { googleUid: user.googleUid } : {})
             };
         }
@@ -1192,31 +1230,53 @@
             // Only users with an id can be messaged (authors of old posts may have no users entry)
             const friendId = isMe ? "" : userIdOf(author);
             if (friendId) {
-                $story.append(
-                    $("<button>", { type: "button", class: "story-chat-icon", "data-chat": author, title: `Nhắn tin với ${name}`, "aria-label": `Nhắn tin với ${name}` })
-                        .append($("<i>", { class: "fa-solid fa-comment-dots" }))
-                );
+                // Unread messages: the chat button shows their count (red) and the ring turns colourful
                 const unread = unreadByFriend.get(friendId) || 0;
+                const $chat = $("<button>", { type: "button", class: "story-chat-icon", "data-chat": author, title: `Nhắn tin với ${name}`, "aria-label": `Nhắn tin với ${name}` });
                 if (unread) {
-                    $story.addClass("has-unread").append(
-                        $("<span>", { class: "story-unread", text: unread > 9 ? "9+" : unread, title: `${unread} tin nhắn chưa đọc` })
-                    );
+                    $story.addClass("has-unread");
+                    $chat.addClass("has-count").attr({ title: `${unread} tin nhắn chưa đọc từ ${name}`, "aria-label": `${unread} tin nhắn chưa đọc từ ${name}` })
+                        .text(unread > 9 ? "9+" : unread);
+                } else {
+                    $chat.append($("<i>", { class: "fa-solid fa-comment-dots" }));
                 }
+                $story.append($chat);
             }
             return $story;
         }
 
         function renderFriends() {
             const me = currentAuthor();
-            const $list = $("#friendsList").empty();
+            const $list = $("#friendsList");
+            const scrollLeft = $list.scrollLeft();
+            $list.empty();
 
             $list.append(me ? buildStory(nameOf(me), emojiOf(me), true, me) : buildStory("Bạn", "＋", true, ""));
 
             // Everyone who entered a name, plus authors of loaded posts (older data may predate the users list)
             const others = new Set([...usersByAuthor.keys(), ...knownAuthors]);
-            others.forEach((name) => {
-                if (name && name !== me) $list.append(buildStory(nameOf(name), emojiOf(name), false, name));
-            });
+            // Most contacted first: unread messages, then the latest 1-1 chat, then the latest post, then by name
+            const unreadOf = (name) => unreadByFriend.get(userIdOf(name)) || 0;
+            const lastChatOf = (name) => lastChatByFriend.get(userIdOf(name)) || 0;
+            const sorted = [...others]
+                .filter((name) => name && name !== me)
+                .sort((a, b) => unreadOf(b) - unreadOf(a)
+                    || lastChatOf(b) - lastChatOf(a)
+                    || (lastPostByAuthor.get(b) || 0) - (lastPostByAuthor.get(a) || 0)
+                    || nameOf(a).localeCompare(nameOf(b), "vi"));
+            sorted.slice(0, friendsShown).forEach((name) => $list.append(buildStory(nameOf(name), emojiOf(name), false, name)));
+            // The rest load FRIENDS_PAGE at a time from this tile (or the right arrow at the end of the bar)
+            const hidden = sorted.length - friendsShown;
+            if (hidden > 0) {
+                $list.append(
+                    $("<button>", { type: "button", class: "story story-more", id: "storiesMore", title: "Xem thêm bạn bè" }).append(
+                        $("<span>", { class: "ring" }).append($("<span>", { class: "avatar avatar-lg", text: `+${hidden}` })),
+                        $("<span>", { class: "story-name", text: "Xem thêm" })
+                    )
+                );
+            }
+            $list.scrollLeft(scrollLeft); // a re-render (e.g. a new message) keeps the bar where it was
+            updateStoriesArrows();
 
             const total = new Set([...others, me].filter(Boolean)).size;
             $("#friendCount").text(total);
@@ -1236,6 +1296,32 @@
             renderProfilePanel();
             if ($("#chatListView").is(":visible")) renderChatList();
         }
+
+        // Arrows at both ends of the friends bar, each shown only while there is more to scroll that way
+        function updateStoriesArrows() {
+            const bar = document.getElementById("friendsList");
+            const max = bar.scrollWidth - bar.clientWidth;
+            $(".stories-arrow.is-prev").toggleClass("is-visible", bar.scrollLeft > 4);
+            $(".stories-arrow.is-next").toggleClass("is-visible", bar.scrollLeft < max - 4 || $("#storiesMore").length > 0);
+        }
+
+        $("#friendsList").on("scroll", updateStoriesArrows);
+        $(window).on("resize", updateStoriesArrows);
+        function showMoreFriends() {
+            friendsShown += FRIENDS_PAGE;
+            renderFriends();
+            const bar = document.getElementById("friendsList");
+            bar.scrollBy({ left: bar.clientWidth * 0.8, behavior: "smooth" }); // bring the new people into view
+        }
+
+        $(".stories-arrow").on("click", function () {
+            const bar = document.getElementById("friendsList");
+            const atEnd = bar.scrollLeft >= bar.scrollWidth - bar.clientWidth - 4;
+            if ($(this).hasClass("is-next") && atEnd && $("#storiesMore").length) return showMoreFriends();
+            bar.scrollBy({ left: ($(this).hasClass("is-next") ? 1 : -1) * bar.clientWidth * 0.8, behavior: "smooth" });
+        });
+
+        $("#friendsList").on("click", "#storiesMore", showMoreFriends);
 
         $("#friendsList").on("click", "#myStory", openProfileModal);
         $("#btnProfile").on("click", openProfileModal);
@@ -1294,16 +1380,54 @@
             }
         });
 
+        // Clock theme: light from DAY_START to NIGHT_START (hours), dark otherwise. Must match the <head> script.
+        const DAY_START = 6;
+        const NIGHT_START = 18;
+
+        function clockTheme(date = new Date()) {
+            const hour = date.getHours();
+            return hour >= DAY_START && hour < NIGHT_START ? "light" : "dark";
+        }
+
+        // The next 06:00 or 18:00, when a picked theme hands back to the clock
+        function nextThemeSwitch() {
+            const next = new Date();
+            next.setMinutes(0, 0, 0);
+            const hour = next.getHours();
+            if (hour < DAY_START) next.setHours(DAY_START);
+            else if (hour < NIGHT_START) next.setHours(NIGHT_START);
+            else next.setHours(24 + DAY_START);
+            return next.getTime();
+        }
+
+        function pickedThemeActive() {
+            try {
+                return Date.now() < (Number(localStorage.getItem("vibegram:themeUntil")) || 0);
+            } catch (e) {
+                return false;
+            }
+        }
+
         $("#btnTheme").on("click", function () {
             const next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
             document.documentElement.setAttribute("data-theme", next);
             try {
                 localStorage.setItem("vibegram:theme", next);
+                localStorage.setItem("vibegram:themeUntil", String(nextThemeSwitch()));
             } catch (e) {
-                // storage unavailable — the choice lasts for this tab only
+                // storage unavailable — the choice lasts until the page is reloaded
             }
             renderThemeButton();
         });
+
+        // Page left open across 06:00 / 18:00: follow the clock unless a picked theme still applies
+        setInterval(() => {
+            if (pickedThemeActive()) return;
+            const theme = clockTheme();
+            if (document.documentElement.getAttribute("data-theme") === theme) return;
+            document.documentElement.setAttribute("data-theme", theme);
+            renderThemeButton();
+        }, 60 * 1000);
 
         renderThemeButton();
 
@@ -1347,7 +1471,9 @@
                     $("<button>", { type: "button", class: "btn-ghost profile-icon-btn profile-about-edit", title: "Sửa giới thiệu", "aria-label": "Sửa giới thiệu" })
                         .append($("<i>", { class: "fa-regular fa-address-card" })),
                     $("<button>", { type: "button", class: "btn-ghost profile-icon-btn profile-archive", title: "Kho lưu trữ", "aria-label": "Kho lưu trữ" })
-                        .append($("<i>", { class: "fa-solid fa-box-archive" }))
+                        .append($("<i>", { class: "fa-solid fa-box-archive" })),
+                    $("<button>", { type: "button", class: "btn-ghost profile-icon-btn profile-saved", title: "Bài đã lưu", "aria-label": "Bài đã lưu" })
+                        .append($("<i>", { class: "fa-solid fa-bookmark" }))
                 );
             } else if (me) {
                 if (userIdOf(name)) {
@@ -1408,6 +1534,111 @@
             .on("click", ".profile-archive", function () {
                 closeProfilePanel();
                 openArchiveModal();
+            })
+            .on("click", ".profile-saved", function () {
+                closeProfilePanel();
+                openSavedModal();
+            });
+
+        /* Saved posts: post ids on my users entry ("savedPosts"), so they follow me to other devices */
+
+        function savedPostIds() {
+            const list = usersByAuthor.get(currentAuthor())?.savedPosts;
+            return Array.isArray(list) ? list : [];
+        }
+
+        function renderSaved($post) {
+            const saved = savedPostIds().includes($post.attr("data-id"));
+            $post.find(".btn-save")
+                .toggleClass("is-saved", saved)
+                .attr({ "aria-pressed": String(saved), title: saved ? "Bỏ lưu" : "Lưu bài viết", "aria-label": saved ? "Bỏ lưu" : "Lưu bài viết" })
+                .find("i").toggleClass("fa-solid", saved).toggleClass("fa-regular", !saved);
+        }
+
+        // Optimistic, rolled back on failure (like the like button)
+        async function toggleSaved(postId) {
+            if (!requireAuthor()) return;
+            const me = currentAuthor();
+            const before = savedPostIds();
+            const saved = before.includes(postId);
+            const after = saved ? before.filter((id) => id !== postId) : [...before, postId];
+            const apply = (list) => {
+                usersByAuthor.set(me, { ...usersByAuthor.get(me), savedPosts: list });
+                const $post = $(`#feed .post[data-id="${postId}"]`);
+                if ($post.length) renderSaved($post);
+            };
+            apply(after);
+            try {
+                await setDoc(doc(db, "users", userDocId(me)), { savedPosts: saved ? arrayRemove(postId) : arrayUnion(postId) }, { merge: true });
+                showToast(saved ? "Đã bỏ lưu bài viết" : "Đã lưu bài viết 🔖");
+            } catch (err) {
+                console.error(err);
+                apply(before);
+                showToast(errorMessage(err));
+            }
+        }
+
+        let savedPosts = []; // [{ id, data }] shown in the popup, newest saved first
+
+        function renderSavedList() {
+            const $list = $("#savedList").empty();
+            if (!savedPosts.length) {
+                $list.append($("<p>", { class: "pass-empty", text: "Chưa lưu bài nào. Bấm 🔖 dưới bài viết để lưu." }));
+                return;
+            }
+            savedPosts.forEach(({ id, data }) => {
+                const media = postMedia(data);
+                const first = media[0];
+                $list.append(
+                    $("<div>", { class: "archive-item", "data-id": id }).append(
+                        first
+                            ? $("<button>", { type: "button", class: "archive-thumb", "aria-label": `Xem ${media.length} ảnh/video` }).append(
+                                $("<img>", { src: mediaThumb(first, 200), alt: "", loading: "lazy" }),
+                                first.type === "video" ? $("<i>", { class: "fa-solid fa-play archive-thumb-play" }) : null,
+                                media.length > 1 ? $("<span>", { class: "archive-thumb-count", text: media.length }) : null
+                            )
+                            : $("<span>", { class: "pass-tile-empty", text: "📝" }),
+                        $("<div>", { class: "archive-info" }).append(
+                            $("<span>", { class: "archive-caption", text: data.item?.name || data.comment || "(Không có nội dung)" }),
+                            $("<span>", { class: "archive-time", text: `${nameOf(data.auth)} · ${timeAgo(toMillis(data.createdAt))}` })
+                        ),
+                        $("<button>", { type: "button", class: "btn-ghost archive-toggle saved-remove", text: "Bỏ lưu" })
+                    )
+                );
+            });
+        }
+
+        async function openSavedModal() {
+            if (!requireAuthor()) return;
+            $("#savedList").empty().append($("<div>", { class: "spinner" }));
+            $("#savedModal").fadeIn(150);
+            try {
+                // Posts deleted or hidden by their author since then are left out
+                const snaps = await Promise.all([...savedPostIds()].reverse().map((id) => getDoc(doc(db, "photos", id))));
+                savedPosts = snaps
+                    .filter((snap) => snap.exists() && (!snap.data().archived || snap.data().auth === currentAuthor()))
+                    .map((snap) => ({ id: snap.id, data: snap.data() }));
+                renderSavedList();
+            } catch (err) {
+                console.error(err);
+                $("#savedList").empty().append($("<p>", { class: "pass-empty", text: errorMessage(err) }));
+            }
+        }
+
+        $("#savedList")
+            .on("click", ".archive-thumb", function () {
+                const post = savedPosts.find((p) => p.id === $(this).closest(".archive-item").attr("data-id"));
+                if (post) openLightbox(postMedia(post.data), 0);
+            })
+            .on("click", ".saved-remove", async function () {
+                const id = $(this).prop("disabled", true).closest(".archive-item").attr("data-id");
+                await toggleSaved(id);
+                if (!savedPostIds().includes(id)) {
+                    savedPosts = savedPosts.filter((p) => p.id !== id);
+                    renderSavedList();
+                } else {
+                    $(this).prop("disabled", false); // failed, still saved
+                }
             });
 
         /* Archive: all my posts in two tabs, "Đã đăng" (in the feed) and "Đã ẩn" (hidden, not deleted) */
@@ -2128,6 +2359,7 @@
                 renderItem($post);
                 $post.find(".post-tools").toggle(canEditPost($post.attr("data-auth")));
                 $post.find(".btn-archive").toggle(!!currentAuthor() && $post.attr("data-auth") === currentAuthor());
+                renderSaved($post);
                 closePostEdit($post);
                 loadComments($post);
             });
@@ -3047,6 +3279,7 @@
             renderParty($post);
             $post.data("item", data.item || null);
             renderItem($post);
+            renderSaved($post);
             // For the feed filter tabs
             $post.attr("data-kind", data.party ? "party" : data.item ? "item" : "post");
             commentObserver.observe($post[0]);
@@ -3259,7 +3492,7 @@
         function prependNewPost(id, data) {
             if (data.archived || $(`#feed .post[data-id="${id}"]`).length) return;
             $("#feed .feed-state").remove(); // "no posts yet"
-            if (data.auth) knownAuthors.add(data.auth);
+            noteAuthor(data);
             const $post = buildPost(id, data);
             $("#feed").prepend($post);
             loadComments($post);
@@ -3271,6 +3504,7 @@
             lastDoc = null;
             hasMore = true;
             knownAuthors.clear();
+            lastPostByAuthor.clear();
             stopCommentListeners();
             commentObserver.disconnect();
             $("#feed").empty();
@@ -3303,7 +3537,7 @@
                 snapshot.forEach((docSnap) => {
                     const data = docSnap.data();
                     if (data.archived) return; // only its author sees it, in the archive
-                    if (data.auth) knownAuthors.add(data.auth);
+                    noteAuthor(data);
                     // Already inserted live by prependNewPost() while this page was loading
                     if ($feed.children(`.post[data-id="${docSnap.id}"]`).length) return;
                     const $post = buildPost(docSnap.id, data);
@@ -4665,6 +4899,9 @@
             .on("click", ".btn-delete", function () {
                 deletePost($(this).closest(".post"));
             })
+            .on("click", ".btn-save", function () {
+                toggleSaved($(this).closest(".post").attr("data-id"));
+            })
             .on("click", ".btn-archive", async function () {
                 const $post = $(this).closest(".post");
                 $(this).prop("disabled", true);
@@ -4715,6 +4952,42 @@
             .on("keydown", ".edit-input", function (e) {
                 if (e.key === "Escape") $(this).closest(".edit-form").find(".btn-edit-cancel").trigger("click");
             });
+
+        /* ---------- Keyboard shortcuts: J / K next / previous post, L like, C comment ---------- */
+
+        // The post at the top of the screen (below the sticky header)
+        function currentFeedPost() {
+            const $posts = $("#feed .post:visible");
+            const top = 130;
+            const $current = $posts.filter(function () { return this.getBoundingClientRect().bottom > top; }).first();
+            return $current.length ? $current : $posts.last();
+        }
+
+        $(document).on("keydown", function (e) {
+            if (e.ctrlKey || e.metaKey || e.altKey) return;
+            // Not while typing, or while a popup / the viewer is open
+            if ($(e.target).is("input, textarea, select, [contenteditable]")) return;
+            if ($(".modal:visible, #lightbox:visible, .profile-panel.is-open").length) return;
+            const key = e.key.toLowerCase();
+            if (!["j", "k", "l", "c"].includes(key)) return;
+            const $post = currentFeedPost();
+            if (!$post.length) return;
+            e.preventDefault();
+
+            if (key === "j" || key === "k") {
+                // Already scrolled past the top of the current post: K goes back to its top first
+                const pastTop = $post[0].getBoundingClientRect().top < 0;
+                const $target = key === "j" ? $post.nextAll(".post:visible").first()
+                    : pastTop ? $post : $post.prevAll(".post:visible").first();
+                if ($target.length) $target[0].scrollIntoView({ behavior: "smooth", block: "start" });
+                else if (key === "j" && hasMore) loadNextPage();
+            } else if (key === "l") {
+                toggleLike($post);
+                if (isLiked($post)) popHeart($post.find(".post-media"));
+            } else {
+                $post.find(".comment-input").trigger("focus");
+            }
+        });
 
         /* ---------- Init ---------- */
 
@@ -5231,6 +5504,11 @@
                     myConversations = snapshot.docs
                         .map((d) => ({ id: d.id, ...d.data() }))
                         .sort((a, b) => (b.lastAt || 0) - (a.lastAt || 0));
+                    lastChatByFriend.clear();
+                    myConversations.forEach((conv) => {
+                        const friendId = conv.type === "direct" && conv.memberIds.find((id) => id !== myId);
+                        if (friendId) lastChatByFriend.set(friendId, conv.lastAt || 0);
+                    });
 
                     // Bell notifications for group activity by others (1-1 messages are notified by watchMyMessages)
                     snapshot.docChanges().forEach((change) => {
@@ -5273,6 +5551,7 @@
             if (unsubConvList) unsubConvList();
             unsubConvList = null;
             myConversations = [];
+            lastChatByFriend.clear();
             unreadGroups = 0;
         }
 

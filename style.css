@@ -358,41 +358,17 @@ body.no-scroll {
     overflow-y: hidden;
     overscroll-behavior-x: contain;
     scroll-snap-type: x proximity;
-    scrollbar-width: thin;
-    scrollbar-color: var(--border) transparent;
+    scrollbar-width: none; /* scrolled by wheel, the arrows or swiping */
 }
 
 .stories::-webkit-scrollbar {
-    height: 6px;
-}
-
-.stories::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-.stories::-webkit-scrollbar-thumb {
-    background: var(--border);
-    border-radius: 999px;
-}
-
-.stories::-webkit-scrollbar-thumb:hover {
-    background: var(--muted);
+    display: none;
 }
 
 .stories .story {
     scroll-snap-align: start;
 }
 
-/* Touch screens swipe, so the bar is not needed there */
-@media (hover: none) {
-    .stories {
-        scrollbar-width: none;
-    }
-
-    .stories::-webkit-scrollbar {
-        display: none;
-    }
-}
 
 .story {
     position: relative;
@@ -409,7 +385,8 @@ body.no-scroll {
     transition: transform 0.2s ease;
 }
 
-.story.is-active .ring {
+.story.is-active .ring,
+.story.has-unread .ring {
     background: var(--ring);
 }
 
@@ -2016,22 +1993,20 @@ body.no-scroll {
     background-color: var(--primary-hover);
 }
 
-/* Unread count: top-left corner of the friend avatar */
-.story-unread {
-    position: absolute;
-    top: 0;
-    left: 2px;
-    min-width: 20px;
-    height: 20px;
+/* Unread: the chat button turns red and shows the count */
+.story-chat-icon.has-count {
+    width: auto;
+    min-width: 22px;
     padding: 0 5px;
-    border: 2px solid var(--card);
     border-radius: 999px;
-    background: #ff3040;
-    color: #fff;
+    background-color: #ff3040;
     font-size: 11px;
     font-weight: 700;
-    line-height: 16px;
-    text-align: center;
+}
+
+.story-chat-icon.has-count:hover,
+.story-chat-icon.has-count:focus-visible {
+    background-color: #e0263a;
 }
 
 .story.has-unread .story-name {
@@ -3967,4 +3942,80 @@ a.profile-about-row:hover {
     flex-shrink: 0;
     padding: 6px 12px;
     font-size: 13px;
+}
+
+/* Large screens: a wider feed (photos and videos were small at 470px) */
+@media (min-width: 1400px) {
+    .topbar-inner {
+        max-width: 1208px; /* 300 + 24 + 560 + 24 + 300 */
+    }
+
+    .page-layout {
+        grid-template-columns: 300px minmax(0, 560px) 300px;
+    }
+
+    .container {
+        max-width: 560px;
+    }
+}
+
+/* Friends bar arrows: mouse screens only, at the ends of the bar, while there is more that way */
+.stories-wrap {
+    position: relative;
+}
+
+.stories-arrow {
+    position: absolute;
+    top: 50%;
+    z-index: 2;
+    width: 30px;
+    height: 30px;
+    margin-top: -23px; /* centred on the avatars, above the names */
+    display: none;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: var(--card);
+    color: var(--text);
+    font-size: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.stories-arrow.is-prev {
+    left: 6px;
+}
+
+.stories-arrow.is-next {
+    right: 6px;
+}
+
+@media (hover: hover) {
+    .stories-wrap:hover .stories-arrow.is-visible {
+        display: flex;
+    }
+}
+
+/* "+N Xem thêm" tile at the end of the friends bar */
+.story-more .ring {
+    background: var(--border);
+}
+
+.story-more .avatar {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--muted);
+}
+
+/* Save (bookmark) button: right side of the action row, next to "next post" */
+.post-actions .btn-save {
+    margin-left: auto;
+}
+
+.post-actions .btn-save + .btn-next-post {
+    margin-left: 0;
+}
+
+.btn-save.is-saved {
+    color: var(--primary);
 }
