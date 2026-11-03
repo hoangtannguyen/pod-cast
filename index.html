@@ -1292,7 +1292,7 @@
             // Active stories: clicking opens them; the ring is colourful until all of them are seen
             const rank = storyRank(author);
             if (rank) {
-                $story.attr({ "data-story": author, title: `Xem tin của ${name}` }).toggleClass("has-story", rank === 2);
+                $story.attr({ "data-story": author, title: `Xem tin của ${name}` }).toggleClass("has-story", rank === 2).toggleClass("is-story-seen", rank === 1);
                 if (!isMe) $story.attr("aria-label", `Xem tin của ${name}`);
             }
 

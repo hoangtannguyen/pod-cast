@@ -4330,3 +4330,13 @@ a.profile-about-row:hover {
     color: var(--muted);
     font-size: 14px;
 }
+
+/* Friends without a story have no ring, so a grey ring always means "story already seen"
+   (unread messages keep their colourful ring) */
+.story[data-profile]:not([data-story]):not(.has-unread) .ring {
+    background: transparent;
+}
+
+.story.is-story-seen .ring {
+    background: var(--muted);
+}
