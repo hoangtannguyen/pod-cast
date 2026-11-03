@@ -4340,3 +4340,155 @@ a.profile-about-row:hover {
 .story.is-story-seen .ring {
     background: var(--muted);
 }
+
+/* ---------- Friends bar as cards (story photo / cover as background, avatar top-left, name at the bottom) ---------- */
+.stories {
+    gap: 8px;
+    padding: 12px;
+}
+
+.stories .story {
+    width: 104px;
+    height: 172px;
+    gap: 0;
+    padding: 0;
+    overflow: hidden;
+    justify-content: flex-end;
+    align-items: stretch;
+    border: 0;
+    border-radius: 12px;
+    background: var(--input);
+    box-shadow: inset 0 0 0 1px var(--border);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.story-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+}
+
+.story-bg img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.25s ease;
+}
+
+.stories .story:hover .story-bg img {
+    transform: scale(1.05);
+}
+
+/* Darkened top and bottom so the avatar and the name stay readable on any photo */
+.story-bg::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.35) 0%, transparent 30%, transparent 55%, rgba(0, 0, 0, 0.7) 100%);
+}
+
+.story-bg.is-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(160deg, #4b5563, #1f2937);
+}
+
+.story-bg-emoji {
+    font-size: 44px;
+}
+
+.stories .story .ring {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 2;
+    padding: 2px;
+}
+
+.stories .story:hover .ring {
+    transform: none;
+}
+
+.stories .story .avatar-lg {
+    width: 36px;
+    height: 36px;
+    font-size: 18px;
+    border-width: 2px;
+}
+
+.stories .story .story-name {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    z-index: 2;
+    max-width: none;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.3;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.stories .story-chat-icon {
+    top: 8px;
+    right: 8px;
+    z-index: 2;
+    border-color: rgba(255, 255, 255, 0.9);
+}
+
+/* "Tạo tin" and "+N Xem thêm": no photo, icon in the middle */
+.stories .story-create,
+.stories .story-more {
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+}
+
+.stories .story-create .ring,
+.stories .story-more .ring {
+    position: static;
+    padding: 0;
+    background: transparent;
+}
+
+.stories .story-create .avatar-lg {
+    width: 40px;
+    height: 40px;
+    font-size: 22px;
+    border: 0;
+    background-color: var(--primary);
+    color: #fff;
+}
+
+.stories .story-more .avatar-lg {
+    width: 44px;
+    height: 44px;
+    font-size: 15px;
+}
+
+.stories .story-create .story-name,
+.stories .story-more .story-name {
+    position: static;
+    color: var(--text);
+    text-align: center;
+    text-shadow: none;
+}
+
+.stories-arrow {
+    margin-top: -15px; /* centred on the cards */
+}
+
+@media (max-width: 500px) {
+    .stories .story {
+        width: 92px;
+        height: 152px;
+    }
+}

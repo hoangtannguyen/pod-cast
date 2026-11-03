@@ -1280,6 +1280,7 @@
                 title: isMe ? "Đổi tên / avatar" : `Xem trang cá nhân của ${name}`
             })
                 .attr(isMe ? { type: "button", id: "myStory" } : {})
+                .append(storyCardBg(author, emoji))
                 .append($("<span>", { class: "ring" }).append(fillAvatar($("<span>", { class: "avatar avatar-lg" }), author, emoji)))
                 .append($("<span>", { class: "story-name", text: name }));
 
@@ -1312,6 +1313,21 @@
                 $story.append($chat);
             }
             return $story;
+        }
+
+        // Card background: the story to watch next (first unseen, else the newest), else the cover photo,
+        // else the avatar photo; without any photo, the emoji on a plain background
+        function storyCardBg(author, emoji) {
+            const $bg = $("<span>", { class: "story-bg", "aria-hidden": "true" });
+            const stories = storiesOf(author);
+            const story = stories.find((s) => !seenStories.has(s.id)) || stories[stories.length - 1];
+            const user = usersByAuthor.get(author);
+            const src = (story?.media?.url && mediaThumb(story.media, 300))
+                || (user?.coverUrl && imageUrl(user.coverUrl, 300))
+                || (user?.avatarUrl && imageUrl(user.avatarUrl, 300))
+                || "";
+            if (src) return $bg.append($("<img>", { src: src, alt: "", loading: "lazy" }));
+            return $bg.addClass("is-empty").append($("<span>", { class: "story-bg-emoji", text: emoji }));
         }
 
         function renderFriends() {
