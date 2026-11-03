@@ -4019,3 +4019,221 @@ a.profile-about-row:hover {
 .btn-save.is-saved {
     color: var(--primary);
 }
+
+/* ---------- Stories (24h) ---------- */
+
+/* Unseen stories: colourful ring (all seen: the default grey ring) */
+.story.has-story .ring {
+    background: var(--ring);
+}
+
+.story[data-story] {
+    cursor: pointer;
+}
+
+.story-create .avatar {
+    font-size: 26px;
+    color: var(--primary);
+    background-color: var(--input);
+}
+
+/* Create popup: the picked photo / video fills the pick area */
+.story-pick {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 260px;
+    margin-bottom: 12px;
+    overflow: hidden;
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    background-color: var(--input);
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.story-pick.has-media {
+    border-style: solid;
+    background-color: #000;
+}
+
+.story-pick-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+}
+
+.story-pick-empty i {
+    font-size: 28px;
+}
+
+.story-pick.has-media .story-pick-empty {
+    display: none;
+}
+
+.story-pick-preview {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+/* Viewer: a 9:16 frame centred on a dark backdrop (full screen on phones) */
+.story-viewer {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.92);
+}
+
+.story-frame {
+    position: relative;
+    width: min(420px, 100vw);
+    height: min(746px, 100vh);
+    overflow: hidden;
+    border-radius: var(--radius);
+    background-color: #000;
+    color: #fff;
+}
+
+@media (max-width: 480px) {
+    .story-frame {
+        border-radius: 0;
+    }
+}
+
+.story-stage {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.story-stage img,
+.story-stage video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.story-progress {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    z-index: 3;
+    display: flex;
+    gap: 4px;
+}
+
+.story-bar {
+    flex: 1;
+    height: 3px;
+    overflow: hidden;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.35);
+}
+
+.story-bar > span {
+    display: block;
+    width: 0;
+    height: 100%;
+    background: #fff;
+}
+
+.story-bar.is-done > span {
+    width: 100%;
+}
+
+@keyframes story-fill {
+    from { width: 0; }
+    to { width: 100%; }
+}
+
+.story-top {
+    position: absolute;
+    top: 22px;
+    left: 10px;
+    right: 6px;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.story-author {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.story-time {
+    flex: 1;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.8);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.story-icon-btn {
+    width: 34px;
+    height: 34px;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    color: #fff;
+    font-size: 18px;
+    cursor: pointer;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.story-icon-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.story-text {
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    bottom: 24px;
+    z-index: 3;
+    margin: 0;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.5);
+    font-size: 15px;
+    text-align: center;
+    word-break: break-word;
+}
+
+/* Invisible tap areas: left third = previous, right two thirds = next (below the top bar) */
+.story-tap {
+    position: absolute;
+    top: 64px;
+    bottom: 0;
+    z-index: 2;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+}
+
+.story-tap.is-prev {
+    left: 0;
+    width: 33%;
+}
+
+.story-tap.is-next {
+    right: 0;
+    width: 67%;
+}

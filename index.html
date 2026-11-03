@@ -728,6 +728,49 @@
         <span class="lightbox-counter" id="lightboxCounter"></span>
     </div>
 
+    <!-- Create a story (shown in the friends bar for 24 hours) -->
+    <div class="modal" id="storyModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="storyFormTitle">
+        <form class="modal-card" id="storyForm">
+            <h2 class="modal-title" id="storyFormTitle">Tạo tin ✨</h2>
+            <p class="modal-desc">Tin hiện ở thanh bạn bè và tự ẩn sau 24 giờ.</p>
+            <label class="story-pick" id="storyPick">
+                <span class="story-pick-empty">
+                    <i class="fa-regular fa-images"></i>
+                    <span>Chọn ảnh hoặc video</span>
+                </span>
+                <input type="file" id="storyFile" accept="image/*,video/*" hidden>
+            </label>
+            <input type="text" id="storyCaption" class="modal-input" maxlength="150" placeholder="Viết gì đó... (không bắt buộc)" autocomplete="off">
+            <p class="modal-error" id="storyError" style="display:none"></p>
+            <div class="modal-actions">
+                <button type="button" class="btn-ghost modal-close">Huỷ</button>
+                <button type="submit" class="btn-primary" id="storySave">Đăng tin</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Story viewer: tap left / right for the previous / next story -->
+    <div class="story-viewer" id="storyViewer" style="display:none" role="dialog" aria-modal="true" aria-label="Xem tin">
+        <div class="story-frame">
+            <div class="story-progress" id="storyProgress"></div>
+            <div class="story-top">
+                <span class="avatar avatar-sm" id="storyAvatar"></span>
+                <button type="button" class="story-author" id="storyAuthor"></button>
+                <span class="story-time" id="storyTime"></span>
+                <button type="button" class="story-icon-btn" id="storyDelete" aria-label="Xoá tin" title="Xoá tin">
+                    <i class="fa-regular fa-trash-can"></i>
+                </button>
+                <button type="button" class="story-icon-btn" id="storyClose" aria-label="Đóng">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="story-stage" id="storyStage"></div>
+            <p class="story-text" id="storyText"></p>
+            <button type="button" class="story-tap is-prev" aria-label="Tin trước"></button>
+            <button type="button" class="story-tap is-next" aria-label="Tin sau"></button>
+        </div>
+    </div>
+
     <template id="postTemplate">
         <article class="post card">
             <header class="post-head">
@@ -1227,6 +1270,13 @@
                 $story.attr({ role: "button", tabindex: 0, "data-profile": author, "aria-label": `Xem trang cá nhân của ${name}` });
             }
 
+            // Active stories: clicking opens them; the ring is colourful until all of them are seen
+            const rank = storyRank(author);
+            if (rank) {
+                $story.attr({ "data-story": author, title: `Xem tin của ${name}` }).toggleClass("has-story", rank === 2);
+                if (!isMe) $story.attr("aria-label", `Xem tin của ${name}`);
+            }
+
             // Only users with an id can be messaged (authors of old posts may have no users entry)
             const friendId = isMe ? "" : userIdOf(author);
             if (friendId) {
@@ -1251,6 +1301,14 @@
             const scrollLeft = $list.scrollLeft();
             $list.empty();
 
+            if (me) {
+                $list.append(
+                    $("<button>", { type: "button", class: "story story-create", id: "storyCreate", title: "Tạo tin" }).append(
+                        $("<span>", { class: "ring" }).append($("<span>", { class: "avatar avatar-lg", text: "＋" })),
+                        $("<span>", { class: "story-name", text: "Tạo tin" })
+                    )
+                );
+            }
             $list.append(me ? buildStory(nameOf(me), emojiOf(me), true, me) : buildStory("Bạn", "＋", true, ""));
 
             // Everyone who entered a name, plus authors of loaded posts (older data may predate the users list)
@@ -1261,6 +1319,7 @@
             const sorted = [...others]
                 .filter((name) => name && name !== me)
                 .sort((a, b) => unreadOf(b) - unreadOf(a)
+                    || storyRank(b) - storyRank(a)
                     || lastChatOf(b) - lastChatOf(a)
                     || (lastPostByAuthor.get(b) || 0) - (lastPostByAuthor.get(a) || 0)
                     || nameOf(a).localeCompare(nameOf(b), "vi"));
@@ -1323,8 +1382,299 @@
 
         $("#friendsList").on("click", "#storiesMore", showMoreFriends);
 
-        $("#friendsList").on("click", "#myStory", openProfileModal);
+        $("#friendsList").on("click", "#myStory", function () {
+            if ($(this).is("[data-story]")) openStoryViewer(currentAuthor());
+            else openProfileModal();
+        });
         $("#btnProfile").on("click", openProfileModal);
+
+        /* ---------- Stories (24 hours, shown in the friends bar) ---------- */
+
+        const STORY_TTL = 24 * 60 * 60 * 1000;
+        const STORY_IMAGE_SECONDS = 5;
+        const STORY_SEEN_KEY = "vibegram:storySeen";
+        let allStories = []; // every story from the listener, may include ones expired since it started
+        let liveStoryCount = 0;
+
+        // Author name of a story: looked up by id so a rename carries over; "" once the user is deleted
+        function storyAuthorOf(story) {
+            return authorOfId(story.authorId);
+        }
+
+        // Live stories of one author, oldest first
+        function storiesOf(name) {
+            if (!name) return [];
+            const now = Date.now();
+            return allStories
+                .filter((s) => s.expiresAt > now && storyAuthorOf(s) === name)
+                .sort((a, b) => a.createdAt - b.createdAt);
+        }
+
+        function loadSeenStories() {
+            try {
+                return new Set(JSON.parse(localStorage.getItem(STORY_SEEN_KEY) || "[]"));
+            } catch (e) {
+                return new Set();
+            }
+        }
+
+        let seenStories = loadSeenStories();
+
+        function markStorySeen(id) {
+            if (seenStories.has(id)) return;
+            seenStories.add(id);
+            // Keep only stories that still exist, so the list does not grow forever
+            const live = new Set(allStories.map((s) => s.id));
+            try {
+                localStorage.setItem(STORY_SEEN_KEY, JSON.stringify([...seenStories].filter((s) => live.has(s))));
+            } catch (e) {
+                // storage unavailable — seen state lasts until the page is reloaded
+            }
+        }
+
+        // 2 = has stories not seen yet, 1 = all seen, 0 = no stories
+        function storyRank(name) {
+            const stories = storiesOf(name);
+            if (!stories.length) return 0;
+            return stories.some((s) => !seenStories.has(s.id)) ? 2 : 1;
+        }
+
+        // Range on one field only, so no composite index is needed; expiry is re-checked on the client
+        function watchStories() {
+            onSnapshot(
+                query(collection(db, "stories"), where("createdAt", ">", Date.now() - STORY_TTL)),
+                (snapshot) => {
+                    allStories = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+                    liveStoryCount = allStories.filter((s) => s.expiresAt > Date.now()).length;
+                    renderFriends();
+                },
+                (err) => console.error(err)
+            );
+        }
+
+        // Stories expire while the page is open: refresh the bar when the count of live ones changes
+        setInterval(() => {
+            const count = allStories.filter((s) => s.expiresAt > Date.now()).length;
+            if (count === liveStoryCount) return;
+            liveStoryCount = count;
+            renderFriends();
+        }, 60 * 1000);
+
+        /* Create */
+
+        let storyMedia = null; // { file, type, url } picked in the popup
+
+        function renderStoryPick() {
+            const $pick = $("#storyPick").toggleClass("has-media", !!storyMedia);
+            $pick.find(".story-pick-preview").remove();
+            if (!storyMedia) return;
+            $pick.append(storyMedia.type === "video"
+                ? $("<video>", { class: "story-pick-preview", src: `${storyMedia.url}#t=0.001`, preload: "metadata" }).attr("playsinline", "").prop("muted", true)
+                : $("<img>", { class: "story-pick-preview", src: storyMedia.url, alt: "" }));
+        }
+
+        function openStoryForm() {
+            if (!requireAuthor()) return;
+            if (storyMedia) releaseMedia([storyMedia]);
+            storyMedia = null;
+            renderStoryPick();
+            $("#storyFile, #storyCaption").val("");
+            $("#storyError").hide();
+            $("#storyModal").fadeIn(150);
+        }
+
+        $("#friendsList").on("click", "#storyCreate", openStoryForm);
+
+        $("#storyFile").on("change", function () {
+            const picked = pickMedia(this.files);
+            $(this).val("");
+            if (!picked.length) return;
+            if (storyMedia) releaseMedia([storyMedia]);
+            storyMedia = picked[0];
+            renderStoryPick();
+            $("#storyError").hide();
+        });
+
+        $("#storyForm").on("submit", async function (e) {
+            e.preventDefault();
+            const me = currentAuthor();
+            const myId = userIdOf(me);
+            if (!me) return;
+            if (!storyMedia) {
+                $("#storyError").text("Chọn ảnh hoặc video cho tin.").show();
+                return;
+            }
+            if (!myId) {
+                $("#storyError").text("Chưa đăng được tin, thử tải lại trang.").show();
+                return;
+            }
+
+            const $save = $("#storySave").prop("disabled", true).text("Đang tải...");
+            try {
+                const media = await uploadMedia(storyMedia.file);
+                const now = Date.now();
+                await addDoc(collection(db, "stories"), {
+                    auth: me,
+                    authorId: myId,
+                    media: media,
+                    text: $.trim($("#storyCaption").val()),
+                    createdAt: now,
+                    expiresAt: now + STORY_TTL
+                });
+                releaseMedia([storyMedia]);
+                storyMedia = null;
+                $("#storyModal").fadeOut(150);
+                showToast("Đã đăng tin ✨");
+            } catch (err) {
+                console.error(err);
+                $("#storyError").text(errorMessage(err)).show();
+            } finally {
+                $save.prop("disabled", false).text("Đăng tin");
+            }
+        });
+
+        /* Viewer */
+
+        // authors: names in friends bar order; a / i: current author and story index
+        let storyView = { authors: [], a: 0, i: 0, timer: null };
+
+        function currentViewedStory() {
+            return storiesOf(storyView.authors[storyView.a])[storyView.i] || null;
+        }
+
+        // Starts at the author's first story not seen yet
+        function firstUnseenIndex(name) {
+            const index = storiesOf(name).findIndex((s) => !seenStories.has(s.id));
+            return index < 0 ? 0 : index;
+        }
+
+        function openStoryViewer(name) {
+            const authors = $("#friendsList .story[data-story]").map(function () { return $(this).attr("data-story"); }).get();
+            const a = authors.indexOf(name);
+            if (a < 0) return;
+            $("#feed video").each(function () { this.pause(); });
+            storyView = { authors: authors, a: a, i: firstUnseenIndex(name), timer: null };
+            $("#storyViewer").fadeIn(150);
+            $("body").addClass("no-scroll");
+            showStory();
+        }
+
+        function closeStoryViewer() {
+            if (!$("#storyViewer").is(":visible")) return;
+            clearTimeout(storyView.timer);
+            $("#storyStage").empty();
+            $("#storyViewer").fadeOut(150);
+            $("body").removeClass("no-scroll");
+            renderFriends(); // rings of the stories just seen
+        }
+
+        function showStory() {
+            clearTimeout(storyView.timer);
+            const name = storyView.authors[storyView.a];
+            const stories = storiesOf(name);
+            const story = stories[storyView.i];
+            if (!story) return stepStory(1);
+
+            markStorySeen(story.id);
+            const canDelete = name === currentAuthor() || isAdmin;
+            fillAvatar($("#storyAvatar"), name);
+            $("#storyAuthor").text(nameOf(name)).attr("data-name", name);
+            $("#storyTime").text(timeAgo(story.createdAt));
+            $("#storyDelete").toggle(canDelete);
+            $("#storyText").text(story.text || "").toggle(!!story.text);
+
+            const $progress = $("#storyProgress").empty();
+            stories.forEach((s, i) => {
+                $progress.append($("<span>", { class: "story-bar" + (i < storyView.i ? " is-done" : "") }).append($("<span>")));
+            });
+            const $fill = $progress.children().eq(storyView.i).find("span");
+            const run = (seconds) => {
+                $fill.css("animation", `story-fill ${seconds}s linear forwards`);
+                storyView.timer = setTimeout(() => stepStory(1), seconds * 1000);
+            };
+
+            const $stage = $("#storyStage").empty();
+            if (story.media?.type === "video") {
+                const $video = $("<video>", { src: story.media.url, poster: videoPoster(story.media.url) || undefined })
+                    .attr({ playsinline: "", autoplay: "" });
+                $video.on("loadedmetadata", function () {
+                    run(this.duration || STORY_IMAGE_SECONDS);
+                });
+                $stage.append($video);
+                // Autoplay with sound can be refused: play muted instead
+                $video[0].play()?.catch(() => {
+                    $video[0].muted = true;
+                    $video[0].play().catch(() => {});
+                });
+            } else {
+                $stage.append($("<img>", { src: imageUrl(story.media?.url || "", 1080), alt: "" }));
+                run(STORY_IMAGE_SECONDS);
+            }
+        }
+
+        // Moves through the author's stories, then on to the next / previous author; past the end it closes
+        function stepStory(direction) {
+            const stories = storiesOf(storyView.authors[storyView.a]);
+            const i = storyView.i + direction;
+            if (i >= 0 && i < stories.length) {
+                storyView.i = i;
+                return showStory();
+            }
+            const a = storyView.a + direction;
+            if (a < 0) {
+                storyView.i = 0; // first story of the first author: replay it
+                return showStory();
+            }
+            if (a >= storyView.authors.length) return closeStoryViewer();
+            storyView.a = a;
+            const name = storyView.authors[a];
+            storyView.i = direction > 0 ? firstUnseenIndex(name) : Math.max(storiesOf(name).length - 1, 0);
+            showStory();
+        }
+
+        $("#storyViewer")
+            .on("click", function (e) {
+                if (e.target === this) closeStoryViewer();
+            })
+            .on("click", ".story-tap", function () {
+                stepStory($(this).hasClass("is-next") ? 1 : -1);
+            });
+        $("#storyClose").on("click", closeStoryViewer);
+
+        $("#storyAuthor").on("click", function () {
+            const name = $(this).attr("data-name");
+            closeStoryViewer();
+            if (name) showProfile(name);
+        });
+
+        $("#storyDelete").on("click", async function () {
+            const story = currentViewedStory();
+            if (!story) return;
+            clearTimeout(storyView.timer);
+            $("#storyStage video").each(function () { this.pause(); });
+            if (!confirm("Xoá tin này?")) return showStory();
+            try {
+                await deleteDoc(doc(db, "stories", story.id));
+                allStories = allStories.filter((s) => s.id !== story.id);
+                showToast("Đã xoá tin");
+                if (!$("#storyViewer").is(":visible")) return;
+                // The next story now sits at the same index
+                const left = storiesOf(storyView.authors[storyView.a]).length;
+                if (storyView.i < left) showStory();
+                else stepStory(1);
+            } catch (err) {
+                console.error(err);
+                showToast(errorMessage(err));
+                showStory();
+            }
+        });
+
+        $(document).on("keydown", function (e) {
+            if (!$("#storyViewer").is(":visible")) return;
+            if (e.key === "Escape") closeStoryViewer();
+            if (e.key === "ArrowLeft") stepStory(-1);
+            if (e.key === "ArrowRight") stepStory(1);
+        });
 
         /* ---------- Light / dark theme ---------- */
 
@@ -4967,7 +5317,7 @@
             if (e.ctrlKey || e.metaKey || e.altKey) return;
             // Not while typing, or while a popup / the viewer is open
             if ($(e.target).is("input, textarea, select, [contenteditable]")) return;
-            if ($(".modal:visible, #lightbox:visible, .profile-panel.is-open").length) return;
+            if ($(".modal:visible, #lightbox:visible, #storyViewer:visible, .profile-panel.is-open").length) return;
             const key = e.key.toLowerCase();
             if (!["j", "k", "l", "c"].includes(key)) return;
             const $post = currentFeedPost();
@@ -5984,14 +6334,16 @@
                 e.stopPropagation(); // the story itself opens the profile
                 openChat($(this).attr("data-chat"));
             })
+            // With active stories the tile opens them; the profile stays reachable from the viewer's name
             .on("click", ".story[data-profile]", function () {
-                showProfile($(this).attr("data-profile"));
+                if ($(this).is("[data-story]")) openStoryViewer($(this).attr("data-story"));
+                else showProfile($(this).attr("data-profile"));
             })
             // Enter/Space on the story itself; inner buttons handle their own keys
             .on("keydown", ".story[data-profile]", function (e) {
                 if ((e.key === "Enter" || e.key === " ") && e.target === this) {
                     e.preventDefault();
-                    showProfile($(this).attr("data-profile"));
+                    $(this).trigger("click");
                 }
             });
 
@@ -6131,6 +6483,7 @@
 
         loadFeed();
         watchPassItems();
+        watchStories();
         if (!currentAuthor()) openProfileModal();
     </script>
 </body>
