@@ -768,6 +768,25 @@
             <p class="story-text" id="storyText"></p>
             <button type="button" class="story-tap is-prev" aria-label="Tin trước"></button>
             <button type="button" class="story-tap is-next" aria-label="Tin sau"></button>
+            <!-- Own story: who viewed it; someone else's: like it -->
+            <div class="story-actions">
+                <button type="button" class="story-viewers-btn" id="storyViewersBtn" aria-haspopup="dialog">
+                    <i class="fa-regular fa-eye"></i>
+                    <span id="storyViewersCount"></span>
+                </button>
+                <button type="button" class="story-icon-btn story-like" id="storyLike" aria-label="Thích tin" aria-pressed="false">
+                    <i class="fa-regular fa-heart"></i>
+                </button>
+            </div>
+            <div class="story-viewers" id="storyViewers" style="display:none">
+                <div class="story-viewers-head">
+                    <strong id="storyViewersTitle"></strong>
+                    <button type="button" class="icon-btn" id="storyViewersClose" aria-label="Đóng danh sách">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <ul class="story-viewers-list" id="storyViewersList"></ul>
+            </div>
         </div>
     </div>
 
@@ -1447,6 +1466,7 @@
                     allStories = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
                     liveStoryCount = allStories.filter((s) => s.expiresAt > Date.now()).length;
                     renderFriends();
+                    if ($("#storyViewer").is(":visible")) renderStoryActions(); // new views / likes
                 },
                 (err) => console.error(err)
             );
@@ -1576,6 +1596,9 @@
             if (!story) return stepStory(1);
 
             markStorySeen(story.id);
+            recordStoryView(story);
+            $("#storyViewers").hide();
+            renderStoryActions();
             const canDelete = name === currentAuthor() || isAdmin;
             fillAvatar($("#storyAvatar"), name);
             $("#storyAuthor").text(nameOf(name)).attr("data-name", name);
@@ -1631,6 +1654,91 @@
             storyView.i = direction > 0 ? firstUnseenIndex(name) : Math.max(storiesOf(name).length - 1, 0);
             showStory();
         }
+
+        /* Views and likes: user ids on the story ("viewers", "likes") */
+
+        // The owner's own views are not counted
+        function recordStoryView(story) {
+            const myId = userIdOf(currentAuthor());
+            if (!myId || story.authorId === myId || (story.viewers || []).includes(myId)) return;
+            story.viewers = [...(story.viewers || []), myId];
+            updateDoc(doc(db, "stories", story.id), { viewers: arrayUnion(myId) }).catch((err) => console.error(err));
+        }
+
+        function renderStoryActions() {
+            const story = currentViewedStory();
+            if (!story) return;
+            const myId = userIdOf(currentAuthor());
+            const isMine = !!myId && story.authorId === myId;
+            const viewers = story.viewers || [];
+            const likes = story.likes || [];
+            const liked = likes.includes(myId);
+
+            $("#storyViewersBtn").toggle(isMine);
+            $("#storyViewersCount").text(likes.length ? `${viewers.length} · ❤ ${likes.length}` : viewers.length);
+            $("#storyViewersBtn").attr("aria-label", `${viewers.length} người đã xem, ${likes.length} lượt thích`);
+            $("#storyLike").toggle(!isMine && !!myId)
+                .toggleClass("is-liked", liked)
+                .attr({ "aria-pressed": String(liked), "aria-label": liked ? "Bỏ thích tin" : "Thích tin" })
+                .find("i").toggleClass("fa-solid", liked).toggleClass("fa-regular", !liked);
+            if ($("#storyViewers").is(":visible")) renderStoryViewers();
+        }
+
+        // Newest viewer first; those who liked the story have a heart
+        function renderStoryViewers() {
+            const story = currentViewedStory();
+            const $list = $("#storyViewersList").empty();
+            if (!story) return;
+            const viewers = [...(story.viewers || [])].reverse();
+            const likes = story.likes || [];
+            $("#storyViewersTitle").text(`${viewers.length} người đã xem`);
+            if (!viewers.length) {
+                $list.append($("<li>", { class: "story-viewers-empty", text: "Chưa có ai xem tin này" }));
+                return;
+            }
+            viewers.forEach((id) => {
+                const name = authorOfId(id);
+                $list.append(
+                    $("<li>", { class: "story-viewer-item" }).append(
+                        fillAvatar($("<span>", { class: "avatar avatar-sm" }), name),
+                        $("<span>", { class: "story-viewer-name", text: name ? nameOf(name) : "(người dùng đã xoá)" }),
+                        likes.includes(id) ? $("<i>", { class: "fa-solid fa-heart story-viewer-heart" }) : null
+                    )
+                );
+            });
+        }
+
+        // Optimistic, rolled back on failure
+        async function toggleStoryLike() {
+            const story = currentViewedStory();
+            const myId = userIdOf(currentAuthor());
+            if (!story || !myId) return;
+            const before = story.likes || [];
+            const liked = before.includes(myId);
+            story.likes = liked ? before.filter((id) => id !== myId) : [...before, myId];
+            renderStoryActions();
+            try {
+                await updateDoc(doc(db, "stories", story.id), { likes: liked ? arrayRemove(myId) : arrayUnion(myId) });
+            } catch (err) {
+                console.error(err);
+                story.likes = before;
+                renderStoryActions();
+                showToast(errorMessage(err));
+            }
+        }
+
+        $("#storyLike").on("click", toggleStoryLike);
+
+        // The list pauses the story; closing it plays the story again from the start
+        $("#storyViewersBtn").on("click", function () {
+            clearTimeout(storyView.timer);
+            $("#storyStage video").each(function () { this.pause(); });
+            $("#storyProgress .story-bar span").css("animation-play-state", "paused");
+            renderStoryViewers();
+            $("#storyViewers").show();
+        });
+
+        $("#storyViewersClose").on("click", showStory);
 
         $("#storyViewer")
             .on("click", function (e) {

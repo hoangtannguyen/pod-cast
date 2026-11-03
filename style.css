@@ -4205,7 +4205,7 @@ a.profile-about-row:hover {
     position: absolute;
     left: 16px;
     right: 16px;
-    bottom: 24px;
+    bottom: 72px; /* above .story-actions */
     z-index: 3;
     margin: 0;
     padding: 8px 12px;
@@ -4236,4 +4236,97 @@ a.profile-about-row:hover {
 .story-tap.is-next {
     right: 0;
     width: 67%;
+}
+
+/* Story footer: viewers (own story) or like button (someone else's) */
+.story-actions {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: 16px;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    pointer-events: none; /* the gap between the buttons still taps through to next / previous */
+}
+
+.story-actions > * {
+    pointer-events: auto;
+}
+
+.story-viewers-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.5);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.story-like {
+    margin-left: auto;
+    font-size: 24px;
+}
+
+.story-like.is-liked {
+    color: var(--like);
+}
+
+/* Viewer list: a sheet over the lower part of the story */
+.story-viewers {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 4;
+    max-height: 60%;
+    display: flex;
+    flex-direction: column;
+    border-radius: var(--radius) var(--radius) 0 0;
+    background-color: var(--card);
+    color: var(--text);
+}
+
+.story-viewers-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-soft);
+}
+
+.story-viewers-list {
+    margin: 0;
+    padding: 8px 0;
+    overflow-y: auto;
+    list-style: none;
+}
+
+.story-viewer-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 16px;
+}
+
+.story-viewer-name {
+    flex: 1;
+    font-size: 14px;
+}
+
+.story-viewer-heart {
+    color: var(--like);
+}
+
+.story-viewers-empty {
+    padding: 16px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 14px;
 }
