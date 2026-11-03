@@ -1982,7 +1982,7 @@
                 if (!friends.length) return empty("Bạn chưa có bạn bè nào. Xem tab Gợi ý để kết bạn nhé!");
                 friends.forEach((name) => $list.append(buildFriendRow(name, [
                     $("<button>", { type: "button", class: "btn-ghost friend-chat", "data-name": name, text: "Nhắn tin" }),
-                    friendButton(userIdOf(name))
+                    $("<button>", { type: "button", class: "btn-ghost friend-action", "data-action": "unfriend", "data-user-id": userIdOf(name), text: "Huỷ kết bạn" })
                 ])));
             }
         }
