@@ -3295,9 +3295,11 @@
             const $body = $("#statsBody").html('<div class="spinner"></div>');
 
             try {
-                const [photos, comments] = await Promise.all([
+                const [photos, comments, stories] = await Promise.all([
                     getDocs(collection(db, "photos")),
-                    getDocs(collection(db, "comments"))
+                    getDocs(collection(db, "comments")),
+                    // Read in full: expired stories are hidden in the app but still stored
+                    getDocs(collection(db, "stories"))
                 ]);
 
                 let firestoreBytes = 0;
@@ -3309,6 +3311,14 @@
                 comments.forEach((docSnap) => {
                     firestoreBytes += docBytes(docSnap.id, docSnap.data());
                 });
+                const postMediaCount = media.length;
+                let storyFirestoreBytes = 0;
+                stories.forEach((docSnap) => {
+                    storyFirestoreBytes += docBytes(docSnap.id, docSnap.data());
+                    if (docSnap.data().media?.url) media.push(docSnap.data().media);
+                });
+                firestoreBytes += storyFirestoreBytes;
+                const expiredStories = stories.docs.filter((d) => !(d.data().expiresAt > Date.now())).length;
 
                 // Other collections: exact count, size estimated from a small sample (reading every chat message
                 // would cost one read each). A collection the rules do not let the admin read is skipped.
@@ -3330,6 +3340,7 @@
                 const sizes = await Promise.all(media.map((item) => item.bytes || remoteSize(item.url)));
                 const mediaBytes = sizes.reduce((sum, size) => sum + (size || 0), 0);
                 const unknown = sizes.filter((size) => !size).length;
+                const storyMediaBytes = sizes.slice(postMediaCount).reduce((sum, size) => sum + (size || 0), 0);
                 const videos = media.filter((item) => item.type === "video").length;
                 const percent = Math.min(100, (firestoreBytes / FIRESTORE_FREE_BYTES) * 100);
                 const mediaPercent = Math.min(100, (mediaBytes / CLOUDINARY_FREE_BYTES) * 100);
@@ -3338,6 +3349,7 @@
                     statBlock("fa-solid fa-database", "Firestore", `${formatBytes(firestoreBytes)} / 1 GB`,
                         [
                             `${photos.size} bài viết · ${comments.size} bình luận`,
+                            `${stories.size} tin (${expiredStories} đã hết hạn nhưng vẫn lưu) · ${formatBytes(storyFirestoreBytes)}`,
                             extras.filter((e) => e.count !== null).map((e) => `${e.count.toLocaleString("vi-VN")} ${e.label}`).join(" · "),
                             unreadable.length ? `Không đọc được: ${unreadable.join(", ")} (bị Firestore rules chặn)` : null,
                             `Ước tính: ${STATS_EXTRA_COLLECTIONS.map(([, label]) => label).join(", ")} tính theo mẫu ${STATS_SAMPLE_SIZE} bản ghi; chưa gồm dung lượng index. Số chính xác xem ở Firebase Console → Firestore → Usage.`
@@ -3345,6 +3357,7 @@
                     statBlock("fa-regular fa-images", "Ảnh & video (Cloudinary)", `${formatBytes(mediaBytes)} / 25 GB`,
                         [
                             `${media.length - videos} ảnh · ${videos} video`,
+                            `Trong đó tin: ${media.length - postMediaCount} file · ${formatBytes(storyMediaBytes)}`,
                             unknown ? `${unknown} file không đọc được dung lượng` : null,
                             "25 credit/tháng dùng chung cho lưu trữ, băng thông và xử lý ảnh — 25 GB là mức tối đa nếu chỉ dùng để lưu trữ."
                         ], mediaPercent)
