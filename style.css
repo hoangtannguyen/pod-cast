@@ -4492,3 +4492,162 @@ a.profile-about-row:hover {
         height: 152px;
     }
 }
+
+/* ---------- Friend suggestions & requests ---------- */
+.suggest-widget {
+    display: none;
+    margin-top: 16px;
+    padding: 14px;
+}
+
+@media (min-width: 1120px) {
+    .side-right .suggest-widget:not(.is-empty) {
+        display: block;
+    }
+
+    .suggest-strip {
+        display: none !important; /* the sidebar widget shows the same people */
+    }
+}
+
+.suggest-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.suggest-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+}
+
+.suggest-profile {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    cursor: pointer;
+}
+
+.suggest-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.suggest-info strong {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 14px;
+    text-align: left;
+}
+
+.suggest-info span,
+.suggest-card > span {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.suggest-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.suggest-item .btn-primary,
+.suggest-item .btn-ghost,
+.suggest-card .btn-primary,
+.suggest-card .btn-ghost {
+    padding: 6px 12px;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.suggest-item .friend-action[data-action="add"],
+.suggest-card .friend-action[data-action="add"] {
+    background: linear-gradient(90deg, #4f6bff, #b14cff);
+    color: #fff;
+}
+
+.friends-modal-list {
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+/* Phones / tablets: swipeable cards above the feed */
+.suggest-strip {
+    margin-bottom: 12px;
+    padding: 12px 0 12px 12px;
+}
+
+.suggest-strip.is-empty {
+    display: none;
+}
+
+.suggest-strip .pass-widget-head {
+    padding-right: 12px;
+}
+
+.suggest-strip-track {
+    display: flex;
+    gap: 8px;
+    padding-right: 12px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+}
+
+.suggest-strip-track::-webkit-scrollbar {
+    display: none;
+}
+
+.suggest-card {
+    flex: 0 0 140px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 12px 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    scroll-snap-align: start;
+    text-align: center;
+}
+
+.suggest-card strong {
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 14px;
+}
+
+.suggest-card .friend-action {
+    width: 100%;
+    margin-top: 4px;
+}
+
+/* Right column: only on wide screens, in the third grid column, sticky like the profile panel */
+.side-right {
+    display: none;
+}
+
+@media (min-width: 1120px) {
+    .side-right {
+        display: block;
+        grid-column: 3;
+        grid-row: 1;
+        position: sticky;
+        top: 76px; /* topbar 60 + 16 */
+        margin-top: 16px;
+    }
+
+    .side-right .suggest-widget {
+        margin-top: 0;
+    }
+}

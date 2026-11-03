@@ -49,6 +49,10 @@
                     <i class="fa-regular fa-paper-plane"></i>
                     <span class="notify-badge" id="chatBadge" style="display:none">0</span>
                 </button>
+                <button type="button" class="admin-btn admin-btn-icon notify-btn" id="btnFriends" data-tip="Bạn bè" aria-label="Bạn bè" aria-haspopup="dialog" style="display:none">
+                    <i class="fa-solid fa-user-group"></i>
+                    <span class="notify-badge" id="friendsBadge" style="display:none">0</span>
+                </button>
                 <div class="topbar-meta" data-tip="Số thành viên">
                     <i class="fa-regular fa-user"></i>
                     <span id="friendCount">0</span>
@@ -223,6 +227,14 @@
             </div>
             <div class="pass-strip-track" id="passStripTrack"></div>
         </section>
+        <!-- Below 1120px: friend suggestions as a swipeable strip (wide screens have the sidebar widget) -->
+        <section class="suggest-strip card is-empty" id="suggestStrip" aria-labelledby="suggestStripTitle">
+            <div class="pass-widget-head">
+                <h3 class="pass-widget-title" id="suggestStripTitle">✨ Gợi ý bạn bè</h3>
+                <button type="button" class="link-btn suggest-all">Xem tất cả →</button>
+            </div>
+            <div class="suggest-strip-track" id="suggestStripTrack"></div>
+        </section>
         <div class="feed-tabs" id="feedTabs" role="tablist" aria-label="Lọc bảng tin">
             <button type="button" class="feed-tab is-active" data-filter="all" role="tab" aria-selected="true">Tất cả</button>
             <button type="button" class="feed-tab" data-filter="post" role="tab" aria-selected="false">Bài viết</button>
@@ -269,6 +281,17 @@
                 <button type="button" class="link-btn" id="passWidgetAll">Xem tất cả</button>
             </div>
             <div class="pass-grid" id="passGrid"></div>
+        </section>
+    </aside>
+
+    <!-- Right column (wide screens only): people to add as friends, most mutual friends first -->
+    <aside class="side-right" aria-label="Gợi ý bạn bè">
+        <section class="suggest-widget card is-empty" id="suggestWidget" aria-labelledby="suggestWidgetTitle">
+            <div class="pass-widget-head">
+                <h3 class="pass-widget-title" id="suggestWidgetTitle">✨ Gợi ý bạn bè</h3>
+                <button type="button" class="link-btn suggest-all">Xem tất cả →</button>
+            </div>
+            <ul class="suggest-list" id="suggestList"></ul>
         </section>
     </aside>
     </div>
@@ -334,6 +357,22 @@
                 <button type="button" class="feed-tab" data-archived="true" role="tab" aria-selected="false">Đã ẩn</button>
             </div>
             <div class="archive-list" id="archiveList"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn-primary modal-close">Đóng</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Friend requests, suggestions and the friends list -->
+    <div class="modal" id="friendsModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="friendsTitle">
+        <div class="modal-card archive-card">
+            <h2 class="modal-title" id="friendsTitle">Bạn bè 👥</h2>
+            <div class="feed-tabs archive-tabs" id="friendsTabs" role="tablist">
+                <button type="button" class="feed-tab" data-tab="requests" role="tab" aria-selected="false">Lời mời <span id="friendsTabRequests"></span></button>
+                <button type="button" class="feed-tab" data-tab="suggest" role="tab" aria-selected="false">Gợi ý</button>
+                <button type="button" class="feed-tab" data-tab="friends" role="tab" aria-selected="false">Bạn bè <span id="friendsTabFriends"></span></button>
+            </div>
+            <ul class="suggest-list friends-modal-list" id="friendsModalList"></ul>
             <div class="modal-actions">
                 <button type="button" class="btn-primary modal-close">Đóng</button>
             </div>
@@ -1351,8 +1390,9 @@
             // Most contacted first: unread messages, then the latest 1-1 chat, then the latest post, then by name
             const unreadOf = (name) => unreadByFriend.get(userIdOf(name)) || 0;
             const lastChatOf = (name) => lastChatByFriend.get(userIdOf(name)) || 0;
+            // Only friends are listed (and so only their stories can be opened from here)
             const sorted = [...others]
-                .filter((name) => name && name !== me)
+                .filter((name) => name && name !== me && isFriend(name))
                 .sort((a, b) => unreadOf(b) - unreadOf(a)
                     || storyRank(b) - storyRank(a)
                     || lastChatOf(b) - lastChatOf(a)
@@ -1387,6 +1427,7 @@
             $("#moreLogout").toggle(!!me);
             $("#moreMembers").text(`${total} thành viên`);
             fillAvatar($("#navAvatar"), me, me ? undefined : "🙂");
+            renderFriendExtras();
             renderProfilePanel();
             if ($("#chatListView").is(":visible")) renderChatList();
         }
@@ -1800,6 +1841,242 @@
             if (e.key === "ArrowRight") stepStory(1);
         });
 
+        /* ---------- Friendships: request -> accept, one document per pair of user ids ---------- */
+
+        // friendship id (chatIdOf the two user ids) -> { memberIds, fromId, toId, status: "pending" | "accepted", ... }
+        const friendships = new Map();
+        const SUGGEST_WIDGET_SIZE = 5;
+        const SUGGEST_STRIP_SIZE = 10;
+        let friendsTab = "requests";
+
+        function friendshipWith(otherId) {
+            const myId = userIdOf(currentAuthor());
+            return myId && otherId ? friendships.get(chatIdOf(myId, otherId)) || null : null;
+        }
+
+        // "friend" | "sent" (my request, waiting) | "received" (their request to me) | "" (none)
+        function friendStateOf(otherId) {
+            const f = friendshipWith(otherId);
+            if (!f) return "";
+            if (f.status === "accepted") return "friend";
+            return f.fromId === userIdOf(currentAuthor()) ? "sent" : "received";
+        }
+
+        function isFriend(name) {
+            return friendStateOf(userIdOf(name)) === "friend";
+        }
+
+        function friendIdsOf(userId) {
+            const ids = new Set();
+            friendships.forEach((f) => {
+                if (f.status === "accepted" && f.memberIds.includes(userId)) ids.add(f.memberIds.find((id) => id !== userId));
+            });
+            return ids;
+        }
+
+        function mutualCount(otherId) {
+            const mine = friendIdsOf(userIdOf(currentAuthor()));
+            return [...friendIdsOf(otherId)].filter((id) => mine.has(id)).length;
+        }
+
+        // Requests to me from users who still exist, newest first
+        function incomingRequests() {
+            const myId = userIdOf(currentAuthor());
+            if (!myId) return [];
+            return [...friendships.values()]
+                .filter((f) => f.status === "pending" && f.toId === myId && authorOfId(f.fromId))
+                .sort((a, b) => b.createdAt - a.createdAt)
+                .map((f) => authorOfId(f.fromId));
+        }
+
+        function myFriends() {
+            return [...friendIdsOf(userIdOf(currentAuthor()))]
+                .map(authorOfId)
+                .filter(Boolean)
+                .sort((a, b) => nameOf(a).localeCompare(nameOf(b), "vi"));
+        }
+
+        // Not a friend yet and no request from them (those are under "Lời mời"); most mutual friends first
+        function friendSuggestions() {
+            const me = currentAuthor();
+            if (!userIdOf(me)) return [];
+            return [...usersByAuthor.keys()]
+                .filter((name) => name !== me && userIdOf(name) && ["", "sent"].includes(friendStateOf(userIdOf(name))))
+                .map((name) => ({ name: name, mutual: mutualCount(userIdOf(name)) }))
+                .sort((a, b) => b.mutual - a.mutual || nameOf(a.name).localeCompare(nameOf(b.name), "vi"))
+                .map((s) => s.name);
+        }
+
+        const FRIEND_BUTTONS = {
+            "": { action: "add", label: "Thêm bạn bè", cls: "btn-primary" },
+            sent: { action: "cancel", label: "Đã gửi ✓", cls: "btn-ghost", title: "Huỷ lời mời" },
+            received: { action: "accept", label: "Chấp nhận", cls: "btn-primary" },
+            friend: { action: "unfriend", label: "Bạn bè ✓", cls: "btn-ghost", title: "Huỷ kết bạn" }
+        };
+
+        function friendButton(otherId) {
+            const b = FRIEND_BUTTONS[friendStateOf(otherId)];
+            return $("<button>", { type: "button", class: `${b.cls} friend-action`, "data-action": b.action, "data-user-id": otherId, text: b.label, title: b.title || "" });
+        }
+
+        // One person: avatar (opens the profile), name, mutual friends, then the given buttons
+        function buildFriendRow(name, $buttons) {
+            const mutual = mutualCount(userIdOf(name));
+            return $("<li>", { class: "suggest-item" }).append(
+                $("<button>", { type: "button", class: "suggest-profile", "data-name": name, "aria-label": `Xem trang cá nhân của ${nameOf(name)}` })
+                    .append(fillAvatar($("<span>", { class: "avatar avatar-md" }), name)),
+                $("<div>", { class: "suggest-info" }).append(
+                    $("<strong>", { class: "suggest-profile", "data-name": name, text: nameOf(name) }),
+                    $("<span>", { text: mutual ? `Có ${mutual} bạn chung` : "Chưa có bạn chung" })
+                ),
+                $("<div>", { class: "suggest-actions" }).append($buttons)
+            );
+        }
+
+        // Header badge, sidebar widget and phone strip; called from renderFriends()
+        function renderFriendExtras() {
+            const me = currentAuthor();
+            const requests = incomingRequests();
+            $("#btnFriends").toggle(!!me);
+            $("#friendsBadge").text(requests.length > 9 ? "9+" : requests.length).toggle(requests.length > 0);
+
+            const suggestions = me ? friendSuggestions() : [];
+            $("#suggestWidget, #suggestStrip").toggleClass("is-empty", !suggestions.length);
+            $("#suggestList").empty().append(suggestions.slice(0, SUGGEST_WIDGET_SIZE).map((name) => buildFriendRow(name, friendButton(userIdOf(name)))));
+            $("#suggestStripTrack").empty().append(suggestions.slice(0, SUGGEST_STRIP_SIZE).map((name) => {
+                const mutual = mutualCount(userIdOf(name));
+                return $("<div>", { class: "suggest-card" }).append(
+                    $("<button>", { type: "button", class: "suggest-profile", "data-name": name, "aria-label": `Xem trang cá nhân của ${nameOf(name)}` })
+                        .append(fillAvatar($("<span>", { class: "avatar avatar-lg" }), name)),
+                    $("<strong>", { class: "suggest-profile", "data-name": name, text: nameOf(name) }),
+                    $("<span>", { text: mutual ? `${mutual} bạn chung` : "Chưa có bạn chung" }),
+                    friendButton(userIdOf(name))
+                );
+            }));
+            if ($("#friendsModal").is(":visible")) renderFriendsModal();
+        }
+
+        function renderFriendsModal() {
+            const requests = incomingRequests();
+            const friends = myFriends();
+            $("#friendsTabRequests").text(requests.length ? `(${requests.length})` : "");
+            $("#friendsTabFriends").text(friends.length ? `(${friends.length})` : "");
+            $("#friendsTabs .feed-tab").each(function () {
+                const on = $(this).attr("data-tab") === friendsTab;
+                $(this).toggleClass("is-active", on).attr("aria-selected", String(on));
+            });
+
+            const $list = $("#friendsModalList").empty();
+            const empty = (text) => $list.append($("<li>", { class: "pass-empty", text: text }));
+            if (friendsTab === "requests") {
+                if (!requests.length) return empty("Không có lời mời kết bạn nào");
+                requests.forEach((name) => $list.append(buildFriendRow(name, [
+                    friendButton(userIdOf(name)),
+                    $("<button>", { type: "button", class: "btn-ghost friend-action", "data-action": "decline", "data-user-id": userIdOf(name), text: "Xoá" })
+                ])));
+            } else if (friendsTab === "suggest") {
+                const suggestions = friendSuggestions();
+                if (!suggestions.length) return empty("Chưa có gợi ý nào");
+                suggestions.forEach((name) => $list.append(buildFriendRow(name, friendButton(userIdOf(name)))));
+            } else {
+                if (!friends.length) return empty("Bạn chưa có bạn bè nào. Xem tab Gợi ý để kết bạn nhé!");
+                friends.forEach((name) => $list.append(buildFriendRow(name, [
+                    $("<button>", { type: "button", class: "btn-ghost friend-chat", "data-name": name, text: "Nhắn tin" }),
+                    friendButton(userIdOf(name))
+                ])));
+            }
+        }
+
+        function openFriendsModal(tab) {
+            if (!requireAuthor()) return;
+            friendsTab = tab || (incomingRequests().length ? "requests" : "friends");
+            renderFriendsModal();
+            $("#friendsModal").fadeIn(150);
+        }
+
+        // Everyone's friendships are needed for the mutual friend counts. Bell notifications for
+        // requests to me and my requests being accepted (only changes after the first snapshot).
+        function watchFriendships() {
+            let isFirstSnapshot = true;
+            onSnapshot(
+                collection(db, "friendships"),
+                (snapshot) => {
+                    const myId = userIdOf(currentAuthor());
+                    snapshot.docChanges().forEach((change) => {
+                        const f = { id: change.doc.id, ...change.doc.data() };
+                        if (change.type === "removed") friendships.delete(f.id);
+                        else friendships.set(f.id, f);
+                        if (isFirstSnapshot || !myId || change.type === "removed") return;
+                        if (change.type === "added" && f.status === "pending" && f.toId === myId && authorOfId(f.fromId)) {
+                            addNotification({ kind: "friend", icon: "fa-solid fa-user-plus", who: authorOfId(f.fromId), action: "đã gửi lời mời kết bạn", caption: null, postId: "requests", ms: f.createdAt });
+                        }
+                        if (change.type === "modified" && f.status === "accepted" && f.fromId === myId && authorOfId(f.toId)) {
+                            addNotification({ kind: "friend", icon: "fa-solid fa-user-check", who: authorOfId(f.toId), action: "đã chấp nhận lời mời kết bạn", caption: null, postId: "friends", ms: f.acceptedAt || Date.now() });
+                        }
+                    });
+                    isFirstSnapshot = false;
+                    renderFriends();
+                },
+                (err) => console.error(err)
+            );
+        }
+
+        $(document).on("click", ".friend-action", async function () {
+            if (!requireAuthor()) return;
+            const $btn = $(this);
+            const otherId = $btn.attr("data-user-id");
+            const action = $btn.attr("data-action");
+            const myId = userIdOf(currentAuthor());
+            const name = authorOfId(otherId);
+            if (!myId || !otherId) {
+                showToast("Chưa thực hiện được, thử tải lại trang");
+                return;
+            }
+            if (action === "unfriend" && !confirm(`Huỷ kết bạn với ${nameOf(name)}?`)) return;
+
+            const ref = doc(db, "friendships", chatIdOf(myId, otherId));
+            $btn.prop("disabled", true);
+            try {
+                if (action === "add") {
+                    await setDoc(ref, { memberIds: [myId, otherId].sort(), fromId: myId, toId: otherId, status: "pending", createdAt: Date.now() });
+                } else if (action === "accept") {
+                    await updateDoc(ref, { status: "accepted", acceptedAt: Date.now() });
+                } else {
+                    await deleteDoc(ref); // cancel my request, decline theirs, or unfriend
+                }
+                showToast({
+                    add: "Đã gửi lời mời kết bạn",
+                    accept: `Bạn và ${nameOf(name)} đã là bạn bè 🎉`,
+                    cancel: "Đã huỷ lời mời kết bạn",
+                    decline: "Đã xoá lời mời",
+                    unfriend: "Đã huỷ kết bạn"
+                }[action]);
+            } catch (err) {
+                console.error(err);
+                $btn.prop("disabled", false);
+                showToast(errorMessage(err));
+            }
+        });
+
+        $(document).on("click", ".suggest-profile", function () {
+            const name = $(this).attr("data-name");
+            $("#friendsModal").fadeOut(150);
+            if (name) showProfile(name);
+        });
+
+        $(document).on("click", ".friend-chat", function () {
+            $("#friendsModal").fadeOut(150);
+            openChat($(this).attr("data-name"));
+        });
+
+        $("#btnFriends").on("click", () => openFriendsModal());
+        $(".suggest-all").on("click", () => openFriendsModal("suggest"));
+
+        $("#friendsTabs").on("click", ".feed-tab", function () {
+            friendsTab = $(this).attr("data-tab");
+            renderFriendsModal();
+        });
+
         /* ---------- Light / dark theme ---------- */
 
         // The theme itself is applied by the inline script in <head>; this keeps the button in sync
@@ -1951,6 +2228,7 @@
                 );
             } else if (me) {
                 if (userIdOf(name)) {
+                    $actions.append(friendButton(userIdOf(name)));
                     $actions.append(
                         $("<button>", { type: "button", class: "btn-primary profile-chat" })
                             .append($("<i>", { class: "fa-solid fa-comment-dots" }), $("<span>", { text: "Nhắn tin" }))
@@ -3256,7 +3534,7 @@
         const CLOUDINARY_FREE_BYTES = 25 * 1024 ** 3;
 
         // Collections besides photos/comments, counted for the stats ([collection, label])
-        const STATS_EXTRA_COLLECTIONS = [["users", "người dùng"], ["messages", "tin nhắn"], ["conversations", "cuộc trò chuyện"], ["events", "kèo cầu lông"]];
+        const STATS_EXTRA_COLLECTIONS = [["users", "người dùng"], ["messages", "tin nhắn"], ["conversations", "cuộc trò chuyện"], ["events", "kèo cầu lông"], ["friendships", "quan hệ bạn bè"]];
         const STATS_SAMPLE_SIZE = 20;
 
         // Rough Firestore size: document id + JSON of its fields + fixed per-document overhead
@@ -5508,7 +5786,7 @@
                     $("<span>", { class: "notify-text" }).append(
                         $("<strong>", { text: nameOf(who) }),
                         document.createTextNode(` ${action}`),
-                        $("<span>", { class: "notify-post", text: `“${postTitle(caption)}”` }),
+                        caption === null ? null : $("<span>", { class: "notify-post", text: `“${postTitle(caption)}”` }),
                         $("<span>", { class: "notify-time", text: timeAgo(ms) })
                     ),
                     $("<i>", { class: `${icon} notify-icon` })
@@ -5647,6 +5925,10 @@
             closeNotify();
             if ($(this).attr("data-kind") === "message") {
                 openChat($(this).attr("data-who"));
+                return;
+            }
+            if ($(this).attr("data-kind") === "friend") {
+                openFriendsModal($(this).attr("data-post-id")); // the tab to open
                 return;
             }
             if ($(this).attr("data-kind") === "group") {
@@ -6621,6 +6903,7 @@
         loadFeed();
         watchPassItems();
         watchStories();
+        watchFriendships();
         if (!currentAuthor()) openProfileModal();
     </script>
 </body>
