@@ -7250,7 +7250,7 @@
                     $("<div>", { class: "music-members" }).append(
                         members.slice(0, MUSIC_MEMBER_AVATARS).map((id) => {
                             const name = authorOfId(id);
-                            return $("<span>", { text: emojiOf(name), title: nameOf(name) });
+                            return fillAvatar($("<span>", { class: "avatar", title: nameOf(name) }), name);
                         }),
                         members.length > MUSIC_MEMBER_AVATARS ? $("<span>", { class: "music-more", text: `+${members.length - MUSIC_MEMBER_AVATARS}` }) : null
                     ),
@@ -7665,9 +7665,8 @@
             $list.empty().append(musicChatMessages.slice(-musicChatShown).map((m) => {
                 const name = authorOfId(m.fromId);
                 return $("<li>").append(
-                    $("<strong>", { text: `${emojiOf(name)} ${nameOf(name)}` }),
-                    " ",
-                    $("<span>", { text: m.text })
+                    fillAvatar($("<span>", { class: "avatar music-chat-avatar" }), name),
+                    $("<span>").append($("<strong>", { text: nameOf(name) }), " ", $("<span>", { text: m.text }))
                 );
             }));
             $("#musicChatMore").toggle(musicChatMessages.length > musicChatShown || musicChatFull);

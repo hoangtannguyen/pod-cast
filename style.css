@@ -5117,8 +5117,22 @@ a.profile-about-row:hover {
     color: var(--muted);
 }
 
+.music-chat li {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+}
+
 .music-chat strong {
     font-weight: 600;
+}
+
+/* Photo when the user has one, emoji otherwise (fillAvatar) */
+.music-chat-avatar {
+    width: 20px;
+    height: 20px;
+    margin-top: 1px;
+    font-size: 12px;
 }
 
 /* Reactions: a full-screen layer, each emoji placed (left / top) where it starts rising */
