@@ -4665,6 +4665,13 @@ a.profile-about-row:hover {
         position: sticky;
         top: 76px; /* topbar 60 + 16 */
         margin-top: 16px;
+        /* In a room (player, chat, queue) the column is taller than the screen: it scrolls inside,
+           so the bottom (members, "Rời phòng") stays reachable */
+        max-height: calc(100vh - 92px); /* top 76 + 16 below */
+        max-height: calc(100dvh - 92px);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: thin;
     }
 }
 
@@ -4910,6 +4917,24 @@ a.profile-about-row:hover {
     max-height: 220px;
     overflow-y: auto;
     margin-top: 0;
+    gap: 8px;
+}
+
+/* Queue rows and in-room results: 16:9 thumbnails, one line of title */
+.music-queue-list .music-cover,
+.music-queue-results .music-cover {
+    width: 48px;
+    height: 30px;
+    border-radius: 5px;
+}
+
+.music-queue-list strong {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .music-queue-remove {
@@ -4917,18 +4942,6 @@ a.profile-about-row:hover {
     height: 28px;
     flex-shrink: 0;
     color: var(--muted);
-}
-
-.music-song-form {
-    display: flex;
-    gap: 8px;
-    margin-top: 10px;
-}
-
-.music-song-form .modal-input {
-    flex: 1;
-    min-width: 0;
-    margin: 0;
 }
 
 /* ---------- Music rooms on smaller screens: bottom sheet ---------- */
@@ -5351,4 +5364,43 @@ a.profile-about-row:hover {
     .music-result-add {
         opacity: 1;
     }
+}
+
+/* Compact search field inside the room (queue) */
+.music-search-sm {
+    margin-top: 10px;
+    padding: 3px 3px 3px 10px;
+    gap: 6px;
+}
+
+.music-search-sm > i {
+    font-size: 12px;
+}
+
+.music-search-sm input {
+    padding: 4px 0;
+    font-size: 13px;
+}
+
+.music-search-sm .music-search-btn {
+    padding: 5px 12px;
+    font-size: 12px;
+}
+
+.music-queue-results {
+    max-height: 220px;
+    margin-top: 6px;
+}
+
+.music-queue-results .music-result {
+    padding: 4px;
+    gap: 8px;
+}
+
+.music-queue-results .music-result-text {
+    font-size: 12px;
+}
+
+.music-queue-results .music-result-text strong {
+    -webkit-line-clamp: 1;
 }
