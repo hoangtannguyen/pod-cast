@@ -328,6 +328,19 @@
                     <span id="musicErrorText"></span>
                     <a id="musicErrorLink" target="_blank" rel="noopener noreferrer">Mở trên YouTube <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
                 </p>
+                <div class="music-reactions" id="musicReactions" aria-label="Thả biểu cảm">
+                    <button type="button" data-emoji="❤️" aria-label="Thả tim">❤️</button>
+                    <button type="button" data-emoji="🔥" aria-label="Cháy">🔥</button>
+                    <button type="button" data-emoji="😂" aria-label="Haha">😂</button>
+                    <button type="button" data-emoji="😍" aria-label="Mê">😍</button>
+                    <button type="button" data-emoji="👏" aria-label="Vỗ tay">👏</button>
+                    <button type="button" data-emoji="🎶" aria-label="Hay quá">🎶</button>
+                </div>
+                <ul class="music-chat" id="musicChatList" aria-live="polite"></ul>
+                <form class="music-song-form" id="musicChatForm">
+                    <input type="text" id="musicChatInput" class="modal-input" maxlength="200" placeholder="Nhắn gì đó với cả phòng..." autocomplete="off">
+                    <button type="submit" class="music-join">Gửi</button>
+                </form>
                 <p class="music-sub">Tiếp theo <span id="musicQueueCount"></span></p>
                 <ul class="music-rooms music-queue-list" id="musicQueueList"></ul>
                 <form class="music-song-form" id="musicSongForm">
@@ -346,6 +359,21 @@
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <!-- Reactions from the music room float up here (above the sheet and the mini player) -->
+    <div class="music-float" id="musicFloat" aria-hidden="true"></div>
+
+    <!-- Music mini player: below 1120px, while in a room and the sheet is closed, so the song stays in reach -->
+    <div class="music-mini" id="musicMini" style="display:none">
+        <button type="button" class="music-mini-open" id="musicMiniOpen" aria-label="Mở phòng nghe nhạc">
+            <span class="music-cover" id="musicMiniCover"></span>
+            <span class="music-mini-text">
+                <strong id="musicMiniTitle"></strong>
+                <span id="musicMiniRoom"></span>
+            </span>
+        </button>
+        <button type="button" class="music-play" id="musicMiniToggle"><i class="fa-solid fa-play"></i></button>
+    </div>
 
     <!-- Profile popup -->
     <div class="modal" id="profileModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="profileTitle">
@@ -7087,12 +7115,33 @@
         function openMusicSheet() {
             $("#sideRight").addClass("is-open");
             $("body").addClass("no-scroll");
+            updateMusicMini();
         }
 
         function closeMusicSheet() {
             $("#sideRight").removeClass("is-open");
             $("body").removeClass("no-scroll");
+            updateMusicMini();
         }
+
+        // Mirrors the room's play button and title; shown below 1120px while in a room and the sheet is closed
+        function updateMusicMini() {
+            const room = myMusicRoom();
+            const show = !!room && !WIDE_LAYOUT.matches && !$("#sideRight").hasClass("is-open");
+            $("#musicMini").toggle(show);
+            if (!show) return;
+            const $toggle = $("#musicToggle");
+            $("#musicMiniCover").css("background-image", `url(${youtubeThumb(room.videoId)})`);
+            $("#musicMiniTitle").text($("#musicTitle").text());
+            $("#musicMiniRoom").text(room.name);
+            $("#musicMiniToggle").toggle($toggle[0].style.display !== "none")
+                .attr("aria-label", $toggle.attr("aria-label"))
+                .find("i").attr("class", $toggle.find("i").attr("class"));
+        }
+
+        $("#musicMiniOpen").on("click", openMusicSheet);
+        // Same handler as the big button, still inside this click so the browser lets the sound start
+        $("#musicMiniToggle").on("click", () => $("#musicToggle").trigger("click"));
 
         $("#btnMusic").on("click", openMusicSheet);
         $("#sideRightClose").on("click", closeMusicSheet);
@@ -7105,6 +7154,7 @@
         });
         WIDE_LAYOUT.addEventListener("change", (e) => {
             if (e.matches) closeMusicSheet();
+            else updateMusicMini();
         });
 
         const MUSIC_MEMBER_AVATARS = 6;
@@ -7288,9 +7338,11 @@
 
         function syncMusicPlayer() {
             const room = myMusicRoom();
+            watchMusicChat(room);
             $("#musicPlayerWrap").toggle(!!room);
             if (!room) {
                 if (musicPlayerReady) musicPlayer.stopVideo();
+                updateMusicMini();
                 return;
             }
             if (!musicPlayer) {
@@ -7377,10 +7429,12 @@
                 $("#musicErrorText").text(`${reason} ${isHost ? "Bấm ⏭ để chuyển bài, hoặc thêm bài vào hàng đợi." : "Thêm bài vào hàng đợi để nghe tiếp nhé."}`);
                 $("#musicErrorLink").attr("href", `https://www.youtube.com/watch?v=${room.videoId}`);
                 $("#musicTitle").text("Không phát được bài này");
+                updateMusicMini();
                 return;
             }
             const title = musicPlayerReady ? musicPlayer.getVideoData()?.title : "";
             $("#musicTitle").text(title ? `Đang phát: ${title}` : room.playing ? "Đang tải bài hát..." : "Đang tạm dừng");
+            updateMusicMini();
         }
 
         function setMusicState(room, fields) {
@@ -7487,6 +7541,96 @@
             }
         });
 
+        /* Room chat & reactions: musicRooms/{id}/chat keeps both; the latest ones are live,
+           text messages are listed and new reactions float up the screen */
+
+        const MUSIC_CHAT_SIZE = 30;
+        const MUSIC_REACTIONS = ["❤️", "🔥", "😂", "😍", "👏", "🎶"];
+        const MUSIC_REACTION_GAP = 400; // ms between two reactions from one user
+        let musicChatRoomId = "";
+        let unsubMusicChat = null;
+        let lastReactionAt = 0;
+
+        function watchMusicChat(room) {
+            const roomId = room?.id || "";
+            if (roomId === musicChatRoomId) return;
+            if (unsubMusicChat) unsubMusicChat();
+            unsubMusicChat = null;
+            musicChatRoomId = roomId;
+            $("#musicChatList").empty();
+            if (!roomId) return;
+
+            let isFirstSnapshot = true;
+            unsubMusicChat = onSnapshot(
+                query(collection(db, "musicRooms", roomId, "chat"), orderBy("createdAt", "desc"), limit(MUSIC_CHAT_SIZE)),
+                (snapshot) => {
+                    // Old reactions don't replay on join; my own already floated when I tapped
+                    if (!isFirstSnapshot) {
+                        snapshot.docChanges().forEach((change) => {
+                            const msg = change.doc.data();
+                            if (change.type === "added" && msg.type === "reaction" && !change.doc.metadata.hasPendingWrites) floatReaction(msg.text);
+                        });
+                    }
+                    isFirstSnapshot = false;
+                    renderMusicChat(snapshot.docs.map((d) => d.data()).filter((m) => m.type === "text").reverse());
+                },
+                (err) => console.error(err)
+            );
+        }
+
+        function renderMusicChat(messages) {
+            const $list = $("#musicChatList").empty().append(messages.map((m) => {
+                const name = authorOfId(m.fromId);
+                return $("<li>").append(
+                    $("<strong>", { text: `${emojiOf(name)} ${nameOf(name)}` }),
+                    " ",
+                    $("<span>", { text: m.text })
+                );
+            }));
+            $list.scrollTop($list[0].scrollHeight);
+        }
+
+        function floatReaction(emoji) {
+            if (!MUSIC_REACTIONS.includes(emoji)) return;
+            const $emoji = $("<span>", { class: "music-float-emoji", text: emoji })
+                .css({ left: `${Math.round(Math.random() * 60)}px`, "animation-duration": `${(2.2 + Math.random()).toFixed(2)}s` })
+                .appendTo("#musicFloat");
+            setTimeout(() => $emoji.remove(), 3500);
+        }
+
+        function sendMusicChat(type, text) {
+            const room = myMusicRoom();
+            const myId = userIdOf(currentAuthor());
+            if (!room || !myId) return Promise.resolve();
+            return addDoc(collection(db, "musicRooms", room.id, "chat"), { type: type, text: text, fromId: myId, createdAt: Date.now() });
+        }
+
+        $("#musicReactions").on("click", "button", function () {
+            const now = Date.now();
+            if (now - lastReactionAt < MUSIC_REACTION_GAP) return;
+            lastReactionAt = now;
+            const emoji = $(this).attr("data-emoji");
+            floatReaction(emoji);
+            sendMusicChat("reaction", emoji).catch((err) => {
+                console.error(err);
+                showToast(errorMessage(err));
+            });
+        });
+
+        $("#musicChatForm").on("submit", async function (e) {
+            e.preventDefault();
+            const text = $.trim($("#musicChatInput").val());
+            if (!text) return;
+            $("#musicChatInput").val("");
+            try {
+                await sendMusicChat("text", text);
+            } catch (err) {
+                console.error(err);
+                $("#musicChatInput").val(text);
+                showToast(errorMessage(err));
+            }
+        });
+
         // Snapshots only arrive on changes; re-check drift now and then (buffering, sleeping tabs)
         setInterval(() => {
             if (myMusicRoom()) syncMusicPlayer();
@@ -7531,6 +7675,12 @@
             const $btn = $(this).prop("disabled", true);
             try {
                 if (action === "close") {
+                    const chat = await getDocs(collection(db, "musicRooms", roomId, "chat"));
+                    for (let i = 0; i < chat.docs.length; i += 450) {
+                        const batch = writeBatch(db);
+                        chat.docs.slice(i, i + 450).forEach((d) => batch.delete(d.ref));
+                        await batch.commit();
+                    }
                     await deleteDoc(doc(db, "musicRooms", roomId));
                 } else if (action === "leave") {
                     await updateDoc(doc(db, "musicRooms", roomId), { memberIds: arrayRemove(myId) });

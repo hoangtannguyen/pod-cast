@@ -4981,3 +4981,154 @@ a.profile-about-row:hover {
         display: none;
     }
 }
+
+/* ---------- Music mini player (below 1120px, while the sheet is closed) ---------- */
+.music-mini {
+    --music: #7c3aed;
+    position: fixed;
+    right: 16px;
+    bottom: calc(16px + env(safe-area-inset-bottom));
+    z-index: 30; /* above the bottom bar (25), below the sheet (35) */
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 320px;
+    max-width: calc(100% - 32px);
+    padding: 8px 8px 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--card);
+    color: var(--text);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.music-mini-open {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.music-mini .music-cover {
+    width: 40px;
+    height: 40px;
+}
+
+.music-mini-text {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    font-size: 13px;
+}
+
+.music-mini-text strong,
+.music-mini-text span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.music-mini-text span {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+/* Phones: full width, just above the bottom bar (58px) */
+@media (max-width: 600px) {
+    .music-mini {
+        left: 12px;
+        right: 12px;
+        width: auto;
+        max-width: none;
+        bottom: calc(58px + 8px + env(safe-area-inset-bottom));
+    }
+}
+
+/* ---------- Music room chat & reactions ---------- */
+.music-reactions {
+    display: flex;
+    justify-content: space-between;
+    gap: 4px;
+    margin-top: 12px;
+}
+
+.music-reactions button {
+    flex: 1;
+    padding: 6px 0;
+    border: 1px solid var(--border-soft);
+    border-radius: 999px;
+    background: transparent;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    transition: transform 0.15s;
+}
+
+.music-reactions button:hover {
+    background: var(--input);
+}
+
+.music-reactions button:active {
+    transform: scale(1.25);
+}
+
+.music-chat {
+    max-height: 160px;
+    overflow-y: auto;
+    margin: 10px 0 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 13px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+
+.music-chat:empty::before {
+    content: "Chưa có tin nhắn nào, chào cả phòng đi 👋";
+    color: var(--muted);
+}
+
+.music-chat strong {
+    font-weight: 600;
+}
+
+/* Reactions rise from the lower right, where the music column / mini player sits */
+.music-float {
+    position: fixed;
+    right: 48px;
+    bottom: 120px;
+    z-index: 36; /* above the sheet (35) and the mini player (30) */
+    width: 100px;
+    height: 0;
+    pointer-events: none;
+}
+
+.music-float-emoji {
+    position: absolute;
+    bottom: 0;
+    font-size: 30px;
+    animation: music-float-up ease-out forwards;
+}
+
+@keyframes music-float-up {
+    0% { transform: translateY(0) scale(0.6); opacity: 0; }
+    15% { transform: translateY(-40px) scale(1.1); opacity: 1; }
+    100% { transform: translateY(-320px) scale(1); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .music-float-emoji {
+        animation-name: none;
+        opacity: 0;
+    }
+}
