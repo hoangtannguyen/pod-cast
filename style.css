@@ -4882,6 +4882,42 @@ a.profile-about-row:hover {
     font-weight: 600;
 }
 
+.music-skip {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    font-size: 16px;
+}
+
+.music-progress {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.music-progress input {
+    flex: 1;
+    min-width: 0;
+    accent-color: var(--music);
+}
+
+.music-queue-list {
+    max-height: 220px;
+    overflow-y: auto;
+    margin-top: 0;
+}
+
+.music-queue-remove {
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    color: var(--muted);
+}
+
 .music-song-form {
     display: flex;
     gap: 8px;

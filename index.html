@@ -314,16 +314,25 @@
                 <div id="musicPlayer"></div>
                 <div class="music-controls">
                     <button type="button" class="music-play" id="musicToggle" aria-label="Phát / tạm dừng"><i class="fa-solid fa-play"></i></button>
+                    <button type="button" class="icon-btn music-skip" id="musicSkip" aria-label="Bài tiếp theo" style="display:none"><i class="fa-solid fa-forward-step"></i></button>
                     <span class="music-title" id="musicTitle"></span>
+                </div>
+                <!-- Everyone sees the progress; only the host can drag it -->
+                <div class="music-progress" id="musicProgress">
+                    <span id="musicTime">0:00</span>
+                    <input type="range" id="musicSeek" min="0" max="0" step="1" value="0" aria-label="Tua bài hát" disabled>
+                    <span id="musicDuration">0:00</span>
                 </div>
                 <!-- YouTube refused the video (embedding disabled, removed...): say why, link to YouTube -->
                 <p class="music-error" id="musicError" style="display:none">
                     <span id="musicErrorText"></span>
                     <a id="musicErrorLink" target="_blank" rel="noopener noreferrer">Mở trên YouTube <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
                 </p>
-                <form class="music-song-form" id="musicSongForm" style="display:none">
-                    <input type="url" id="musicSongUrl" class="modal-input" placeholder="Dán link YouTube để đổi bài" autocomplete="off">
-                    <button type="submit" class="music-join">Đổi</button>
+                <p class="music-sub">Tiếp theo <span id="musicQueueCount"></span></p>
+                <ul class="music-rooms music-queue-list" id="musicQueueList"></ul>
+                <form class="music-song-form" id="musicSongForm">
+                    <input type="url" id="musicSongUrl" class="modal-input" placeholder="Dán link YouTube để thêm vào hàng đợi" autocomplete="off">
+                    <button type="submit" class="music-join">Thêm</button>
                 </form>
             </div>
             <div id="musicCurrent"></div>
@@ -1011,6 +1020,7 @@
             runTransaction,
             writeBatch,
             getCountFromServer,
+            serverTimestamp,
         } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import {
             getAuth,
@@ -7055,9 +7065,11 @@
             syncMusicPlayer();
         }
 
-        /* Playback: the host writes { playing, position, updatedAt }, every member's player follows it */
+        /* Playback: the host writes { playing, position, updatedAt }, every member's player follows it.
+           Members add songs to `queue`; when a song ends the room moves on to the first one. */
 
-        const MUSIC_DRIFT = 2; // seconds off before a player is put back in sync
+        const MUSIC_DRIFT = 1; // seconds off before a player is put back in sync
+        const MUSIC_QUEUE_MAX = 50;
         // YouTube IFrame API error codes
         const MUSIC_ERRORS = {
             2: "Link YouTube không hợp lệ.",
@@ -7071,6 +7083,43 @@
         let musicPlayer = null;
         let musicPlayerReady = false;
         let musicFailed = { videoId: "", code: 0 }; // last video YouTube refused to play here
+        let musicSeeking = false;
+
+        // Server time minus device time. Positions are measured on the server clock, so members whose
+        // device clocks disagree still land on the same moment of the song.
+        let clockOffset = 0;
+        let clockSync = null;
+
+        function serverNow() {
+            return Date.now() + clockOffset;
+        }
+
+        // Writes a server timestamp and reads it back; the midpoint of the write approximates when it was stamped
+        function syncClock() {
+            if (!clockSync) {
+                clockSync = (async () => {
+                    try {
+                        const ref = doc(collection(db, "clockSync"));
+                        const sentAt = Date.now();
+                        await setDoc(ref, { at: serverTimestamp() });
+                        const doneAt = Date.now();
+                        const snap = await getDoc(ref);
+                        clockOffset = snap.data().at.toMillis() - (sentAt + doneAt) / 2;
+                        deleteDoc(ref).catch((err) => console.error(err));
+                        syncMusicPlayer();
+                    } catch (err) {
+                        console.error(err); // keeps the device clock
+                    }
+                })();
+            }
+            return clockSync;
+        }
+
+        function formatDuration(seconds) {
+            if (!isFinite(seconds)) return "0:00";
+            const s = Math.floor(seconds);
+            return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+        }
 
         function loadYouTubeApi() {
             if (!youtubeApi) {
@@ -7099,8 +7148,13 @@
                     },
                     onStateChange: onMusicStateChange,
                     onError: (e) => {
-                        musicFailed = { videoId: myMusicRoom()?.videoId || "", code: e.data };
+                        const room = myMusicRoom();
+                        musicFailed = { videoId: room?.videoId || "", code: e.data };
                         updateMusicControls();
+                        // The video itself cannot play outside YouTube: move on if something is queued
+                        if (room && [100, 101, 150].includes(e.data) && musicQueueOf(room).length) {
+                            playNextInQueue(room).catch((err) => console.error(err));
+                        }
                     }
                 }
             });
@@ -7108,7 +7162,7 @@
 
         function musicPositionOf(room) {
             const position = room.position || 0;
-            return room.playing ? position + (Date.now() - (room.updatedAt || Date.now())) / 1000 : position;
+            return room.playing ? position + (serverNow() - (room.updatedAt || serverNow())) / 1000 : position;
         }
 
         function isMusicHost(room) {
@@ -7157,10 +7211,34 @@
             return ![YT.PlayerState.PLAYING, YT.PlayerState.BUFFERING, YT.PlayerState.ENDED].includes(musicPlayer.getPlayerState());
         }
 
-        // Host: play / pause the room. Member: the button only shows when autoplay was blocked
+        // Queue items come from other clients: only well-formed video ids are shown or played
+        function musicQueueOf(room) {
+            return (room.queue || []).filter((item) => /^[\w-]{11}$/.test(item.videoId || ""));
+        }
+
+        function renderMusicQueue(room) {
+            const myId = userIdOf(currentAuthor());
+            const queue = musicQueueOf(room);
+            $("#musicQueueCount").text(queue.length ? `(${queue.length})` : "");
+            $("#musicQueueList").empty().append(queue.length
+                ? queue.map((item, i) => $("<li>").append(
+                    $("<span>", { class: "music-cover" }).css("background-image", `url(${youtubeThumb(item.videoId)})`),
+                    $("<div>").append(
+                        $("<strong>", { text: `Bài ${i + 1}` }),
+                        $("<span>", { text: `Thêm bởi ${nameOf(authorOfId(item.addedBy))}` })
+                    ),
+                    item.addedBy === myId || isMusicHost(room)
+                        ? $("<button>", { type: "button", class: "icon-btn music-queue-remove", "data-key": item.key, "aria-label": "Bỏ khỏi hàng đợi" }).append($("<i>", { class: "fa-solid fa-xmark" }))
+                        : null
+                ))
+                : $("<li>", { class: "music-empty", text: "Chưa có bài nào, dán link YouTube bên dưới để thêm." }));
+        }
+
+        // Host: play / pause / skip / seek. Member: the play button only shows when autoplay was blocked
         function updateMusicControls() {
             const room = myMusicRoom();
             if (!room) return;
+            renderMusicQueue(room);
             const isHost = isMusicHost(room);
             const failed = room.videoId === musicFailed.videoId;
             const blocked = !failed && musicBlocked(room);
@@ -7173,11 +7251,13 @@
             $("#musicToggle").toggle(!failed && (isHost || blocked))
                 .attr("aria-label", label)
                 .find("i").attr("class", `fa-solid ${icon}`);
-            $("#musicSongForm").toggle(isHost);
+            $("#musicSkip").toggle(isHost);
+            $("#musicSeek").prop("disabled", !isHost);
+            $("#musicProgress").toggle(!failed);
             $("#musicError").toggle(failed);
             if (failed) {
                 const reason = MUSIC_ERRORS[musicFailed.code] || `Không phát được video (lỗi ${musicFailed.code}).`;
-                $("#musicErrorText").text(`${reason} ${isHost ? "Dán link khác ở ô bên dưới để đổi bài." : "Chờ chủ phòng đổi bài nhé."}`);
+                $("#musicErrorText").text(`${reason} ${isHost ? "Bấm ⏭ để chuyển bài, hoặc thêm bài vào hàng đợi." : "Thêm bài vào hàng đợi để nghe tiếp nhé."}`);
                 $("#musicErrorLink").attr("href", `https://www.youtube.com/watch?v=${room.videoId}`);
                 $("#musicTitle").text("Không phát được bài này");
                 return;
@@ -7187,13 +7267,29 @@
         }
 
         function setMusicState(room, fields) {
-            return updateDoc(doc(db, "musicRooms", room.id), { ...fields, updatedAt: Date.now() });
+            return updateDoc(doc(db, "musicRooms", room.id), { ...fields, updatedAt: serverNow() });
+        }
+
+        // Moves the room on to the first queued song, or stops when the queue is empty. Every member's player
+        // calls this when a song ends; the transaction only acts on the state that player saw, so it runs once.
+        function playNextInQueue(room) {
+            const ref = doc(db, "musicRooms", room.id);
+            return runTransaction(db, async (tx) => {
+                const snap = await tx.get(ref);
+                if (!snap.exists()) return;
+                const data = snap.data();
+                if (data.videoId !== room.videoId || data.updatedAt !== room.updatedAt) return; // already moved on
+                const [next, ...rest] = musicQueueOf(data);
+                tx.update(ref, next
+                    ? { videoId: next.videoId, queue: rest, playing: true, position: 0, updatedAt: serverNow() }
+                    : { playing: false, position: 0, updatedAt: serverNow() });
+            });
         }
 
         function onMusicStateChange(e) {
             const room = myMusicRoom();
-            if (e.data === YT.PlayerState.ENDED && room?.playing && isMusicHost(room)) {
-                setMusicState(room, { playing: false, position: 0 }).catch((err) => console.error(err));
+            if (e.data === YT.PlayerState.ENDED && room?.playing && musicPlayer.getVideoData()?.video_id === room.videoId) {
+                playNextInQueue(room).catch((err) => console.error(err));
             }
             updateMusicControls();
         }
@@ -7210,15 +7306,64 @@
             });
         });
 
+        $("#musicSkip").on("click", function () {
+            const room = myMusicRoom();
+            if (!isMusicHost(room)) return;
+            if (!musicQueueOf(room).length) return showToast("Hàng đợi đang trống.");
+            playNextInQueue(room).catch((err) => {
+                console.error(err);
+                showToast(errorMessage(err));
+            });
+        });
+
+        $("#musicSeek")
+            .on("input", function () {
+                musicSeeking = true;
+                $("#musicTime").text(formatDuration(Number($(this).val())));
+            })
+            .on("change", function () {
+                musicSeeking = false;
+                const room = myMusicRoom();
+                if (!isMusicHost(room) || !musicPlayerReady) return;
+                const position = Number($(this).val());
+                musicPlayer.seekTo(position, true);
+                setMusicState(room, { position: position }).catch((err) => {
+                    console.error(err);
+                    showToast(errorMessage(err));
+                });
+            });
+
+        // Any member can queue a song
         $("#musicSongForm").on("submit", async function (e) {
             e.preventDefault();
             const room = myMusicRoom();
+            const myId = userIdOf(currentAuthor());
             const videoId = youtubeIdOf($.trim($("#musicSongUrl").val()));
-            if (!isMusicHost(room)) return;
+            if (!room || !myId) return;
             if (!videoId) return showToast("Link YouTube không hợp lệ.");
+            if (musicQueueOf(room).length >= MUSIC_QUEUE_MAX) return showToast(`Hàng đợi tối đa ${MUSIC_QUEUE_MAX} bài.`);
             try {
-                await setMusicState(room, { videoId: videoId, playing: true, position: 0 });
+                const item = { key: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, videoId: videoId, addedBy: myId };
+                await updateDoc(doc(db, "musicRooms", room.id), { queue: arrayUnion(item) });
                 $("#musicSongUrl").val("");
+                showToast("Đã thêm vào hàng đợi 🎶");
+            } catch (err) {
+                console.error(err);
+                showToast(errorMessage(err));
+            }
+        });
+
+        // The one who added a song, or the host, can take it out
+        $("#musicQueueList").on("click", ".music-queue-remove", async function () {
+            const room = myMusicRoom();
+            const key = $(this).attr("data-key");
+            if (!room) return;
+            const ref = doc(db, "musicRooms", room.id);
+            try {
+                await runTransaction(db, async (tx) => {
+                    const snap = await tx.get(ref);
+                    if (snap.exists()) tx.update(ref, { queue: (snap.data().queue || []).filter((item) => item.key !== key) });
+                });
             } catch (err) {
                 console.error(err);
                 showToast(errorMessage(err));
@@ -7228,9 +7373,20 @@
         // Snapshots only arrive on changes; re-check drift now and then (buffering, sleeping tabs)
         setInterval(() => {
             if (myMusicRoom()) syncMusicPlayer();
-        }, 10 * 1000);
+        }, 5 * 1000);
+
+        // Progress bar is refreshed locally: the room only stores where the song was at updatedAt
+        setInterval(() => {
+            if (!musicPlayerReady || musicSeeking || !myMusicRoom()) return;
+            const duration = musicPlayer.getDuration() || 0;
+            const time = musicPlayer.getCurrentTime() || 0;
+            $("#musicSeek").attr("max", Math.floor(duration)).val(Math.floor(time));
+            $("#musicTime").text(formatDuration(time));
+            $("#musicDuration").text(formatDuration(duration));
+        }, 500);
 
         function watchMusicRooms() {
+            syncClock();
             onSnapshot(
                 collection(db, "musicRooms"),
                 (snapshot) => {
@@ -7303,9 +7459,10 @@
                     hostId: myId,
                     videoId: videoId,
                     memberIds: [myId],
+                    queue: [],
                     playing: true,
                     position: 0,
-                    updatedAt: Date.now(),
+                    updatedAt: serverNow(),
                     createdAt: Date.now()
                 });
                 $("#musicRoomModal").fadeOut(150);
