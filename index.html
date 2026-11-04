@@ -3660,13 +3660,41 @@
         // bandwidth and transformations, so 25 GB is the ceiling when storage uses all of them)
         const CLOUDINARY_FREE_BYTES = 25 * 1024 ** 3;
 
-        // Collections besides photos/comments, counted for the stats ([collection, label])
+        // Collections besides photos/comments/stories, counted for the stats ([collection, label])
         const STATS_EXTRA_COLLECTIONS = [["users", "người dùng"], ["messages", "tin nhắn"], ["conversations", "cuộc trò chuyện"], ["events", "kèo cầu lông"], ["friendships", "quan hệ bạn bè"]];
-        const STATS_SAMPLE_SIZE = 20;
+        // Collections up to this many documents are read in full; bigger ones are estimated from a sample
+        const STATS_FULL_READ_MAX = 500;
+        const STATS_SAMPLE_SIZE = 50;
 
-        // Rough Firestore size: document id + JSON of its fields + fixed per-document overhead
-        function docBytes(id, data) {
-            return new TextEncoder().encode(id + JSON.stringify(data)).length + 32;
+        // Firestore's documented storage sizes: strings are UTF-8 bytes + 1, numbers and timestamps 8,
+        // booleans and null 1, arrays and maps the sum of their parts
+        function textBytes(text) {
+            return new TextEncoder().encode(text).length + 1;
+        }
+
+        function valueBytes(value) {
+            if (value === null || value === undefined || typeof value === "boolean") return 1;
+            if (typeof value === "number") return 8;
+            if (typeof value === "string") return textBytes(value);
+            if (Array.isArray(value)) return value.reduce((sum, v) => sum + valueBytes(v), 0);
+            if (typeof value.toMillis === "function") return 8; // Timestamp
+            if ("latitude" in value && "longitude" in value) return 16; // GeoPoint
+            if (typeof value.path === "string" && "firestore" in value) return nameBytes(value.path); // reference
+            return fieldsBytes(value); // map
+        }
+
+        function fieldsBytes(fields) {
+            return Object.entries(fields).reduce((sum, [name, value]) => sum + textBytes(name) + valueBytes(value), 0);
+        }
+
+        // Document name: every collection and document id in its path, + 16
+        function nameBytes(path) {
+            return path.split("/").reduce((sum, part) => sum + textBytes(part), 0) + 16;
+        }
+
+        // Stored size of one document (not counting its indexes): name + fields + 32
+        function docBytes(docSnap) {
+            return nameBytes(docSnap.ref.path) + fieldsBytes(docSnap.data()) + 32;
         }
 
         function formatBytes(bytes) {
@@ -3723,63 +3751,91 @@
                     getDocs(collection(db, "stories"))
                 ]);
 
-                let firestoreBytes = 0;
-                const media = [];
+                // Posts, pass items ("đồ") and stories ("tin") are counted separately, in Firestore and in Cloudinary
+                const kinds = {
+                    post: { label: "bài viết", docs: 0, bytes: 0, files: 0, fileBytes: 0 },
+                    pass: { label: "món đồ pass", docs: 0, bytes: 0, files: 0, fileBytes: 0 },
+                    story: { label: "tin", docs: 0, bytes: 0, files: 0, fileBytes: 0 }
+                };
+                const files = new Map(); // url -> kind; a file used twice is stored once
+                const addFile = (media, kind) => {
+                    if (media?.url && !files.has(media.url)) files.set(media.url, { media, kind });
+                };
+
                 photos.forEach((docSnap) => {
-                    firestoreBytes += docBytes(docSnap.id, docSnap.data());
-                    media.push(...postMedia(docSnap.data()));
+                    const data = docSnap.data();
+                    const kind = data.item ? "pass" : "post";
+                    kinds[kind].docs++;
+                    kinds[kind].bytes += docBytes(docSnap);
+                    postMedia(data).forEach((m) => addFile(m, kind));
                 });
-                comments.forEach((docSnap) => {
-                    firestoreBytes += docBytes(docSnap.id, docSnap.data());
-                });
-                const postMediaCount = media.length;
-                let storyFirestoreBytes = 0;
                 stories.forEach((docSnap) => {
-                    storyFirestoreBytes += docBytes(docSnap.id, docSnap.data());
-                    if (docSnap.data().media?.url) media.push(docSnap.data().media);
+                    kinds.story.docs++;
+                    kinds.story.bytes += docBytes(docSnap);
+                    addFile(docSnap.data().media, "story");
                 });
-                firestoreBytes += storyFirestoreBytes;
+                let commentBytes = 0;
+                comments.forEach((docSnap) => {
+                    commentBytes += docBytes(docSnap);
+                });
                 const expiredStories = stories.docs.filter((d) => !(d.data().expiresAt > Date.now())).length;
 
-                // Other collections: exact count, size estimated from a small sample (reading every chat message
-                // would cost one read each). A collection the rules do not let the admin read is skipped.
+                // Other collections: read in full when small; large ones (usually chat messages) are estimated
+                // from a sample, since reading every document costs one read each. Unreadable ones are skipped.
                 const extras = await Promise.all(STATS_EXTRA_COLLECTIONS.map(async ([name, label]) => {
                     try {
                         const ref = collection(db, name);
-                        const [count, sample] = await Promise.all([getCountFromServer(ref), getDocs(query(ref, limit(STATS_SAMPLE_SIZE)))]);
-                        const total = count.data().count;
-                        const avg = sample.size ? sample.docs.reduce((sum, d) => sum + docBytes(d.id, d.data()), 0) / sample.size : 0;
-                        return { label, count: total, bytes: Math.round(avg * total) };
+                        const total = (await getCountFromServer(ref)).data().count;
+                        if (total <= STATS_FULL_READ_MAX) {
+                            const all = await getDocs(ref);
+                            return { label, count: total, bytes: all.docs.reduce((sum, d) => sum + docBytes(d), 0), sampled: false };
+                        }
+                        const sample = await getDocs(query(ref, limit(STATS_SAMPLE_SIZE)));
+                        const avg = sample.size ? sample.docs.reduce((sum, d) => sum + docBytes(d), 0) / sample.size : 0;
+                        return { label, count: total, bytes: Math.round(avg * total), sampled: true };
                     } catch (err) {
                         console.error(`Stats for ${name}:`, err);
-                        return { label, count: null, bytes: 0 };
+                        return { label, count: null, bytes: 0, sampled: false };
                     }
                 }));
-                firestoreBytes += extras.reduce((sum, e) => sum + e.bytes, 0);
                 const unreadable = extras.filter((e) => e.count === null).map((e) => e.label);
+                const sampled = extras.filter((e) => e.sampled).map((e) => e.label);
+                const firestoreBytes = kinds.post.bytes + kinds.pass.bytes + kinds.story.bytes + commentBytes
+                    + extras.reduce((sum, e) => sum + e.bytes, 0);
 
-                const sizes = await Promise.all(media.map((item) => item.bytes || remoteSize(item.url)));
+                // Size saved at upload, otherwise read from the CDN response header
+                const fileList = [...files.values()];
+                const sizes = await Promise.all(fileList.map(({ media }) => media.bytes || remoteSize(media.url)));
+                fileList.forEach(({ kind }, i) => {
+                    kinds[kind].files++;
+                    kinds[kind].fileBytes += sizes[i] || 0;
+                });
                 const mediaBytes = sizes.reduce((sum, size) => sum + (size || 0), 0);
                 const unknown = sizes.filter((size) => !size).length;
-                const storyMediaBytes = sizes.slice(postMediaCount).reduce((sum, size) => sum + (size || 0), 0);
-                const videos = media.filter((item) => item.type === "video").length;
+                const videos = fileList.filter(({ media }) => media.type === "video").length;
                 const percent = Math.min(100, (firestoreBytes / FIRESTORE_FREE_BYTES) * 100);
                 const mediaPercent = Math.min(100, (mediaBytes / CLOUDINARY_FREE_BYTES) * 100);
+                const kindLine = (k, docs, bytes) => `${k.label[0].toUpperCase()}${k.label.slice(1)}: ${docs} · ${formatBytes(bytes)}`;
 
                 $body.empty().append(
                     statBlock("fa-solid fa-database", "Firestore", `${formatBytes(firestoreBytes)} / 1 GB`,
                         [
-                            `${photos.size} bài viết · ${comments.size} bình luận`,
-                            `${stories.size} tin (${expiredStories} đã hết hạn nhưng vẫn lưu) · ${formatBytes(storyFirestoreBytes)}`,
-                            extras.filter((e) => e.count !== null).map((e) => `${e.count.toLocaleString("vi-VN")} ${e.label}`).join(" · "),
+                            kindLine(kinds.post, kinds.post.docs, kinds.post.bytes),
+                            kindLine(kinds.pass, kinds.pass.docs, kinds.pass.bytes),
+                            `${kindLine(kinds.story, kinds.story.docs, kinds.story.bytes)} (${expiredStories} đã hết hạn, nằm trong Kho lưu trữ)`,
+                            `Bình luận: ${comments.size} · ${formatBytes(commentBytes)}`,
+                            extras.filter((e) => e.count !== null).map((e) => `${e.count.toLocaleString("vi-VN")} ${e.label} · ${formatBytes(e.bytes)}${e.sampled ? " (ước tính)" : ""}`).join(" · "),
                             unreadable.length ? `Không đọc được: ${unreadable.join(", ")} (bị Firestore rules chặn)` : null,
-                            `Ước tính: ${STATS_EXTRA_COLLECTIONS.map(([, label]) => label).join(", ")} tính theo mẫu ${STATS_SAMPLE_SIZE} bản ghi; chưa gồm dung lượng index. Số chính xác xem ở Firebase Console → Firestore → Usage.`
+                            `Tính theo công thức dung lượng của Firestore${sampled.length ? `; ${sampled.join(", ")} ước tính theo mẫu ${STATS_SAMPLE_SIZE} bản ghi` : ""}. Chưa gồm index (Firestore tự tạo index cho mọi field) nên số thực tế ở Firebase Console → Firestore → Usage sẽ cao hơn.`
                         ], percent),
                     statBlock("fa-regular fa-images", "Ảnh & video (Cloudinary)", `${formatBytes(mediaBytes)} / 25 GB`,
                         [
-                            `${media.length - videos} ảnh · ${videos} video`,
-                            `Trong đó tin: ${media.length - postMediaCount} file · ${formatBytes(storyMediaBytes)}`,
-                            unknown ? `${unknown} file không đọc được dung lượng` : null,
+                            `${fileList.length - videos} ảnh · ${videos} video`,
+                            kindLine(kinds.post, `${kinds.post.files} file`, kinds.post.fileBytes),
+                            kindLine(kinds.pass, `${kinds.pass.files} file`, kinds.pass.fileBytes),
+                            kindLine(kinds.story, `${kinds.story.files} file`, kinds.story.fileBytes),
+                            unknown ? `${unknown} file không đọc được dung lượng (chưa tính vào tổng)` : null,
+                            "Chỉ tính file gốc, chưa gồm ảnh thu nhỏ / poster video Cloudinary tự tạo ra.",
                             "25 credit/tháng dùng chung cho lưu trữ, băng thông và xử lý ảnh — 25 GB là mức tối đa nếu chỉ dùng để lưu trữ."
                         ], mediaPercent)
                 );
