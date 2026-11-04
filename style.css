@@ -5079,6 +5079,12 @@ a.profile-about-row:hover {
     transform: scale(1.25);
 }
 
+.music-chat-more {
+    display: block;
+    margin: 10px auto 0;
+    font-size: 12px;
+}
+
 .music-chat {
     max-height: 160px;
     overflow-y: auto;
@@ -5102,33 +5108,37 @@ a.profile-about-row:hover {
     font-weight: 600;
 }
 
-/* Reactions rise from the lower right, where the music column / mini player sits */
+/* Reactions: a full-screen layer, each emoji placed (left / top) where it starts rising */
 .music-float {
     position: fixed;
-    right: 48px;
-    bottom: 120px;
+    inset: 0;
     z-index: 36; /* above the sheet (35) and the mini player (30) */
-    width: 100px;
-    height: 0;
+    overflow: hidden;
     pointer-events: none;
 }
 
 .music-float-emoji {
     position: absolute;
-    bottom: 0;
-    font-size: 30px;
+    font-size: 32px;
+    line-height: 1;
+    opacity: 0;
     animation: music-float-up ease-out forwards;
 }
 
 @keyframes music-float-up {
-    0% { transform: translateY(0) scale(0.6); opacity: 0; }
-    15% { transform: translateY(-40px) scale(1.1); opacity: 1; }
-    100% { transform: translateY(-320px) scale(1); opacity: 0; }
+    0% { transform: translate(-50%, 0) scale(0.6); opacity: 0; }
+    15% { transform: translate(-50%, -40px) scale(1.2); opacity: 1; }
+    100% { transform: translate(-50%, -320px) scale(1); opacity: 0; }
+}
+
+/* Reduced motion (e.g. Windows "Animation effects" off): fade in place instead of flying */
+@keyframes music-float-fade {
+    0%, 100% { transform: translate(-50%, -40px); opacity: 0; }
+    20%, 70% { transform: translate(-50%, -40px); opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
     .music-float-emoji {
-        animation-name: none;
-        opacity: 0;
+        animation-name: music-float-fade;
     }
 }

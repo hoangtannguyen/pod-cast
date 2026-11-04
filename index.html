@@ -336,6 +336,7 @@
                     <button type="button" data-emoji="👏" aria-label="Vỗ tay">👏</button>
                     <button type="button" data-emoji="🎶" aria-label="Hay quá">🎶</button>
                 </div>
+                <button type="button" class="link-btn music-chat-more" id="musicChatMore" style="display:none">Xem tin cũ hơn</button>
                 <ul class="music-chat" id="musicChatList" aria-live="polite"></ul>
                 <form class="music-song-form" id="musicChatForm">
                     <input type="text" id="musicChatInput" class="modal-input" maxlength="200" placeholder="Nhắn gì đó với cả phòng..." autocomplete="off">
@@ -7544,25 +7545,37 @@
         /* Room chat & reactions: musicRooms/{id}/chat keeps both; the latest ones are live,
            text messages are listed and new reactions float up the screen */
 
-        const MUSIC_CHAT_SIZE = 30;
+        const MUSIC_CHAT_PAGE = 5; // messages shown at first and added per "Xem tin cũ hơn"
+        const MUSIC_CHAT_FETCH = 30; // chat documents (messages + reactions) the listener asks for per step
         const MUSIC_REACTIONS = ["❤️", "🔥", "😂", "😍", "👏", "🎶"];
         const MUSIC_REACTION_GAP = 400; // ms between two reactions from one user
         let musicChatRoomId = "";
         let unsubMusicChat = null;
+        let musicChatLimit = MUSIC_CHAT_FETCH;
+        let musicChatShown = MUSIC_CHAT_PAGE;
+        let musicChatMessages = []; // text messages, oldest first
+        let musicChatFull = false; // the listener got as many documents as it asked for: older ones may exist
         let lastReactionAt = 0;
 
-        function watchMusicChat(room) {
+        // (Re)subscribes when the room changes, or with `force` after the limit was raised
+        function watchMusicChat(room, force = false) {
             const roomId = room?.id || "";
-            if (roomId === musicChatRoomId) return;
+            if (roomId === musicChatRoomId && !force) return;
             if (unsubMusicChat) unsubMusicChat();
             unsubMusicChat = null;
+            if (roomId !== musicChatRoomId) {
+                musicChatLimit = MUSIC_CHAT_FETCH;
+                musicChatShown = MUSIC_CHAT_PAGE;
+                musicChatMessages = [];
+                $("#musicChatList").empty();
+                $("#musicChatMore").hide();
+            }
             musicChatRoomId = roomId;
-            $("#musicChatList").empty();
             if (!roomId) return;
 
             let isFirstSnapshot = true;
             unsubMusicChat = onSnapshot(
-                query(collection(db, "musicRooms", roomId, "chat"), orderBy("createdAt", "desc"), limit(MUSIC_CHAT_SIZE)),
+                query(collection(db, "musicRooms", roomId, "chat"), orderBy("createdAt", "desc"), limit(musicChatLimit)),
                 (snapshot) => {
                     // Old reactions don't replay on join; my own already floated when I tapped
                     if (!isFirstSnapshot) {
@@ -7572,14 +7585,22 @@
                         });
                     }
                     isFirstSnapshot = false;
-                    renderMusicChat(snapshot.docs.map((d) => d.data()).filter((m) => m.type === "text").reverse());
+                    musicChatFull = snapshot.size >= musicChatLimit;
+                    musicChatMessages = snapshot.docs.map((d) => d.data()).filter((m) => m.type === "text").reverse();
+                    renderMusicChat();
                 },
                 (err) => console.error(err)
             );
         }
 
-        function renderMusicChat(messages) {
-            const $list = $("#musicChatList").empty().append(messages.map((m) => {
+        // Latest `musicChatShown` messages. Stays at the bottom for new messages unless the user scrolled up
+        // to read; when older ones are prepended the visible ones keep their place.
+        function renderMusicChat(keepPlace = false) {
+            const $list = $("#musicChatList");
+            const list = $list[0];
+            const fromBottom = list.scrollHeight - list.scrollTop;
+            const atBottom = fromBottom - list.clientHeight < 24;
+            $list.empty().append(musicChatMessages.slice(-musicChatShown).map((m) => {
                 const name = authorOfId(m.fromId);
                 return $("<li>").append(
                     $("<strong>", { text: `${emojiOf(name)} ${nameOf(name)}` }),
@@ -7587,13 +7608,35 @@
                     $("<span>", { text: m.text })
                 );
             }));
-            $list.scrollTop($list[0].scrollHeight);
+            $("#musicChatMore").toggle(musicChatMessages.length > musicChatShown || musicChatFull);
+            if (keepPlace) list.scrollTop = list.scrollHeight - fromBottom;
+            else if (atBottom) list.scrollTop = list.scrollHeight;
         }
 
+        function showOlderMusicChat() {
+            musicChatShown += MUSIC_CHAT_PAGE;
+            if (musicChatShown > musicChatMessages.length && musicChatFull) {
+                musicChatLimit += MUSIC_CHAT_FETCH;
+                watchMusicChat(myMusicRoom(), true);
+            }
+            renderMusicChat(true);
+        }
+
+        $("#musicChatMore").on("click", showOlderMusicChat);
+        // Scrolling to the top of the list loads older messages too
+        $("#musicChatList").on("scroll", function () {
+            if (this.scrollTop === 0 && $("#musicChatMore").is(":visible")) showOlderMusicChat();
+        });
+
+        // Rises from the reactions bar when it is on screen, otherwise from the mini player or the lower right corner
         function floatReaction(emoji) {
             if (!MUSIC_REACTIONS.includes(emoji)) return;
+            const anchor = [$("#musicReactions")[0], $("#musicMini")[0]].find((el) => el && el.getClientRects().length);
+            const rect = anchor ? anchor.getBoundingClientRect() : null;
+            const left = rect ? rect.left + Math.random() * rect.width : window.innerWidth - 60 - Math.random() * 60;
+            const top = rect ? rect.top : window.innerHeight - 140;
             const $emoji = $("<span>", { class: "music-float-emoji", text: emoji })
-                .css({ left: `${Math.round(Math.random() * 60)}px`, "animation-duration": `${(2.2 + Math.random()).toFixed(2)}s` })
+                .css({ left: `${Math.round(left)}px`, top: `${Math.round(top)}px`, "animation-duration": `${(2.2 + Math.random()).toFixed(2)}s` })
                 .appendTo("#musicFloat");
             setTimeout(() => $emoji.remove(), 3500);
         }
