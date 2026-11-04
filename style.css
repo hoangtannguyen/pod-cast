@@ -3235,6 +3235,7 @@ a.profile-about-row:hover {
     /* Header keeps logo, friends, bell, admin and "more"; the rest moves to the menu or the bottom bar */
     #btnMyProfile,
     #btnChat,
+    #btnMusic,
     #btnTheme,
     .topbar-meta,
     #btnLogin,
@@ -4862,6 +4863,25 @@ a.profile-about-row:hover {
     text-overflow: ellipsis;
 }
 
+.music-error {
+    margin: 10px 0 0;
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    background: var(--like-soft);
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.music-error a {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 4px;
+    color: var(--like);
+    font-weight: 600;
+}
+
 .music-song-form {
     display: flex;
     gap: 8px;
@@ -4872,4 +4892,55 @@ a.profile-about-row:hover {
     flex: 1;
     min-width: 0;
     margin: 0;
+}
+
+/* ---------- Music rooms on smaller screens: bottom sheet ---------- */
+.side-right-close {
+    display: none;
+}
+
+.side-right.is-open {
+    position: fixed;
+    inset: 0;
+    z-index: 35; /* above the bottom bar (25), below popups (40) such as "Tạo phòng" */
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+    background: rgba(0, 0, 0, 0.55);
+}
+
+/* Pushes the cards to the bottom while still letting a tall sheet scroll from its top */
+.side-right.is-open > :first-child {
+    margin-top: auto;
+}
+
+.side-right.is-open > .card {
+    width: 100%;
+    max-width: 470px;
+    margin-left: auto;
+    margin-right: auto;
+    animation: modal-in 0.2s ease;
+}
+
+.side-right.is-open > .card:last-child {
+    margin-bottom: 0;
+}
+
+.side-right.is-open .side-right-close {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+}
+
+.side-right.is-open .pass-widget-head .link-btn {
+    margin-left: auto;
+}
+
+@media (min-width: 1120px) {
+    #btnMusic {
+        display: none;
+    }
 }

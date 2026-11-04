@@ -42,6 +42,10 @@
                 <button type="button" class="admin-btn admin-btn-icon profile-open-btn" id="btnMyProfile" data-tip="Trang cá nhân" aria-label="Trang cá nhân" style="display:none">
                     <i class="fa-regular fa-id-card"></i>
                 </button>
+                <!-- Below 1120px only: wide screens show the music rooms in the right column -->
+                <button type="button" class="admin-btn admin-btn-icon" id="btnMusic" data-tip="Phòng nghe nhạc" aria-label="Phòng nghe nhạc">
+                    <i class="fa-solid fa-headphones"></i>
+                </button>
                 <button type="button" class="admin-btn admin-btn-icon" id="btnTheme" data-tip="Chế độ tối" aria-label="Chế độ tối" aria-pressed="false">
                     <i class="fa-regular fa-moon"></i>
                 </button>
@@ -110,6 +114,10 @@
                         <i class="fa-solid fa-ellipsis"></i>
                     </button>
                     <div class="admin-menu more-menu" id="moreMenu" role="menu" style="display:none">
+                        <button type="button" class="admin-menu-item" data-proxy="#btnMusic" role="menuitem">
+                            <i class="fa-solid fa-headphones"></i>
+                            <span>Phòng nghe nhạc</span>
+                        </button>
                         <button type="button" class="admin-menu-item" data-proxy="#btnTheme" role="menuitem">
                             <i class="fa-regular fa-moon" id="moreThemeIcon"></i>
                             <span id="moreThemeLabel">Chế độ tối</span>
@@ -292,12 +300,14 @@
     </aside>
 
     <!-- Right column (wide screens only): music rooms -->
-    <aside class="side-right" aria-label="Phòng nghe nhạc">
+    <!-- Smaller screens: opens as a bottom sheet from the header / "more" menu -->
+    <aside class="side-right" id="sideRight" aria-label="Phòng nghe nhạc">
         <!-- Music rooms: create / join / leave (playback comes in the next step) -->
         <section class="music-widget card" aria-labelledby="musicWidgetTitle">
             <div class="pass-widget-head">
                 <h3 class="pass-widget-title" id="musicWidgetTitle"><i class="fa-solid fa-headphones music-accent"></i> Phòng nghe nhạc</h3>
                 <button type="button" class="link-btn" id="musicCreateBtn">+ Tạo phòng</button>
+                <button type="button" class="icon-btn side-right-close" id="sideRightClose" aria-label="Đóng"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <!-- Shown while in a room; kept outside #musicCurrent so re-rendering does not reload the player -->
             <div class="music-player-wrap" id="musicPlayerWrap" style="display:none">
@@ -306,6 +316,11 @@
                     <button type="button" class="music-play" id="musicToggle" aria-label="Phát / tạm dừng"><i class="fa-solid fa-play"></i></button>
                     <span class="music-title" id="musicTitle"></span>
                 </div>
+                <!-- YouTube refused the video (embedding disabled, removed...): say why, link to YouTube -->
+                <p class="music-error" id="musicError" style="display:none">
+                    <span id="musicErrorText"></span>
+                    <a id="musicErrorLink" target="_blank" rel="noopener noreferrer">Mở trên YouTube <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+                </p>
                 <form class="music-song-form" id="musicSongForm" style="display:none">
                     <input type="url" id="musicSongUrl" class="modal-input" placeholder="Dán link YouTube để đổi bài" autocomplete="off">
                     <button type="submit" class="music-join">Đổi</button>
@@ -2056,6 +2071,7 @@
                     });
                     isFirstSnapshot = false;
                     renderFriends();
+                    renderMusicRooms(); // only friends' rooms are listed
                 },
                 (err) => console.error(err)
             );
@@ -5772,7 +5788,7 @@
             if (e.ctrlKey || e.metaKey || e.altKey) return;
             // Not while typing, or while a popup / the viewer is open
             if ($(e.target).is("input, textarea, select, [contenteditable]")) return;
-            if ($(".modal:visible, #lightbox:visible, #storyViewer:visible, .profile-panel.is-open").length) return;
+            if ($(".modal:visible, #lightbox:visible, #storyViewer:visible, .profile-panel.is-open, .side-right.is-open").length) return;
             const key = e.key.toLowerCase();
             if (!["j", "k", "l", "c"].includes(key)) return;
             const $post = currentFeedPost();
@@ -6940,6 +6956,30 @@
 
         /* ---------- Music rooms (sidebar): create, join, leave ---------- */
 
+        // Smaller screens: the right column opens as a bottom sheet
+        function openMusicSheet() {
+            $("#sideRight").addClass("is-open");
+            $("body").addClass("no-scroll");
+        }
+
+        function closeMusicSheet() {
+            $("#sideRight").removeClass("is-open");
+            $("body").removeClass("no-scroll");
+        }
+
+        $("#btnMusic").on("click", openMusicSheet);
+        $("#sideRightClose").on("click", closeMusicSheet);
+        $("#sideRight").on("click", function (e) {
+            if (e.target === this) closeMusicSheet(); // backdrop
+        });
+        $(document).on("keydown", function (e) {
+            // Escape closes the create-room popup first, the sheet on the next press
+            if (e.key === "Escape" && !$(".modal:visible").length) closeMusicSheet();
+        });
+        WIDE_LAYOUT.addEventListener("change", (e) => {
+            if (e.matches) closeMusicSheet();
+        });
+
         const MUSIC_MEMBER_AVATARS = 6;
         const MUSIC_SUGGEST_SIZE = 5;
         let musicRooms = [];
@@ -6959,16 +6999,22 @@
             return myId ? musicRooms.find((r) => (r.memberIds || []).includes(myId)) : undefined;
         }
 
+        // Rooms hosted by me or a friend; a room I am already in stays listed so I can still leave it
+        function visibleMusicRooms(myId) {
+            const friendIds = friendIdsOf(myId);
+            return musicRooms.filter((r) => r.hostId === myId || friendIds.has(r.hostId) || (r.memberIds || []).includes(myId));
+        }
+
         // Featured card: the room I am in, otherwise the busiest one; the others go to the suggestions
         function renderMusicRooms() {
             const myId = userIdOf(currentAuthor());
-            const sorted = [...musicRooms].sort((a, b) => (b.memberIds || []).length - (a.memberIds || []).length);
+            const sorted = (myId ? visibleMusicRooms(myId) : []).sort((a, b) => (b.memberIds || []).length - (a.memberIds || []).length);
             const mine = myMusicRoom();
             const featured = mine || sorted[0];
             const $current = $("#musicCurrent").empty();
 
             if (!featured) {
-                $current.append($("<p>", { class: "music-empty", text: "Chưa có phòng nào. Tạo phòng đầu tiên nhé!" }));
+                $current.append($("<p>", { class: "music-empty", text: "Bạn bè chưa mở phòng nào. Tạo phòng đầu tiên nhé!" }));
             } else {
                 const members = featured.memberIds || [];
                 let action = "join";
@@ -7024,6 +7070,7 @@
         let youtubeApi = null;
         let musicPlayer = null;
         let musicPlayerReady = false;
+        let musicFailed = { videoId: "", code: 0 }; // last video YouTube refused to play here
 
         function loadYouTubeApi() {
             if (!youtubeApi) {
@@ -7051,7 +7098,10 @@
                         syncMusicPlayer();
                     },
                     onStateChange: onMusicStateChange,
-                    onError: (e) => showToast(MUSIC_ERRORS[e.data] || `Không phát được video (lỗi ${e.data}).`)
+                    onError: (e) => {
+                        musicFailed = { videoId: myMusicRoom()?.videoId || "", code: e.data };
+                        updateMusicControls();
+                    }
                 }
             });
         }
@@ -7077,6 +7127,11 @@
                 return;
             }
             if (!musicPlayerReady) return;
+            // A refused video stays refused: don't reload it on every sync, wait for another song
+            if (room.videoId === musicFailed.videoId) {
+                updateMusicControls();
+                return;
+            }
 
             const position = musicPositionOf(room);
             if (musicPlayer.getVideoData()?.video_id !== room.videoId) {
@@ -7107,17 +7162,26 @@
             const room = myMusicRoom();
             if (!room) return;
             const isHost = isMusicHost(room);
-            const blocked = musicBlocked(room);
+            const failed = room.videoId === musicFailed.videoId;
+            const blocked = !failed && musicBlocked(room);
             let icon = "fa-volume-high";
             let label = "Bật tiếng";
             if (isHost && !blocked) {
                 icon = room.playing ? "fa-pause" : "fa-play";
                 label = room.playing ? "Tạm dừng" : "Phát";
             }
-            $("#musicToggle").toggle(isHost || blocked)
+            $("#musicToggle").toggle(!failed && (isHost || blocked))
                 .attr("aria-label", label)
                 .find("i").attr("class", `fa-solid ${icon}`);
             $("#musicSongForm").toggle(isHost);
+            $("#musicError").toggle(failed);
+            if (failed) {
+                const reason = MUSIC_ERRORS[musicFailed.code] || `Không phát được video (lỗi ${musicFailed.code}).`;
+                $("#musicErrorText").text(`${reason} ${isHost ? "Dán link khác ở ô bên dưới để đổi bài." : "Chờ chủ phòng đổi bài nhé."}`);
+                $("#musicErrorLink").attr("href", `https://www.youtube.com/watch?v=${room.videoId}`);
+                $("#musicTitle").text("Không phát được bài này");
+                return;
+            }
             const title = musicPlayerReady ? musicPlayer.getVideoData()?.title : "";
             $("#musicTitle").text(title ? `Đang phát: ${title}` : room.playing ? "Đang tải bài hát..." : "Đang tạm dừng");
         }
