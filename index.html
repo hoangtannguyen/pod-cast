@@ -400,10 +400,11 @@
     <div class="modal" id="archiveModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="archiveTitle">
         <div class="modal-card archive-card">
             <h2 class="modal-title" id="archiveTitle">Kho lưu trữ 🗄️</h2>
-            <p class="modal-desc">Tất cả bài viết của bạn. Bài "Đã ẩn" không hiện trên bảng tin.</p>
+            <p class="modal-desc">Tất cả bài viết của bạn. Bài "Đã ẩn" không hiện trên bảng tin, tin hết 24 giờ được giữ ở tab "Tin".</p>
             <div class="feed-tabs archive-tabs" id="archiveTabs" role="tablist">
                 <button type="button" class="feed-tab is-active" data-archived="false" role="tab" aria-selected="true">Đã đăng</button>
                 <button type="button" class="feed-tab" data-archived="true" role="tab" aria-selected="false">Đã ẩn</button>
+                <button type="button" class="feed-tab" data-archived="stories" role="tab" aria-selected="false">Tin</button>
             </div>
             <div class="archive-list" id="archiveList"></div>
             <div class="modal-actions">
@@ -2459,12 +2460,41 @@
                 }
             });
 
-        /* Archive: all my posts in two tabs, "Đã đăng" (in the feed) and "Đã ẩn" (hidden, not deleted) */
+        /* Archive: my posts in "Đã đăng" (in the feed) and "Đã ẩn" (hidden, not deleted),
+           and my stories once their 24 hours are over in "Tin" */
 
         let archivePosts = []; // [{ id, data }] newest first
+        let archiveStories = []; // expired stories, newest first
         let archiveShowHidden = false;
+        let archiveShowStories = false;
+
+        function renderArchiveStories() {
+            const $list = $("#archiveList").empty();
+            if (!archiveStories.length) {
+                $list.append($("<p>", { class: "pass-empty", text: "Chưa có tin nào hết hạn" }));
+                return;
+            }
+            archiveStories.forEach((story) => {
+                $list.append(
+                    $("<div>", { class: "archive-item", "data-id": story.id }).append(
+                        story.media
+                            ? $("<button>", { type: "button", class: "archive-thumb archive-story-thumb", "aria-label": "Xem tin" }).append(
+                                $("<img>", { src: mediaThumb(story.media, 200), alt: "", loading: "lazy" }),
+                                story.media.type === "video" ? $("<i>", { class: "fa-solid fa-play archive-thumb-play" }) : null
+                            )
+                            : $("<span>", { class: "pass-tile-empty", text: "✨" }),
+                        $("<div>", { class: "archive-info" }).append(
+                            $("<span>", { class: "archive-caption", text: story.text || "(Không có chú thích)" }),
+                            $("<span>", { class: "archive-time", text: timeAgo(story.createdAt) })
+                        ),
+                        $("<button>", { type: "button", class: "btn-ghost archive-story-delete", text: "Xoá" })
+                    )
+                );
+            });
+        }
 
         function renderArchiveList() {
+            if (archiveShowStories) return renderArchiveStories();
             const $list = $("#archiveList").empty();
             const posts = archivePosts.filter((p) => !!p.data.archived === archiveShowHidden);
             if (!posts.length) {
@@ -2500,11 +2530,19 @@
             $("#archiveList").empty().append($("<div>", { class: "spinner" }));
             $("#archiveModal").fadeIn(150);
             try {
-                // Equality on one field only (no composite index); split into the two tabs here
-                const snapshot = await getDocs(query(collection(db, "photos"), where("auth", "==", me)));
+                // Equality on one field only (no composite index); split into the tabs here
+                const [snapshot, storySnap] = await Promise.all([
+                    getDocs(query(collection(db, "photos"), where("auth", "==", me))),
+                    getDocs(query(collection(db, "stories"), where("authorId", "==", userIdOf(me))))
+                ]);
                 archivePosts = snapshot.docs
                     .map((d) => ({ id: d.id, data: d.data() }))
                     .sort((a, b) => toMillis(b.data.createdAt) - toMillis(a.data.createdAt));
+                const now = Date.now();
+                archiveStories = storySnap.docs
+                    .map((d) => ({ id: d.id, ...d.data() }))
+                    .filter((story) => story.expiresAt <= now)
+                    .sort((a, b) => b.createdAt - a.createdAt);
                 renderArchiveList();
             } catch (err) {
                 console.error(err);
@@ -2516,10 +2554,33 @@
             $("#archiveTabs .feed-tab").removeClass("is-active").attr("aria-selected", "false");
             $(this).addClass("is-active").attr("aria-selected", "true");
             archiveShowHidden = $(this).attr("data-archived") === "true";
+            archiveShowStories = $(this).attr("data-archived") === "stories";
             renderArchiveList();
         });
 
-        $("#archiveList").on("click", ".archive-thumb", function () {
+        $("#archiveList").on("click", ".archive-story-thumb", function () {
+            const story = archiveStories.find((s) => s.id === $(this).closest(".archive-item").attr("data-id"));
+            if (story) openLightbox([story.media], 0);
+        });
+
+        // Expired stories are only kept for their author: "Xoá" removes one for good
+        $("#archiveList").on("click", ".archive-story-delete", async function () {
+            if (!confirm("Xoá vĩnh viễn tin này?")) return;
+            const $btn = $(this).prop("disabled", true);
+            const id = $btn.closest(".archive-item").attr("data-id");
+            try {
+                await deleteDoc(doc(db, "stories", id));
+                archiveStories = archiveStories.filter((s) => s.id !== id);
+                renderArchiveList();
+                showToast("Đã xoá tin");
+            } catch (err) {
+                console.error(err);
+                $btn.prop("disabled", false);
+                showToast(errorMessage(err));
+            }
+        });
+
+        $("#archiveList").on("click", ".archive-thumb:not(.archive-story-thumb)", function () {
             const post = archivePosts.find((p) => p.id === $(this).closest(".archive-item").attr("data-id"));
             if (post) openLightbox(postMedia(post.data), 0);
         });

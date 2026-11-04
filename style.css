@@ -3957,7 +3957,8 @@ a.profile-about-row:hover {
     background: none;
 }
 
-.archive-toggle {
+.archive-toggle,
+.archive-story-delete {
     flex-shrink: 0;
     padding: 6px 12px;
     font-size: 13px;
