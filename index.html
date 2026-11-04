@@ -868,17 +868,40 @@
     </div>
 
     <div class="modal" id="musicRoomModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="musicRoomTitle">
-        <form class="modal-card" id="musicRoomForm">
+        <form class="modal-card music-room-card" id="musicRoomForm">
             <h2 class="modal-title" id="musicRoomTitle">Tạo phòng nghe nhạc 🎧</h2>
-            <p class="modal-desc">Tìm bài trên YouTube hoặc dán link, mọi người vào phòng sẽ nghe cùng bạn.</p>
-            <input type="text" id="musicRoomName" class="modal-input" maxlength="40" placeholder="Tên phòng" autocomplete="off">
-            <!-- Search only lists videos that allow playback on other sites; picking one fills the link -->
-            <div class="music-search">
-                <input type="search" id="musicSearchQuery" class="modal-input" maxlength="100" placeholder="Tìm bài hát trên YouTube..." autocomplete="off">
-                <button type="button" class="music-join" id="musicSearchBtn">Tìm</button>
+            <p class="modal-desc">Chọn một bài để mở phòng, bạn bè vào sẽ nghe cùng bạn.</p>
+
+            <div class="music-step">
+                <label class="music-step-label" for="musicSearchQuery"><span>1</span> Chọn bài hát</label>
+                <!-- The chosen song; #musicRoomUrl below stays the value the form submits -->
+                <div class="music-picked" id="musicPicked" style="display:none">
+                    <span class="music-cover" id="musicPickedCover"></span>
+                    <span class="music-result-text">
+                        <strong id="musicPickedTitle"></strong>
+                        <span id="musicPickedChannel"></span>
+                    </span>
+                    <button type="button" class="music-picked-change" id="musicPickedChange">Đổi bài</button>
+                </div>
+                <div class="music-pick-area" id="musicPickArea">
+                    <!-- Search only lists videos that allow playback on other sites -->
+                    <div class="music-search">
+                        <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                        <input type="search" id="musicSearchQuery" maxlength="100" placeholder="Tên bài hát, ca sĩ..." autocomplete="off">
+                        <button type="button" class="music-search-btn" id="musicSearchBtn">Tìm</button>
+                    </div>
+                    <ul class="music-search-results" id="musicSearchResults"></ul>
+                    <details class="music-paste">
+                        <summary>Hoặc dán link YouTube</summary>
+                        <input type="url" id="musicRoomUrl" class="modal-input" placeholder="https://youtu.be/..." autocomplete="off">
+                    </details>
+                </div>
             </div>
-            <ul class="music-rooms music-search-results" id="musicSearchResults"></ul>
-            <input type="url" id="musicRoomUrl" class="modal-input" placeholder="Link YouTube" autocomplete="off">
+
+            <div class="music-step">
+                <label class="music-step-label" for="musicRoomName"><span>2</span> Đặt tên phòng</label>
+                <input type="text" id="musicRoomName" class="modal-input" maxlength="40" placeholder="Tự điền theo tên bài, sửa tuỳ thích" autocomplete="off">
+            </div>
             <p class="modal-error" id="musicRoomError" style="display:none"></p>
             <div class="modal-actions">
                 <button type="button" class="btn-ghost modal-close">Huỷ</button>
@@ -7801,9 +7824,11 @@
                 const results = await searchYouTube(q);
                 $list.empty().append(results.length
                     ? results.map((r) => $("<li>").append(
-                        $("<span>", { class: "music-cover" }).css("background-image", `url(${youtubeThumb(r.videoId)})`),
-                        $("<div>").append($("<strong>", { text: r.title }), $("<span>", { text: r.channel })),
-                        $("<button>", { type: "button", class: "music-join music-search-pick", "data-video": r.videoId, "data-title": r.title, text: "Chọn" })
+                        $("<button>", { type: "button", class: "music-result", "data-video": r.videoId, "data-title": r.title, "data-channel": r.channel }).append(
+                            $("<span>", { class: "music-cover" }).css("background-image", `url(${youtubeThumb(r.videoId)})`),
+                            $("<span>", { class: "music-result-text" }).append($("<strong>", { text: r.title }), $("<span>", { text: r.channel })),
+                            $("<i>", { class: "fa-solid fa-plus music-result-add", "aria-hidden": "true" })
+                        )
                     ))
                     : $("<li>", { class: "music-empty", text: "Không tìm thấy video nào phát được." }));
             } catch (err) {
@@ -7821,21 +7846,73 @@
             runMusicSearch();
         });
 
-        // Picking a result fills the link (and the room name when still empty)
-        $("#musicSearchResults").on("click", ".music-search-pick", function () {
-            $("#musicRoomUrl").val(`https://www.youtube.com/watch?v=${$(this).attr("data-video")}`);
-            if (!$.trim($("#musicRoomName").val())) $("#musicRoomName").val($(this).attr("data-title").slice(0, 40));
-            $("#musicSearchResults .music-search-pick").removeClass("is-picked").text("Chọn");
-            $(this).addClass("is-picked").text("Đã chọn");
+        let musicAutoName = ""; // room name filled from the song title, replaced when another song is picked
+
+        // Shows the chosen song in place of the search, and names the room after it unless the user typed a name
+        function pickMusicVideo({ videoId, title, channel }) {
+            $("#musicRoomUrl").val(`https://www.youtube.com/watch?v=${videoId}`);
+            $("#musicPickedCover").css("background-image", `url(${youtubeThumb(videoId)})`);
+            $("#musicPickedTitle").text(title || "Video YouTube");
+            $("#musicPickedChannel").text(channel || "");
+            $("#musicPicked").show();
+            $("#musicPickArea").hide();
+            $("#musicRoomError").hide();
+            const name = $.trim($("#musicRoomName").val());
+            if (title && (!name || name === musicAutoName)) {
+                musicAutoName = title.slice(0, 40);
+                $("#musicRoomName").val(musicAutoName);
+            }
+        }
+
+        // Title of a pasted link: videos.list costs 1 quota unit (search costs 100)
+        async function youtubeVideoInfo(videoId) {
+            if (!YOUTUBE_API_KEY) return null;
+            const params = new URLSearchParams({ part: "snippet,status", id: videoId, key: YOUTUBE_API_KEY });
+            const response = await fetch(`https://www.googleapis.com/youtube/v3/videos?${params}`);
+            const item = response.ok ? (await response.json()).items?.[0] : null;
+            if (!item) return null;
+            return { title: decodeHtml(item.snippet.title), channel: decodeHtml(item.snippet.channelTitle), embeddable: item.status?.embeddable !== false };
+        }
+
+        $("#musicSearchResults").on("click", ".music-result", function () {
+            pickMusicVideo({ videoId: $(this).attr("data-video"), title: $(this).attr("data-title"), channel: $(this).attr("data-channel") });
+        });
+
+        $("#musicPickedChange").on("click", function () {
+            $("#musicPicked").hide();
+            $("#musicPickArea").show();
+            $("#musicSearchQuery").trigger("focus");
+        });
+
+        // A pasted link is picked as soon as it holds a video id
+        let musicPasteTimer = null;
+        $("#musicRoomUrl").on("input", function () {
+            clearTimeout(musicPasteTimer);
+            const videoId = youtubeIdOf($.trim($(this).val()));
+            if (!videoId) return;
+            musicPasteTimer = setTimeout(async () => {
+                let info = null;
+                try {
+                    info = await youtubeVideoInfo(videoId);
+                } catch (err) {
+                    console.error(err); // still usable without the title
+                }
+                pickMusicVideo({ videoId, title: info?.title, channel: info?.channel });
+                if (info && !info.embeddable) $("#musicRoomError").text("Video này không cho phát ở trang khác, hãy chọn bài khác.").show();
+            }, 300);
         });
 
         $("#musicCreateBtn").on("click", function () {
             if (!requireAuthor()) return;
             $("#musicRoomForm")[0].reset();
+            musicAutoName = "";
             $("#musicSearchResults").empty();
+            $("#musicPicked").hide();
+            $("#musicPickArea").show();
+            $(".music-paste").prop("open", false);
             $("#musicRoomError").hide();
             $("#musicRoomModal").fadeIn(150);
-            $("#musicRoomName").trigger("focus");
+            $("#musicSearchQuery").trigger("focus");
         });
 
         $("#musicRoomForm").on("submit", async function (e) {
@@ -7846,8 +7923,8 @@
             const videoId = youtubeIdOf($.trim($("#musicRoomUrl").val()));
             const fail = (message) => $("#musicRoomError").text(message).show();
             if (!me) return;
+            if (!videoId) return fail($.trim($("#musicRoomUrl").val()) ? "Link YouTube không hợp lệ." : "Chọn một bài hát trước nhé.");
             if (!name) return fail("Nhập tên phòng.");
-            if (!videoId) return fail("Link YouTube không hợp lệ.");
             if (!myId) return fail("Chưa tạo được phòng, thử tải lại trang.");
 
             const $save = $("#musicRoomSave").prop("disabled", true);
