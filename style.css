@@ -2422,6 +2422,13 @@ a.profile-about-row:hover {
     gap: 8px;
 }
 
+/* Tablets: up to 8 header icons do not fit in the 470px feed width */
+@media (min-width: 601px) and (max-width: 1119px) {
+    .topbar-inner {
+        max-width: 760px;
+    }
+}
+
 /* Wide screens: profile as a sticky left column; an empty right column of the same width
    keeps the feed exactly in the middle of the page */
 @media (min-width: 1120px) {
@@ -3225,8 +3232,9 @@ a.profile-about-row:hover {
 }
 
 @media (max-width: 600px) {
-    /* Header keeps logo, bell, admin and "more"; the rest moves to the menu or the bottom bar */
+    /* Header keeps logo, friends, bell, admin and "more"; the rest moves to the menu or the bottom bar */
     #btnMyProfile,
+    #btnChat,
     #btnTheme,
     .topbar-meta,
     #btnLogin,
@@ -3238,11 +3246,21 @@ a.profile-about-row:hover {
         display: block;
     }
 
-    /* Bigger tap targets for the icons that stay */
+    /* Bigger tap targets for the icons that stay; no outline so the row reads lighter */
+    .topbar-actions {
+        gap: 4px;
+    }
+
     .topbar-actions .admin-btn-icon {
         width: 38px;
         height: 38px;
-        font-size: 16px;
+        font-size: 17px;
+        border-color: transparent;
+    }
+
+    .topbar-actions .notify-badge {
+        top: 0;
+        right: 0;
     }
 
     .bottom-nav {
@@ -4501,7 +4519,7 @@ a.profile-about-row:hover {
 }
 
 @media (min-width: 1120px) {
-    .side-right .suggest-widget:not(.is-empty) {
+    .profile-panel .suggest-widget:not(.is-empty) {
         display: block;
     }
 
@@ -4646,8 +4664,212 @@ a.profile-about-row:hover {
         top: 76px; /* topbar 60 + 16 */
         margin-top: 16px;
     }
+}
 
-    .side-right .suggest-widget {
-        margin-top: 0;
-    }
+/* ---------- Music room (sidebar, static mock) ---------- */
+.music-widget {
+    padding: 14px;
+    margin-bottom: 16px;
+    --music: #7c3aed;
+    --music-soft: #f3eefe;
+}
+
+:root[data-theme="dark"] .music-widget {
+    --music-soft: #2a2140;
+}
+
+.music-accent {
+    color: var(--music);
+}
+
+.music-live {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 4px 0 10px;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.music-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #22c55e;
+}
+
+.music-now {
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    height: 140px;
+    padding: 12px;
+    border-radius: var(--radius);
+    color: #fff;
+    background: #1f2937 center / cover no-repeat;
+    overflow: hidden;
+}
+
+.music-now-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 13px;
+}
+
+.music-now-info strong {
+    font-size: 15px;
+}
+
+.music-empty {
+    margin: 8px 0 0;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.music-sub {
+    margin: 12px 0 8px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.music-members {
+    display: flex;
+    gap: 4px;
+}
+
+.music-members span {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--input);
+    font-size: 16px;
+}
+
+.music-members .music-more {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.music-join-main {
+    width: 100%;
+    margin-top: 12px;
+    padding: 9px;
+    border: 1px solid var(--music);
+    border-radius: 999px;
+    background: var(--music-soft);
+    color: var(--music);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.music-rooms {
+    list-style: none;
+    margin: 10px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.music-rooms li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.music-rooms li > div {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    font-size: 13px;
+}
+
+.music-rooms li > div span {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.music-cover {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    border-radius: 8px;
+    background: var(--input) center / cover no-repeat;
+}
+
+.music-join {
+    padding: 5px 12px;
+    border: 1px solid var(--music);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--music);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.music-join:hover,
+.music-join-main:hover {
+    background: var(--music);
+    color: #fff;
+}
+
+.music-player-wrap {
+    margin-bottom: 12px;
+}
+
+.music-player-wrap iframe {
+    display: block;
+    width: 100%;
+    border-radius: var(--radius);
+    background: #000;
+}
+
+.music-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.music-play {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    border: none;
+    border-radius: 50%;
+    background: var(--music);
+    color: #fff;
+    cursor: pointer;
+}
+
+.music-title {
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.music-song-form {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.music-song-form .modal-input {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
 }

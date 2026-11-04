@@ -282,16 +282,41 @@
             </div>
             <div class="pass-grid" id="passGrid"></div>
         </section>
-    </aside>
-
-    <!-- Right column (wide screens only): people to add as friends, most mutual friends first -->
-    <aside class="side-right" aria-label="Gợi ý bạn bè">
         <section class="suggest-widget card is-empty" id="suggestWidget" aria-labelledby="suggestWidgetTitle">
             <div class="pass-widget-head">
                 <h3 class="pass-widget-title" id="suggestWidgetTitle">✨ Gợi ý bạn bè</h3>
                 <button type="button" class="link-btn suggest-all">Xem tất cả →</button>
             </div>
             <ul class="suggest-list" id="suggestList"></ul>
+        </section>
+    </aside>
+
+    <!-- Right column (wide screens only): music rooms -->
+    <aside class="side-right" aria-label="Phòng nghe nhạc">
+        <!-- Music rooms: create / join / leave (playback comes in the next step) -->
+        <section class="music-widget card" aria-labelledby="musicWidgetTitle">
+            <div class="pass-widget-head">
+                <h3 class="pass-widget-title" id="musicWidgetTitle"><i class="fa-solid fa-headphones music-accent"></i> Phòng nghe nhạc</h3>
+                <button type="button" class="link-btn" id="musicCreateBtn">+ Tạo phòng</button>
+            </div>
+            <!-- Shown while in a room; kept outside #musicCurrent so re-rendering does not reload the player -->
+            <div class="music-player-wrap" id="musicPlayerWrap" style="display:none">
+                <div id="musicPlayer"></div>
+                <div class="music-controls">
+                    <button type="button" class="music-play" id="musicToggle" aria-label="Phát / tạm dừng"><i class="fa-solid fa-play"></i></button>
+                    <span class="music-title" id="musicTitle"></span>
+                </div>
+                <form class="music-song-form" id="musicSongForm" style="display:none">
+                    <input type="url" id="musicSongUrl" class="modal-input" placeholder="Dán link YouTube để đổi bài" autocomplete="off">
+                    <button type="submit" class="music-join">Đổi</button>
+                </form>
+            </div>
+            <div id="musicCurrent"></div>
+        </section>
+
+        <section class="music-widget card" id="musicSuggestWidget" aria-labelledby="musicSuggestTitle" style="display:none">
+            <h3 class="pass-widget-title" id="musicSuggestTitle">✨ Gợi ý phòng nhạc</h3>
+            <ul class="music-rooms" id="musicRoomList"></ul>
         </section>
     </aside>
     </div>
@@ -784,6 +809,20 @@
             <div class="modal-actions">
                 <button type="button" class="btn-ghost modal-close">Huỷ</button>
                 <button type="submit" class="btn-primary" id="storySave">Đăng tin</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="modal" id="musicRoomModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="musicRoomTitle">
+        <form class="modal-card" id="musicRoomForm">
+            <h2 class="modal-title" id="musicRoomTitle">Tạo phòng nghe nhạc 🎧</h2>
+            <p class="modal-desc">Dán link YouTube, mọi người vào phòng sẽ nghe cùng bạn.</p>
+            <input type="text" id="musicRoomName" class="modal-input" maxlength="40" placeholder="Tên phòng" autocomplete="off">
+            <input type="url" id="musicRoomUrl" class="modal-input" placeholder="Link YouTube" autocomplete="off">
+            <p class="modal-error" id="musicRoomError" style="display:none"></p>
+            <div class="modal-actions">
+                <button type="button" class="btn-ghost modal-close">Huỷ</button>
+                <button type="submit" class="btn-primary" id="musicRoomSave">Tạo phòng</button>
             </div>
         </form>
     </div>
@@ -1288,6 +1327,7 @@
             }
             // Messages are addressed by user id, which is only known once the list has loaded
             watchMyMessages();
+            renderMusicRooms(); // member avatars and "joined" state need user ids too
             renderFriends();
             refreshAvatars();
             if ($("#profileModal").is(":visible")) renderPasswordFields();
@@ -6898,12 +6938,329 @@
             );
         }
 
+        /* ---------- Music rooms (sidebar): create, join, leave ---------- */
+
+        const MUSIC_MEMBER_AVATARS = 6;
+        const MUSIC_SUGGEST_SIZE = 5;
+        let musicRooms = [];
+
+        // youtu.be/ID, watch?v=ID, /embed/ID, /shorts/ID, /live/ID (music.youtube.com too)
+        function youtubeIdOf(url) {
+            const match = /(?:youtu\.be\/|[?&]v=|\/(?:embed|shorts|live)\/)([\w-]{11})/.exec(url);
+            return match ? match[1] : "";
+        }
+
+        function youtubeThumb(videoId) {
+            return `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+        }
+
+        function myMusicRoom() {
+            const myId = userIdOf(currentAuthor());
+            return myId ? musicRooms.find((r) => (r.memberIds || []).includes(myId)) : undefined;
+        }
+
+        // Featured card: the room I am in, otherwise the busiest one; the others go to the suggestions
+        function renderMusicRooms() {
+            const myId = userIdOf(currentAuthor());
+            const sorted = [...musicRooms].sort((a, b) => (b.memberIds || []).length - (a.memberIds || []).length);
+            const mine = myMusicRoom();
+            const featured = mine || sorted[0];
+            const $current = $("#musicCurrent").empty();
+
+            if (!featured) {
+                $current.append($("<p>", { class: "music-empty", text: "Chưa có phòng nào. Tạo phòng đầu tiên nhé!" }));
+            } else {
+                const members = featured.memberIds || [];
+                let action = "join";
+                if (featured === mine) action = featured.hostId === myId ? "close" : "leave";
+                const label = { join: "Tham gia phòng", leave: "Rời phòng", close: "Đóng phòng" }[action];
+
+                $current.append(
+                    $("<p>", { class: "music-live" }).append($("<span>", { class: "music-dot" }), `${members.length} đang nghe`),
+                    // In the room the player above shows the video instead of the thumbnail
+                    featured === mine ? null : $("<div>", { class: "music-now" })
+                        .css("background-image", `linear-gradient(transparent 30%, rgba(0, 0, 0, 0.75)), url(${youtubeThumb(featured.videoId)})`)
+                        .append($("<div>", { class: "music-now-info" }).append(
+                            $("<strong>", { text: featured.name }),
+                            $("<span>", { text: `Chủ phòng: ${nameOf(featured.host)}` })
+                        )),
+                    $("<p>", { class: "music-sub", text: "Thành viên đang nghe" }),
+                    $("<div>", { class: "music-members" }).append(
+                        members.slice(0, MUSIC_MEMBER_AVATARS).map((id) => {
+                            const name = authorOfId(id);
+                            return $("<span>", { text: emojiOf(name), title: nameOf(name) });
+                        }),
+                        members.length > MUSIC_MEMBER_AVATARS ? $("<span>", { class: "music-more", text: `+${members.length - MUSIC_MEMBER_AVATARS}` }) : null
+                    ),
+                    $("<button>", { type: "button", class: "music-join-main", "data-room": featured.id, "data-action": action, text: label })
+                );
+            }
+
+            const others = sorted.filter((r) => r !== featured).slice(0, MUSIC_SUGGEST_SIZE);
+            $("#musicRoomList").empty().append(others.map((room) => $("<li>").append(
+                $("<span>", { class: "music-cover" }).css("background-image", `url(${youtubeThumb(room.videoId)})`),
+                $("<div>").append(
+                    $("<strong>", { text: room.name }),
+                    $("<span>", { text: `${(room.memberIds || []).length} đang nghe` })
+                ),
+                $("<button>", { type: "button", class: "music-join", "data-room": room.id, "data-action": "join", text: "Tham gia" })
+            )));
+            $("#musicSuggestWidget").toggle(others.length > 0);
+            syncMusicPlayer();
+        }
+
+        /* Playback: the host writes { playing, position, updatedAt }, every member's player follows it */
+
+        const MUSIC_DRIFT = 2; // seconds off before a player is put back in sync
+        // YouTube IFrame API error codes
+        const MUSIC_ERRORS = {
+            2: "Link YouTube không hợp lệ.",
+            5: "Trình duyệt không phát được video này.",
+            100: "Video không tồn tại hoặc đã bị ẩn.",
+            101: "Chủ video không cho phát ở trang khác, thử video khác.",
+            150: "Chủ video không cho phát ở trang khác, thử video khác.",
+            153: "YouTube chặn vì trang mở bằng file://, hãy mở qua http (Live Server hoặc trang đã deploy)."
+        };
+        let youtubeApi = null;
+        let musicPlayer = null;
+        let musicPlayerReady = false;
+
+        function loadYouTubeApi() {
+            if (!youtubeApi) {
+                youtubeApi = new Promise((resolve) => {
+                    window.onYouTubeIframeAPIReady = resolve;
+                    const script = document.createElement("script");
+                    script.src = "https://www.youtube.com/iframe_api";
+                    document.head.append(script);
+                });
+            }
+            return youtubeApi;
+        }
+
+        async function ensureMusicPlayer() {
+            if (musicPlayer) return;
+            await loadYouTubeApi();
+            if (musicPlayer) return;
+            musicPlayer = new YT.Player("musicPlayer", {
+                width: "100%",
+                height: "200",
+                playerVars: { controls: 0, disablekb: 1, playsinline: 1, rel: 0 },
+                events: {
+                    onReady: () => {
+                        musicPlayerReady = true;
+                        syncMusicPlayer();
+                    },
+                    onStateChange: onMusicStateChange,
+                    onError: (e) => showToast(MUSIC_ERRORS[e.data] || `Không phát được video (lỗi ${e.data}).`)
+                }
+            });
+        }
+
+        function musicPositionOf(room) {
+            const position = room.position || 0;
+            return room.playing ? position + (Date.now() - (room.updatedAt || Date.now())) / 1000 : position;
+        }
+
+        function isMusicHost(room) {
+            return !!room && room.hostId === userIdOf(currentAuthor());
+        }
+
+        function syncMusicPlayer() {
+            const room = myMusicRoom();
+            $("#musicPlayerWrap").toggle(!!room);
+            if (!room) {
+                if (musicPlayerReady) musicPlayer.stopVideo();
+                return;
+            }
+            if (!musicPlayer) {
+                ensureMusicPlayer();
+                return;
+            }
+            if (!musicPlayerReady) return;
+
+            const position = musicPositionOf(room);
+            if (musicPlayer.getVideoData()?.video_id !== room.videoId) {
+                if (room.playing) musicPlayer.loadVideoById(room.videoId, position);
+                else musicPlayer.cueVideoById(room.videoId, position);
+            } else {
+                const state = musicPlayer.getPlayerState();
+                if (Math.abs(musicPlayer.getCurrentTime() - position) > MUSIC_DRIFT && state !== YT.PlayerState.ENDED) {
+                    musicPlayer.seekTo(position, true);
+                }
+                if (room.playing && ![YT.PlayerState.PLAYING, YT.PlayerState.BUFFERING, YT.PlayerState.ENDED].includes(state)) {
+                    musicPlayer.playVideo();
+                }
+                if (!room.playing && state === YT.PlayerState.PLAYING) musicPlayer.pauseVideo();
+            }
+            updateMusicControls();
+        }
+
+        // The room plays but this browser blocked autoplay: everyone (host too) gets "Bật tiếng",
+        // a tap on it is the user gesture the browser needs to start the sound
+        function musicBlocked(room) {
+            if (!room.playing || !musicPlayerReady) return false;
+            return ![YT.PlayerState.PLAYING, YT.PlayerState.BUFFERING, YT.PlayerState.ENDED].includes(musicPlayer.getPlayerState());
+        }
+
+        // Host: play / pause the room. Member: the button only shows when autoplay was blocked
+        function updateMusicControls() {
+            const room = myMusicRoom();
+            if (!room) return;
+            const isHost = isMusicHost(room);
+            const blocked = musicBlocked(room);
+            let icon = "fa-volume-high";
+            let label = "Bật tiếng";
+            if (isHost && !blocked) {
+                icon = room.playing ? "fa-pause" : "fa-play";
+                label = room.playing ? "Tạm dừng" : "Phát";
+            }
+            $("#musicToggle").toggle(isHost || blocked)
+                .attr("aria-label", label)
+                .find("i").attr("class", `fa-solid ${icon}`);
+            $("#musicSongForm").toggle(isHost);
+            const title = musicPlayerReady ? musicPlayer.getVideoData()?.title : "";
+            $("#musicTitle").text(title ? `Đang phát: ${title}` : room.playing ? "Đang tải bài hát..." : "Đang tạm dừng");
+        }
+
+        function setMusicState(room, fields) {
+            return updateDoc(doc(db, "musicRooms", room.id), { ...fields, updatedAt: Date.now() });
+        }
+
+        function onMusicStateChange(e) {
+            const room = myMusicRoom();
+            if (e.data === YT.PlayerState.ENDED && room?.playing && isMusicHost(room)) {
+                setMusicState(room, { playing: false, position: 0 }).catch((err) => console.error(err));
+            }
+            updateMusicControls();
+        }
+
+        $("#musicToggle").on("click", function () {
+            const room = myMusicRoom();
+            if (!room || !musicPlayerReady) return;
+            if (!isMusicHost(room) || musicBlocked(room)) return syncMusicPlayer();
+            // Start the sound inside the click: after the Firestore round trip it would no longer count as a user gesture
+            if (!room.playing) musicPlayer.playVideo();
+            setMusicState(room, { playing: !room.playing, position: musicPlayer.getCurrentTime() }).catch((err) => {
+                console.error(err);
+                showToast(errorMessage(err));
+            });
+        });
+
+        $("#musicSongForm").on("submit", async function (e) {
+            e.preventDefault();
+            const room = myMusicRoom();
+            const videoId = youtubeIdOf($.trim($("#musicSongUrl").val()));
+            if (!isMusicHost(room)) return;
+            if (!videoId) return showToast("Link YouTube không hợp lệ.");
+            try {
+                await setMusicState(room, { videoId: videoId, playing: true, position: 0 });
+                $("#musicSongUrl").val("");
+            } catch (err) {
+                console.error(err);
+                showToast(errorMessage(err));
+            }
+        });
+
+        // Snapshots only arrive on changes; re-check drift now and then (buffering, sleeping tabs)
+        setInterval(() => {
+            if (myMusicRoom()) syncMusicPlayer();
+        }, 10 * 1000);
+
+        function watchMusicRooms() {
+            onSnapshot(
+                collection(db, "musicRooms"),
+                (snapshot) => {
+                    musicRooms = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+                    renderMusicRooms();
+                },
+                (err) => console.error(err)
+            );
+        }
+
+        // One room at a time: joining or creating a room leaves the previous one
+        async function leaveMyMusicRoom(myId) {
+            const prev = myMusicRoom();
+            if (prev) await updateDoc(doc(db, "musicRooms", prev.id), { memberIds: arrayRemove(myId) });
+        }
+
+        $(document).on("click", ".music-widget [data-room]", async function () {
+            if (!requireAuthor()) return;
+            const myId = userIdOf(currentAuthor());
+            if (!myId) return showToast("Chưa tải xong tài khoản, thử lại sau.");
+            const roomId = $(this).attr("data-room");
+            const action = $(this).attr("data-action");
+            if (action === "close" && !confirm("Đóng phòng này? Mọi người trong phòng sẽ bị thoát.")) return;
+
+            const $btn = $(this).prop("disabled", true);
+            try {
+                if (action === "close") {
+                    await deleteDoc(doc(db, "musicRooms", roomId));
+                } else if (action === "leave") {
+                    await updateDoc(doc(db, "musicRooms", roomId), { memberIds: arrayRemove(myId) });
+                } else {
+                    await leaveMyMusicRoom(myId);
+                    await updateDoc(doc(db, "musicRooms", roomId), { memberIds: arrayUnion(myId) });
+                    showToast("Đã vào phòng 🎧");
+                }
+            } catch (err) {
+                console.error(err);
+                showToast(errorMessage(err));
+            } finally {
+                $btn.prop("disabled", false);
+            }
+        });
+
+        $("#musicCreateBtn").on("click", function () {
+            if (!requireAuthor()) return;
+            $("#musicRoomForm")[0].reset();
+            $("#musicRoomError").hide();
+            $("#musicRoomModal").fadeIn(150);
+            $("#musicRoomName").trigger("focus");
+        });
+
+        $("#musicRoomForm").on("submit", async function (e) {
+            e.preventDefault();
+            const me = currentAuthor();
+            const myId = userIdOf(me);
+            const name = $.trim($("#musicRoomName").val());
+            const videoId = youtubeIdOf($.trim($("#musicRoomUrl").val()));
+            const fail = (message) => $("#musicRoomError").text(message).show();
+            if (!me) return;
+            if (!name) return fail("Nhập tên phòng.");
+            if (!videoId) return fail("Link YouTube không hợp lệ.");
+            if (!myId) return fail("Chưa tạo được phòng, thử tải lại trang.");
+
+            const $save = $("#musicRoomSave").prop("disabled", true);
+            try {
+                await leaveMyMusicRoom(myId);
+                await addDoc(collection(db, "musicRooms"), {
+                    name: name,
+                    host: me,
+                    hostId: myId,
+                    videoId: videoId,
+                    memberIds: [myId],
+                    playing: true,
+                    position: 0,
+                    updatedAt: Date.now(),
+                    createdAt: Date.now()
+                });
+                $("#musicRoomModal").fadeOut(150);
+                showToast("Đã tạo phòng 🎶");
+            } catch (err) {
+                console.error(err);
+                fail(errorMessage(err));
+            } finally {
+                $save.prop("disabled", false);
+            }
+        });
+
         watchMyActivity();
 
         loadFeed();
         watchPassItems();
         watchStories();
         watchFriendships();
+        watchMusicRooms();
         if (!currentAuthor()) openProfileModal();
     </script>
 </body>
