@@ -5142,3 +5142,39 @@ a.profile-about-row:hover {
         animation-name: music-float-fade;
     }
 }
+
+/* ---------- YouTube search (create-room popup) ---------- */
+.music-search {
+    --music: #7c3aed;
+    display: flex;
+    gap: 8px;
+}
+
+.music-search .modal-input {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+}
+
+.music-search-results {
+    --music: #7c3aed;
+    max-height: 260px;
+    overflow-y: auto;
+    margin: 10px 0;
+}
+
+.music-search-results:empty {
+    display: none;
+}
+
+.music-search-results strong {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.music-search-pick.is-picked {
+    background: var(--music);
+    color: #fff;
+}
