@@ -91,6 +91,7 @@ export default {
             // Gemini's own error status and message only, not the request
             const error = (await response.json().catch(() => ({}))).error || {};
             console.error("Gemini error", response.status, error.status || "", String(error.message || "").slice(0, 200));
+            if (response.status === 429) return reply(429, { error: "VibeGram AI đã dùng hết lượt miễn phí của Gemini, thử lại sau ít phút nhé." });
             return reply(502, { error: "AI đang bận, thử lại sau." });
         }
         const data = await response.json();

@@ -16,7 +16,7 @@ ALLOWED_ORIGIN = "https://hoangtannguyen.github.io,http://127.0.0.1:5500"
 ALLOWED_UIDS = ""
 # Questions per user per day, all features together
 DAILY_LIMIT = "1000" # testing; set back to "20" before opening to everyone
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = "gemini-3.5-flash-lite"
 
 # Per-user question counter. Create it once with: npx wrangler kv namespace create AI_USAGE
 # then paste the printed id below (an empty id is rejected).
