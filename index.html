@@ -503,7 +503,12 @@
                 <span>Hiện khu vực / địa chỉ</span>
             </label>
             <input type="text" id="aboutAddress" class="modal-input" maxlength="100" placeholder="vd: Quận 7, TP.HCM" style="display:none">
-            <p class="modal-hint">SĐT và địa chỉ hiện công khai cho mọi người dùng app. Tắt công tắc thì thông tin bị xoá, không được lưu.</p>
+            <label class="about-switch">
+                <input type="checkbox" id="aboutShowBirthday">
+                <span>Hiện sinh nhật 🎂</span>
+            </label>
+            <input type="date" id="aboutBirthday" class="modal-input" style="display:none" aria-label="Ngày sinh nhật">
+            <p class="modal-hint">SĐT, địa chỉ và sinh nhật hiện công khai cho mọi người dùng app. Sinh nhật chỉ lưu ngày và tháng, không lưu năm. Giới thiệu và sinh nhật được VibeGram AI dùng để trả lời câu hỏi của mọi người. Tắt công tắc thì thông tin bị xoá, không được lưu.</p>
             <p class="modal-error" id="aboutError" style="display:none"></p>
             <div class="modal-actions">
                 <button type="button" class="btn-ghost modal-close">Huỷ</button>
@@ -511,6 +516,33 @@
             </div>
         </form>
     </div>
+
+    <!-- VibeGram AI: RAG on community posts and events, for every signed-in user -->
+    <button type="button" class="ai-fab" id="aiFab" style="display:none" aria-label="Mở VibeGram AI" title="VibeGram AI">
+        <i class="fa-solid fa-wand-magic-sparkles"></i>
+    </button>
+    <section class="ai-panel" id="aiPanel" style="display:none" role="dialog" aria-label="VibeGram AI">
+        <header class="ai-head">
+            <span class="ai-logo"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
+            <div class="ai-head-text">
+                <h2 class="ai-title">VibeGram AI</h2>
+                <p class="ai-subtitle">Hỏi gì cũng biết · Trả lời dựa trên dữ liệu cộng đồng</p>
+            </div>
+            <button type="button" class="ai-head-btn" id="aiMinimize" aria-label="Thu nhỏ" title="Thu nhỏ"><i class="fa-solid fa-minus"></i></button>
+            <button type="button" class="ai-head-btn" id="aiClose" aria-label="Đóng và xoá hội thoại" title="Đóng"><i class="fa-solid fa-xmark"></i></button>
+        </header>
+        <div class="ai-messages" id="aiMessages" aria-live="polite"></div>
+        <div class="ai-chips">
+            <button type="button" class="ai-chip" data-q="Sắp tới có sự kiện nào?"><i class="fa-regular fa-calendar"></i> Xem thêm sự kiện</button>
+            <button type="button" class="ai-chip" data-q="Gần đây có bài viết nào nổi bật?"><i class="fa-solid fa-magnifying-glass"></i> Tìm bài viết liên quan</button>
+            <button type="button" class="ai-chip" data-q="Tuần này có ai tổ chức sinh nhật không?">🎂 Sinh nhật tuần này</button>
+        </div>
+        <form class="ai-form" id="aiForm">
+            <i class="fa-solid fa-wand-magic-sparkles ai-form-icon" aria-hidden="true"></i>
+            <input type="text" id="aiInput" maxlength="500" placeholder="Hỏi thêm điều gì..." autocomplete="off" aria-label="Câu hỏi cho VibeGram AI">
+            <button type="submit" class="ai-send" id="aiSend" aria-label="Gửi"><i class="fa-solid fa-paper-plane"></i></button>
+        </form>
+    </section>
 
     <div class="modal" id="chatModal" style="display:none" role="dialog" aria-modal="true" aria-label="Tin nhắn">
         <div class="modal-card chat-card">
@@ -554,6 +586,9 @@
                 <button type="button" class="btn-ghost chat-event-btn" id="chatCreateEvent" style="display:none" title="Tạo kèo">
                     🏸 <span>Tạo kèo</span>
                 </button>
+                <button type="button" class="icon-btn" id="chatAiToggle" style="display:none" title="Hỏi AI về cuộc trò chuyện" aria-label="Hỏi AI về cuộc trò chuyện">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                </button>
                 <button type="button" class="icon-btn chat-delete-group" id="chatDeleteGroup" style="display:none" title="Xoá nhóm" aria-label="Xoá nhóm">
                     <i class="fa-regular fa-trash-can"></i>
                 </button>
@@ -566,6 +601,14 @@
                 <i class="fa-solid fa-pen"></i>
                 <span>Đang sửa tin nhắn</span>
                 <button type="button" class="link-btn" id="chatEditCancel">Huỷ</button>
+            </div>
+            <!-- RAG trial: only for the uids in AI_ALLOWED_UIDS -->
+            <div class="chat-ai" id="chatAi" style="display:none">
+                <p class="chat-ai-answer" id="chatAiAnswer" style="display:none"></p>
+                <form class="chat-ai-form" id="chatAiForm">
+                    <input type="text" class="comment-input" id="chatAiInput" maxlength="500" placeholder="Hỏi AI, vd: Tháng trước tụi mình hẹn đi đâu?" autocomplete="off">
+                    <button type="submit" class="link-btn btn-send" id="chatAiSend">Hỏi</button>
+                </form>
             </div>
             <form class="comment-form chat-form" id="chatForm">
                 <button type="button" class="btn-emoji comment-emoji" data-target="#chatInput" aria-label="Chèn emoji">
@@ -1120,6 +1163,11 @@
         // "" = search disabled, links can still be pasted.
         const YOUTUBE_API_KEY = "AIzaSyD5VeVo5H4gHYUNXAHAMnTIG9SCSmwCXGE";
 
+        // RAG trial on chat messages: the Cloudflare Worker in worker/ (holds the Gemini key). "" = feature hidden.
+        const AI_WORKER_URL = "https://vibegram-rag.hoangtannguyen.workers.dev";
+        // Firebase Auth uids that see the feature; the Worker checks its own copy (ALLOWED_UIDS)
+        const AI_ALLOWED_UIDS = [];
+
         const MAX_IMAGE_MB = 10;
         const MAX_VIDEO_MB = 100;
 
@@ -1353,6 +1401,7 @@
                 links: Array.isArray(user?.links) ? user.links : [],
                 phone: user?.phone || "",
                 address: user?.address || "",
+                birthday: user?.birthday || "",
                 savedPosts: Array.isArray(user?.savedPosts) ? user.savedPosts : [],
                 ...(user?.googleUid ? { googleUid: user.googleUid } : {})
             };
@@ -2713,7 +2762,36 @@
                 $about.append($("<span>", { class: "profile-about-row" })
                     .append($("<i>", { class: "fa-solid fa-location-dot" }), $("<span>", { text: user.address })));
             }
+            if (parseBirthday(user.birthday)) {
+                $about.append($("<span>", { class: "profile-about-row" })
+                    .append($("<i>", { class: "fa-solid fa-cake-candles" }), $("<span>", { text: `Sinh nhật ${birthdayLabel(user.birthday)}` })));
+            }
             $about.toggle($about.children().length > 0);
+        }
+
+        // Birthdays are stored as "MM-DD" (no year); null when missing or malformed
+        function parseBirthday(value) {
+            const match = /^(\d{2})-(\d{2})$/.exec(value || "");
+            if (!match) return null;
+            const month = Number(match[1]);
+            const day = Number(match[2]);
+            return month >= 1 && month <= 12 && day >= 1 && day <= 31 ? { month, day } : null;
+        }
+
+        function birthdayLabel(value) {
+            const b = parseBirthday(value);
+            return b ? `${String(b.day).padStart(2, "0")}/${String(b.month).padStart(2, "0")}` : "";
+        }
+
+        // Days from today to the next birthday (0 = today); 29/02 falls on 01/03 in other years
+        function daysUntilBirthday(value) {
+            const b = parseBirthday(value);
+            if (!b) return null;
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            let next = new Date(today.getFullYear(), b.month - 1, b.day);
+            if (next < today) next = new Date(today.getFullYear() + 1, b.month - 1, b.day);
+            return Math.round((next - today) / 86400000);
         }
 
         function openAboutModal() {
@@ -2727,6 +2805,9 @@
             $("#aboutAddress").val(user.address || "");
             $("#aboutShowPhone").prop("checked", !!user.phone).trigger("change");
             $("#aboutShowAddress").prop("checked", !!user.address).trigger("change");
+            // The date input needs a year: 2000 is a leap year, so 29/02 still fits
+            $("#aboutBirthday").val(parseBirthday(user.birthday) ? `2000-${user.birthday}` : "");
+            $("#aboutShowBirthday").prop("checked", !!parseBirthday(user.birthday)).trigger("change");
             $("#aboutError").hide();
             $("#aboutModal").fadeIn(150);
         }
@@ -2764,6 +2845,9 @@
         $("#aboutShowAddress").on("change", function () {
             $("#aboutAddress").toggle(this.checked);
         });
+        $("#aboutShowBirthday").on("change", function () {
+            $("#aboutBirthday").toggle(this.checked);
+        });
 
         $("#aboutForm").on("submit", async function (e) {
             e.preventDefault();
@@ -2779,8 +2863,11 @@
             const phone = $("#aboutShowPhone").prop("checked") ? $.trim($("#aboutPhone").val()) : "";
             if (phone && !/^\+?\d{8,15}$/.test(phone.replace(/[\s.-]/g, ""))) return showError("Số điện thoại không hợp lệ");
             const address = $("#aboutShowAddress").prop("checked") ? $.trim($("#aboutAddress").val()) : "";
+            // "YYYY-MM-DD" from the picker, only "MM-DD" is kept
+            const birthday = $("#aboutShowBirthday").prop("checked") ? ($("#aboutBirthday").val() || "").slice(5) : "";
+            if ($("#aboutShowBirthday").prop("checked") && !parseBirthday(birthday)) return showError("Chọn ngày sinh nhật");
 
-            const about = { bio: $.trim($("#aboutBio").val()), links: links, phone: phone, address: address };
+            const about = { bio: $.trim($("#aboutBio").val()), links: links, phone: phone, address: address, birthday: birthday };
             const $save = $("#aboutSave").prop("disabled", true).text("Đang lưu...");
             $("#aboutError").hide();
             try {
@@ -3319,6 +3406,7 @@
         function renderAdmin() {
             // The admin button only shows while logged in (to log out); logging in is via the logo
             $("#adminMenuWrap").toggle(isAdmin);
+            closeAiPanel(!aiPanelEnabled());
             if (!isAdmin) closeAdminMenu();
             if (!isAdmin) $("#statsModal, #usersModal, #userEditModal").hide();
         }
@@ -6452,6 +6540,10 @@
                 $("#chatTitle").text(conv.name);
             }
             $("#chatCreateEvent").toggle(conv.type === "group");
+            $("#chatAiToggle").toggle(aiEnabled());
+            $("#chatAi").hide();
+            $("#chatAiAnswer").hide().text("");
+            $("#chatAiInput").val("");
             // The group's creator or an admin can delete it
             $("#chatDeleteGroup").toggle(conv.type === "group" && (conv.createdBy === userIdOf(currentAuthor()) || isAdmin));
             $("#chatMessages").empty().append($("<div>", { class: "spinner" }));
@@ -6471,6 +6563,308 @@
             $(".chat-view").hide();
             $(id).css("display", "flex");
         }
+
+        // ---------- RAG trial: ask AI about the open conversation ----------
+        const AI_MAX_MESSAGES = 60;
+        const AI_MAX_CHARS = 15000;
+        const AI_STOPWORDS = new Set(["la", "va", "cua", "co", "khong", "gi", "nao", "the", "nhu", "voi", "minh", "toi", "ban", "ai", "da", "chua", "duoc", "ve", "o", "thi", "ma", "nhe", "a", "oi"]);
+
+        function aiEnabled() {
+            return !!AI_WORKER_URL && AI_ALLOWED_UIDS.includes(auth.currentUser?.uid);
+        }
+
+        function normalizeAiText(text) {
+            return (text || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/g, "d");
+        }
+
+        // Keyword retrieval on the messages already loaded: the best matches plus one message on each side
+        // for context; no match (e.g. "tóm tắt") falls back to the latest messages
+        function pickAiContext(question) {
+            const texts = chatAllMessages.filter((m) => m.type !== "event" && m.text);
+            const words = [...new Set(normalizeAiText(question).split(/[^a-z0-9]+/))].filter((w) => w.length > 1 && !AI_STOPWORDS.has(w));
+            const scored = texts.map((m, i) => {
+                const text = normalizeAiText(m.text);
+                return { i, score: words.filter((w) => text.includes(w)).length };
+            }).filter((s) => s.score > 0).sort((a, b) => b.score - a.score || b.i - a.i);
+
+            const picked = new Set();
+            scored.forEach(({ i }) => [i - 1, i, i + 1].forEach((j) => {
+                if (j >= 0 && j < texts.length && picked.size < AI_MAX_MESSAGES) picked.add(j);
+            }));
+            const indexes = picked.size
+                ? [...picked].sort((a, b) => a - b)
+                : texts.map((m, i) => i).slice(-AI_MAX_MESSAGES);
+
+            const result = [];
+            let total = 0;
+            for (const i of indexes) {
+                const m = texts[i];
+                const item = {
+                    time: new Date(m.createdAt).toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" }),
+                    from: nameOf(authorOfId(m.fromId)),
+                    text: m.text
+                };
+                total += item.time.length + item.from.length + item.text.length + 6;
+                if (total > AI_MAX_CHARS) break;
+                result.push(item);
+            }
+            return result;
+        }
+
+        $("#chatAiToggle").on("click", function () {
+            $("#chatAi").toggle();
+            if ($("#chatAi").is(":visible")) $("#chatAiInput").trigger("focus");
+        });
+
+        $("#chatAiForm").on("submit", async function (e) {
+            e.preventDefault();
+            const question = $.trim($("#chatAiInput").val());
+            if (!question || !aiEnabled()) return;
+            const messages = pickAiContext(question);
+            if (!messages.length) return showToast("Cuộc trò chuyện chưa có tin nhắn nào.");
+            $("#chatAiSend").prop("disabled", true);
+            $("#chatAiAnswer").show().removeClass("is-error").text("Đang đọc lại cuộc trò chuyện...");
+            try {
+                const response = await fetch(AI_WORKER_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${await auth.currentUser.getIdToken()}` },
+                    body: JSON.stringify({ question, messages })
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(data.error || "AI chưa trả lời được, thử lại sau.");
+                $("#chatAiAnswer").text(data.answer);
+            } catch (err) {
+                console.error(err);
+                $("#chatAiAnswer").addClass("is-error").text(err.message || "AI chưa trả lời được, thử lại sau.");
+            } finally {
+                $("#chatAiSend").prop("disabled", false);
+            }
+        });
+
+        // ---------- VibeGram AI: RAG on community posts and events, for every signed-in user ----------
+        const AI_CORPUS_TTL = 5 * 60 * 1000;
+        const AI_MAX_EVENTS = 25;
+        const AI_MAX_POSTS = 15;
+        const AI_MAX_MEMBERS = 30;
+        const AI_BIRTHDAY_DAYS = 30;
+        const AI_KIND_EMOJI = { "Sinh nhật": "🎂", "Tiệc tùng": "🥳", "Họp mặt": "🤝", "Liên hoan": "🍻", "Dã ngoại": "🏕️" };
+        let aiCorpus = { items: [], loadedAt: 0 };
+        let aiBusy = false;
+
+        function aiDateKey(ms) {
+            const d = new Date(ms);
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        }
+
+        // Upcoming events plus the latest posts, read once every few minutes while the panel is used
+        async function loadAiCorpus() {
+            if (Date.now() - aiCorpus.loadedAt < AI_CORPUS_TTL) return aiCorpus.items;
+            const [events, recent] = await Promise.all([
+                getDocs(query(collection(db, "photos"), where("party.date", ">=", aiDateKey(Date.now())))),
+                getDocs(query(collection(db, "photos"), orderBy("createdAt", "desc"), limit(60)))
+            ]);
+            const byId = new Map();
+            [...events.docs, ...recent.docs].forEach((d) => {
+                if (!d.data().archived) byId.set(d.id, d.data());
+            });
+            aiCorpus = { items: [...byId].map(([id, data]) => ({ id, data })), loadedAt: Date.now() };
+            return aiCorpus.items;
+        }
+
+        function aiLineOf({ id, data }) {
+            const p = data.party;
+            const from = nameOf(data.auth);
+            if (p) {
+                return { id, from, time: partyWhen(p), text: `Sự kiện ${p.kind || ""}: ${p.title} tại ${p.place}, ${(p.going || []).length}/${p.capacity} người tham gia. ${data.comment || ""}` };
+            }
+            return { id, from, time: new Date(data.createdAt).toLocaleDateString("vi-VN"), text: `Bài viết: ${data.comment || "(không có chú thích)"}` };
+        }
+
+        // Events are time-sensitive, so all upcoming ones go in; other posts by keyword, else the newest
+        function pickAiCommunityContext(question, items) {
+            const words = [...new Set(normalizeAiText(question).split(/[^a-z0-9]+/))].filter((w) => w.length > 1 && !AI_STOPWORDS.has(w));
+            const events = items.filter((it) => it.data.party).sort((a, b) => a.data.party.date.localeCompare(b.data.party.date)).slice(0, AI_MAX_EVENTS);
+            const posts = items.filter((it) => !it.data.party);
+            const scored = posts.map((it) => {
+                const text = normalizeAiText(it.data.comment);
+                return { it, score: words.filter((w) => text.includes(w)).length };
+            }).filter((s) => s.score > 0).sort((a, b) => b.score - a.score).map((s) => s.it);
+            return [...events, ...(scored.length ? scored : posts).slice(0, AI_MAX_POSTS)];
+        }
+
+        // Members (already in usersByAuthor): birthdays in the next 30 days, plus names/bios matching the
+        // question. Only what they chose to show on their profile: bio and birthday, never phone or address.
+        function pickAiMembers(question) {
+            const words = [...new Set(normalizeAiText(question).split(/[^a-z0-9]+/))].filter((w) => w.length > 1 && !AI_STOPWORDS.has(w));
+            const members = [...usersByAuthor.values()].filter((u) => u.author && (u.bio || parseBirthday(u.birthday)));
+            const soon = members.filter((u) => parseBirthday(u.birthday) && daysUntilBirthday(u.birthday) <= AI_BIRTHDAY_DAYS)
+                .sort((a, b) => daysUntilBirthday(a.birthday) - daysUntilBirthday(b.birthday));
+            const matched = members.filter((u) => {
+                const text = normalizeAiText(`${nameOf(u.author)} ${u.bio || ""}`);
+                return !soon.includes(u) && words.some((w) => text.includes(w));
+            });
+            return [...soon, ...matched].slice(0, AI_MAX_MEMBERS).map((u) => {
+                const days = daysUntilBirthday(u.birthday);
+                const birthday = days === null ? "" : ` Sinh nhật: ${birthdayLabel(u.birthday)} (${days === 0 ? "hôm nay" : `còn ${days} ngày`}).`;
+                return { from: nameOf(u.author), time: "", text: `Thành viên.${u.bio ? ` Giới thiệu: ${u.bio}.` : ""}${birthday}` };
+            });
+        }
+
+        function scrollAiToBottom() {
+            const list = $("#aiMessages")[0];
+            list.scrollTop = list.scrollHeight;
+        }
+
+        function appendAiRow($bubble) {
+            $("#aiMessages").append($("<div>", { class: "ai-msg" }).append(
+                $("<span>", { class: "ai-msg-logo", "aria-hidden": "true", text: "V" }),
+                $bubble
+            ));
+            scrollAiToBottom();
+            return $bubble;
+        }
+
+        function appendAiQuestion(text) {
+            $("#aiMessages").append($("<div>", { class: "ai-msg is-mine" }).append(
+                $("<div>", { class: "ai-bubble" }).append(
+                    $("<span>", { text: text }),
+                    $("<span>", { class: "ai-time", text: chatTime(Date.now()) })
+                ),
+                fillAvatar($("<span>", { class: "avatar avatar-md" }), currentAuthor())
+            ));
+            scrollAiToBottom();
+        }
+
+        function aiCardOf({ id, data }) {
+            const p = data.party;
+            const first = postMedia(data)[0];
+            const line = (icon, text) => $("<span>", { class: "ai-card-line" }).append($("<i>", { class: icon }), $("<span>", { text: text }));
+            const $info = $("<div>", { class: "ai-card-info" });
+            if (p) {
+                const going = p.going || [];
+                $info.append(
+                    $("<strong>", { class: "ai-card-title", text: `${AI_KIND_EMOJI[p.kind] || "🎉"} ${p.title}` }),
+                    line("fa-regular fa-calendar", partyWhen(p)),
+                    line("fa-solid fa-location-dot", p.place),
+                    going.length
+                        ? $("<span>", { class: "ai-card-going" }).append(
+                            going.slice(0, 4).map((userId) => fillAvatar($("<span>", { class: "avatar ai-card-avatar" }), authorOfId(userId))),
+                            $("<span>", { text: `${going.length} người tham gia` })
+                        )
+                        : null
+                );
+            } else {
+                $info.append(
+                    $("<strong>", { class: "ai-card-title", text: nameOf(data.auth) }),
+                    $("<span>", { class: "ai-card-caption", text: data.comment || "" })
+                );
+            }
+            return $("<button>", { type: "button", class: "ai-card", "data-id": id }).append(
+                $info,
+                first ? $("<img>", { class: "ai-card-thumb", src: mediaThumb(first, 200), alt: "", loading: "lazy" }) : null
+            );
+        }
+
+        // The Worker marks every post it mentions as [[post:ID]]: strip the marks, show those posts as cards
+        function aiAnswerBubble(answer, items) {
+            const ids = [];
+            const text = answer.replace(/\s*\[\[post:([^\]\s]+)\]\]/g, (mark, id) => {
+                if (!ids.includes(id)) ids.push(id);
+                return "";
+            }).trim();
+            const cards = ids.map((id) => items.find((it) => it.id === id)).filter(Boolean).slice(0, 4).map(aiCardOf);
+            return $("<div>", { class: "ai-bubble" }).append(
+                $("<p>", { class: "ai-text", text: text }),
+                cards.length ? $("<div>", { class: "ai-cards" }).append(cards) : null,
+                $("<div>", { class: "ai-meta" }).append(
+                    $("<span>").append($("<i>", { class: "fa-solid fa-circle-check" }), $("<span>", { text: "Trả lời dựa trên dữ liệu từ VibeGram (RAG)" })),
+                    $("<span>", { text: chatTime(Date.now()) })
+                )
+            );
+        }
+
+        async function askVibeGramAi(question) {
+            if (aiBusy || !question) return;
+            aiBusy = true;
+            $("#aiSend").prop("disabled", true);
+            $("#aiInput").val("");
+            appendAiQuestion(question);
+            const $pending = appendAiRow($("<div>", { class: "ai-bubble ai-typing", "aria-label": "Đang trả lời" }).append("<span></span><span></span><span></span>"));
+            try {
+                if (!AI_WORKER_URL) throw new Error("Chưa cấu hình AI_WORKER_URL, xem hướng dẫn trong thư mục worker/.");
+                if (!auth.currentUser) throw new Error("Cần đăng nhập để dùng VibeGram AI.");
+                const items = pickAiCommunityContext(question, await loadAiCorpus());
+                const today = new Date().toLocaleDateString("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
+                const response = await fetch(AI_WORKER_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${await auth.currentUser.getIdToken()}` },
+                    body: JSON.stringify({
+                        scope: "community",
+                        question,
+                        messages: [{ from: "Hệ thống", time: "", text: `Hôm nay là ${today}.` }, ...items.map(aiLineOf), ...pickAiMembers(question)]
+                    })
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(data.error || "AI chưa trả lời được, thử lại sau.");
+                $pending.replaceWith(aiAnswerBubble(data.answer, items));
+            } catch (err) {
+                console.error(err);
+                $pending.replaceWith($("<div>", { class: "ai-bubble is-error", text: err.message || "AI chưa trả lời được, thử lại sau." }));
+            } finally {
+                aiBusy = false;
+                $("#aiSend").prop("disabled", false);
+                scrollAiToBottom();
+            }
+        }
+
+        // Every signed-in user once the Worker is configured; the admin always, to preview it before that
+        function aiPanelEnabled() {
+            return (!!AI_WORKER_URL && !!auth.currentUser) || isAdmin;
+        }
+
+        function openAiPanel() {
+            if (!aiPanelEnabled()) return;
+            if (!$("#aiMessages").children().length) {
+                appendAiRow($("<div>", { class: "ai-bubble" }).append($("<p>", {
+                    class: "ai-text",
+                    text: `Chào ${nameOf(currentAuthor()) || "bạn"} 👋 Mình là VibeGram AI. Hỏi mình về sự kiện hay bài viết trong cộng đồng nhé!`
+                })));
+            }
+            $("#aiFab").hide();
+            $("#aiPanel").fadeIn(150);
+            $("#aiInput").trigger("focus");
+        }
+
+        // Minimizing keeps the conversation; closing clears it
+        function closeAiPanel(clear) {
+            $("#aiPanel").hide();
+            if (clear) $("#aiMessages").empty();
+            $("#aiFab").toggle(aiPanelEnabled());
+        }
+
+        // Signing out (or into another account) closes the panel and forgets its conversation
+        onAuthStateChanged(auth, () => closeAiPanel(true));
+
+        $("#aiFab").on("click", openAiPanel);
+        $("#aiMinimize").on("click", () => closeAiPanel(false));
+        $("#aiClose").on("click", () => closeAiPanel(true));
+
+        $("#aiForm").on("submit", function (e) {
+            e.preventDefault();
+            askVibeGramAi($.trim($("#aiInput").val()));
+        });
+
+        $(".ai-chip").on("click", function () {
+            askVibeGramAi($(this).attr("data-q"));
+        });
+
+        $("#aiMessages").on("click", ".ai-card", function () {
+            const $post = $(`#feed .post[data-id="${$(this).attr("data-id")}"]`);
+            if (!$post.length) return showToast("Bài viết chưa được tải trong bảng tin");
+            // On a phone the panel covers the feed
+            if (window.matchMedia("(max-width: 600px)").matches) closeAiPanel(false);
+            $post[0].scrollIntoView({ behavior: "smooth", block: "center" });
+        });
 
         /* Conversation list */
 
@@ -8020,9 +8414,7 @@
         watchStories();
         watchFriendships();
         watchMusicRooms();
-        if (!currentAuthor()) openPro
-        
-        fileModal();
+        if (!currentAuthor()) openProfileModal();
     </script>
 </body>
 

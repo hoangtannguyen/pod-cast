@@ -1,0 +1,27 @@
+name = "vibegram-rag"
+main = "rag-worker.js"
+compatibility_date = "2026-10-01"
+
+# Run near a US region: from the nearest data center (e.g. Hong Kong) Gemini answers
+# "User location is not supported for the API use"
+[placement]
+region = "gcp:us-east4"
+
+[vars]
+FIREBASE_PROJECT_ID = "mini-photo-app-891a5"
+# The site's origins, comma separated, e.g. "https://example.github.io" (no path, no trailing slash)
+ALLOWED_ORIGIN = "https://hoangtannguyen.github.io,http://127.0.0.1:5500"
+# Firebase Auth uids allowed to ask about private chat messages, comma separated.
+# The community panel (public posts) is open to every signed-in user.
+ALLOWED_UIDS = ""
+# Questions per user per day, all features together
+DAILY_LIMIT = "20"
+GEMINI_MODEL = "gemini-2.5-flash"
+
+# Per-user question counter. Create it once with: npx wrangler kv namespace create AI_USAGE
+# then paste the printed id below (an empty id is rejected).
+[[kv_namespaces]]
+binding = "AI_USAGE"
+id = "dbc5f3c94c784906ad5dded79af30436"
+
+# The key is a secret, never put it here: npx wrangler secret put GEMINI_API_KEY
