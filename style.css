@@ -2444,6 +2444,20 @@ a.profile-about-row:hover {
     cursor: pointer;
 }
 
+.about-birthday {
+    display: flex;
+    gap: 8px;
+}
+
+.about-birthday select {
+    flex: 1;
+    min-width: 0;
+}
+
+.about-birthday select:last-child {
+    flex: 1.4; /* "Năm (tuỳ chọn)" is the longest label */
+}
+
 .profile-panel-actions {
     margin-top: 14px;
     padding: 0 16px;

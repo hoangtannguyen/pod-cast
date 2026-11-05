@@ -507,8 +507,13 @@
                 <input type="checkbox" id="aboutShowBirthday">
                 <span>Hiện sinh nhật 🎂</span>
             </label>
-            <input type="date" id="aboutBirthday" class="modal-input" style="display:none" aria-label="Ngày sinh nhật">
-            <p class="modal-hint">SĐT, địa chỉ và sinh nhật hiện công khai cho mọi người dùng app. Sinh nhật chỉ lưu ngày và tháng, không lưu năm. Giới thiệu và sinh nhật được VibeGram AI dùng để trả lời câu hỏi của mọi người. Tắt công tắc thì thông tin bị xoá, không được lưu.</p>
+            <!-- Own selects instead of <input type="date">: the native calendar follows the browser's language -->
+            <div class="about-birthday" id="aboutBirthday" style="display:none">
+                <select id="aboutBirthDay" class="modal-input" aria-label="Ngày sinh"><option value="">Ngày</option></select>
+                <select id="aboutBirthMonth" class="modal-input" aria-label="Tháng sinh"><option value="">Tháng</option></select>
+                <select id="aboutBirthYear" class="modal-input" aria-label="Năm sinh (không bắt buộc)"><option value="">Năm (tuỳ chọn)</option></select>
+            </div>
+            <p class="modal-hint">SĐT, địa chỉ và sinh nhật hiện công khai cho mọi người dùng app. Năm sinh không bắt buộc, bỏ trống thì chỉ hiện ngày và tháng. Giới thiệu và sinh nhật được VibeGram AI dùng để trả lời câu hỏi của mọi người. Tắt công tắc thì thông tin bị xoá, không được lưu.</p>
             <p class="modal-error" id="aboutError" style="display:none"></p>
             <div class="modal-actions">
                 <button type="button" class="btn-ghost modal-close">Huỷ</button>
@@ -2769,19 +2774,33 @@
             $about.toggle($about.children().length > 0);
         }
 
-        // Birthdays are stored as "MM-DD" (no year); null when missing or malformed
+        // Birthdays are stored as "YYYY-MM-DD", or "MM-DD" when the year is not shown; null when missing
+        // or not a real date (31/02, 29/02 of a non-leap year)
         function parseBirthday(value) {
-            const match = /^(\d{2})-(\d{2})$/.exec(value || "");
+            const match = /^(?:(\d{4})-)?(\d{2})-(\d{2})$/.exec(value || "");
             if (!match) return null;
-            const month = Number(match[1]);
-            const day = Number(match[2]);
-            return month >= 1 && month <= 12 && day >= 1 && day <= 31 ? { month, day } : null;
+            const year = match[1] ? Number(match[1]) : null;
+            const month = Number(match[2]);
+            const day = Number(match[3]);
+            const date = new Date(year || 2000, month - 1, day); // 2000 is a leap year, so 29/02 fits
+            return date.getMonth() === month - 1 && date.getDate() === day ? { year, month, day } : null;
         }
 
         function birthdayLabel(value) {
             const b = parseBirthday(value);
-            return b ? `${String(b.day).padStart(2, "0")}/${String(b.month).padStart(2, "0")}` : "";
+            if (!b) return "";
+            return `${String(b.day).padStart(2, "0")}/${String(b.month).padStart(2, "0")}${b.year ? `/${b.year}` : ""}`;
         }
+
+        // Fills the day / month / year selects once; the year goes back 100 years from now
+        function fillBirthdaySelects() {
+            const thisYear = new Date().getFullYear();
+            for (let d = 1; d <= 31; d++) $("#aboutBirthDay").append($("<option>", { value: d, text: d }));
+            for (let m = 1; m <= 12; m++) $("#aboutBirthMonth").append($("<option>", { value: m, text: `Tháng ${m}` }));
+            for (let y = thisYear; y >= thisYear - 100; y--) $("#aboutBirthYear").append($("<option>", { value: y, text: y }));
+        }
+
+        fillBirthdaySelects();
 
         // Days from today to the next birthday (0 = today); 29/02 falls on 01/03 in other years
         function daysUntilBirthday(value) {
@@ -2805,9 +2824,11 @@
             $("#aboutAddress").val(user.address || "");
             $("#aboutShowPhone").prop("checked", !!user.phone).trigger("change");
             $("#aboutShowAddress").prop("checked", !!user.address).trigger("change");
-            // The date input needs a year: 2000 is a leap year, so 29/02 still fits
-            $("#aboutBirthday").val(parseBirthday(user.birthday) ? `2000-${user.birthday}` : "");
-            $("#aboutShowBirthday").prop("checked", !!parseBirthday(user.birthday)).trigger("change");
+            const birthday = parseBirthday(user.birthday);
+            $("#aboutBirthDay").val(birthday ? birthday.day : "");
+            $("#aboutBirthMonth").val(birthday ? birthday.month : "");
+            $("#aboutBirthYear").val(birthday?.year || "");
+            $("#aboutShowBirthday").prop("checked", !!birthday).trigger("change");
             $("#aboutError").hide();
             $("#aboutModal").fadeIn(150);
         }
@@ -2863,9 +2884,15 @@
             const phone = $("#aboutShowPhone").prop("checked") ? $.trim($("#aboutPhone").val()) : "";
             if (phone && !/^\+?\d{8,15}$/.test(phone.replace(/[\s.-]/g, ""))) return showError("Số điện thoại không hợp lệ");
             const address = $("#aboutShowAddress").prop("checked") ? $.trim($("#aboutAddress").val()) : "";
-            // "YYYY-MM-DD" from the picker, only "MM-DD" is kept
-            const birthday = $("#aboutShowBirthday").prop("checked") ? ($("#aboutBirthday").val() || "").slice(5) : "";
-            if ($("#aboutShowBirthday").prop("checked") && !parseBirthday(birthday)) return showError("Chọn ngày sinh nhật");
+            let birthday = "";
+            if ($("#aboutShowBirthday").prop("checked")) {
+                const day = $("#aboutBirthDay").val();
+                const month = $("#aboutBirthMonth").val();
+                const year = $("#aboutBirthYear").val();
+                if (!day || !month) return showError("Chọn ngày và tháng sinh nhật");
+                birthday = `${year ? `${year}-` : ""}${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+                if (!parseBirthday(birthday)) return showError(`Ngày ${day}/${month}${year ? `/${year}` : ""} không có thật`);
+            }
 
             const about = { bio: $.trim($("#aboutBio").val()), links: links, phone: phone, address: address, birthday: birthday };
             const $save = $("#aboutSave").prop("disabled", true).text("Đang lưu...");
