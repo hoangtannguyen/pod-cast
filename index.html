@@ -311,7 +311,12 @@
             </div>
             <!-- Shown while in a room; kept outside #musicCurrent so re-rendering does not reload the player -->
             <div class="music-player-wrap" id="musicPlayerWrap" style="display:none">
-                <div id="musicPlayer"></div>
+                <div class="music-screen" id="musicScreen">
+                    <div id="musicPlayer"></div>
+                    <!-- Covers the iframe: YouTube's own click-to-pause would only pause this member, out of sync with the room -->
+                    <div class="music-screen-shield"></div>
+                    <button type="button" class="music-fullscreen" id="musicFullscreen" aria-label="Phóng to"><i class="fa-solid fa-expand"></i></button>
+                </div>
                 <div class="music-controls">
                     <button type="button" class="music-play" id="musicToggle" aria-label="Phát / tạm dừng"><i class="fa-solid fa-play"></i></button>
                     <button type="button" class="icon-btn music-skip" id="musicSkip" aria-label="Bài tiếp theo" style="display:none"><i class="fa-solid fa-forward-step"></i></button>
@@ -7381,6 +7386,7 @@
             $("#musicPlayerWrap").toggle(!!room);
             if (!room) {
                 if (musicPlayerReady) musicPlayer.stopVideo();
+                setMusicFullscreen(false);
                 updateMusicMini();
                 return;
             }
@@ -7514,6 +7520,30 @@
                 console.error(err);
                 showToast(errorMessage(err));
             });
+        });
+
+        // Real fullscreen where the browser allows it on a div; iPhone Safari does not, so there the class alone fills the screen
+        function setMusicFullscreen(on) {
+            const screen = document.getElementById("musicScreen");
+            const current = document.fullscreenElement || document.webkitFullscreenElement;
+            $(screen).toggleClass("is-fullscreen", on);
+            $("#musicFullscreen").attr("aria-label", on ? "Thu nhỏ" : "Phóng to")
+                .find("i").attr("class", `fa-solid ${on ? "fa-compress" : "fa-expand"}`);
+            if (on && !current) {
+                const request = screen.requestFullscreen || screen.webkitRequestFullscreen;
+                if (request) Promise.resolve(request.call(screen)).catch(() => {});
+            } else if (!on && current === screen) {
+                Promise.resolve((document.exitFullscreen || document.webkitExitFullscreen).call(document)).catch(() => {});
+            }
+        }
+
+        $("#musicFullscreen").on("click", function () {
+            setMusicFullscreen(!$("#musicScreen").hasClass("is-fullscreen"));
+        });
+
+        // Esc / the system back gesture leaves fullscreen without going through the button
+        $(document).on("fullscreenchange webkitfullscreenchange", function () {
+            if (!(document.fullscreenElement || document.webkitFullscreenElement)) setMusicFullscreen(false);
         });
 
         $("#musicSkip").on("click", function () {
@@ -7990,7 +8020,9 @@
         watchStories();
         watchFriendships();
         watchMusicRooms();
-        if (!currentAuthor()) openProfileModal();
+        if (!currentAuthor()) openPro
+        
+        fileModal();
     </script>
 </body>
 

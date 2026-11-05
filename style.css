@@ -4843,6 +4843,51 @@ a.profile-about-row:hover {
     background: #000;
 }
 
+.music-screen {
+    position: relative;
+}
+
+.music-screen-shield {
+    position: absolute;
+    inset: 0;
+}
+
+.music-fullscreen {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.music-screen.is-fullscreen {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: #000;
+}
+
+.music-screen.is-fullscreen iframe {
+    height: 100%;
+    border-radius: 0;
+}
+
+.music-screen.is-fullscreen .music-fullscreen {
+    top: calc(12px + env(safe-area-inset-top));
+    right: calc(12px + env(safe-area-inset-right));
+    width: 40px;
+    height: 40px;
+    font-size: 16px;
+}
+
 .music-controls {
     display: flex;
     align-items: center;
