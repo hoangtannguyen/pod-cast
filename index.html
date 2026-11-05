@@ -6694,16 +6694,35 @@
 
         // Members (already in usersByAuthor): birthdays in the next 30 days, plus names/bios matching the
         // question. Only what they chose to show on their profile: bio and birthday, never phone or address.
+        // "20/04", "20-4", "ngày 20 tháng 4" -> { day, month }; "tháng 4" -> { month }; else null
+        function birthdayAskedIn(question) {
+            const q = normalizeAiText(question);
+            const date = /(\d{1,2})\s*[/.-]\s*(\d{1,2})/.exec(q) || /ngay\s*(\d{1,2})\s*thang\s*(\d{1,2})/.exec(q);
+            if (date) return { day: Number(date[1]), month: Number(date[2]) };
+            const month = /thang\s*(\d{1,2})/.exec(q);
+            return month ? { month: Number(month[1]) } : null;
+        }
+
         function pickAiMembers(question) {
             const words = [...new Set(normalizeAiText(question).split(/[^a-z0-9]+/))].filter((w) => w.length > 1 && !AI_STOPWORDS.has(w));
             const members = [...usersByAuthor.values()].filter((u) => u.author && (u.bio || parseBirthday(u.birthday)));
-            const soon = members.filter((u) => parseBirthday(u.birthday) && daysUntilBirthday(u.birthday) <= AI_BIRTHDAY_DAYS)
+            const withBirthday = members.filter((u) => parseBirthday(u.birthday))
                 .sort((a, b) => daysUntilBirthday(a.birthday) - daysUntilBirthday(b.birthday));
+            // A date or month in the question picks those birthdays, however far away; "sinh nhật" alone
+            // sends every birthday (nearest first), otherwise only the next 30 days
+            const asked = birthdayAskedIn(question);
+            const onDate = asked ? withBirthday.filter((u) => {
+                const b = parseBirthday(u.birthday);
+                return b.month === asked.month && (!asked.day || b.day === asked.day);
+            }) : [];
+            const soon = /sinh nhat|birthday/.test(normalizeAiText(question))
+                ? withBirthday
+                : withBirthday.filter((u) => daysUntilBirthday(u.birthday) <= AI_BIRTHDAY_DAYS);
             const matched = members.filter((u) => {
                 const text = normalizeAiText(`${nameOf(u.author)} ${u.bio || ""}`);
-                return !soon.includes(u) && words.some((w) => text.includes(w));
+                return words.some((w) => text.includes(w));
             });
-            return [...soon, ...matched].slice(0, AI_MAX_MEMBERS).map((u) => {
+            return [...new Set([...onDate, ...soon, ...matched])].slice(0, AI_MAX_MEMBERS).map((u) => {
                 const days = daysUntilBirthday(u.birthday);
                 const birthday = days === null ? "" : ` Sinh nhật: ${birthdayLabel(u.birthday)} (${days === 0 ? "hôm nay" : `còn ${days} ngày`}).`;
                 return { from: nameOf(u.author), time: "", text: `Thành viên.${u.bio ? ` Giới thiệu: ${u.bio}.` : ""}${birthday}` };
