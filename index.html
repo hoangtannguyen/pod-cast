@@ -541,6 +541,10 @@
             <button type="button" class="ai-chip" data-q="Sắp tới có sự kiện nào?"><i class="fa-regular fa-calendar"></i> Xem thêm sự kiện</button>
             <button type="button" class="ai-chip" data-q="Gần đây có bài viết nào nổi bật?"><i class="fa-solid fa-magnifying-glass"></i> Tìm bài viết liên quan</button>
             <button type="button" class="ai-chip" data-q="Tuần này có ai tổ chức sinh nhật không?">🎂 Sinh nhật tuần này</button>
+            <button type="button" class="ai-chip" data-q="Bài viết nào nhiều lượt thích nhất?">🏆 Bài nhiều like nhất</button>
+            <button type="button" class="ai-chip" data-q="7 ngày qua ai đăng bài nhiều nhất?">📊 Ai đăng nhiều nhất tuần này</button>
+            <button type="button" class="ai-chip" data-q="Tôi đang tham gia những sự kiện nào?">🙋 Kèo tôi tham gia</button>
+            <button type="button" class="ai-chip" data-q="Bài của tôi được bao nhiêu lượt thích, bài nào nhiều nhất?">❤️ Like bài của tôi</button>
         </div>
         <form class="ai-form" id="aiForm">
             <i class="fa-solid fa-wand-magic-sparkles ai-form-icon" aria-hidden="true"></i>
@@ -6674,8 +6678,10 @@
         const AI_MAX_POSTS = 15;
         const AI_MAX_MEMBERS = 30;
         const AI_BIRTHDAY_DAYS = 30;
+        const AI_MAX_TOP = 5; // most liked posts and the asker's own posts, sent whatever the question
+        const AI_MAX_CAPTION = 200;
         const AI_KIND_EMOJI = { "Sinh nhật": "🎂", "Tiệc tùng": "🥳", "Họp mặt": "🤝", "Liên hoan": "🍻", "Dã ngoại": "🏕️" };
-        let aiCorpus = { items: [], loadedAt: 0 };
+        let aiCorpus = { items: [], author: null, loadedAt: 0 };
         let aiBusy = false;
 
         function aiDateKey(ms) {
@@ -6683,40 +6689,82 @@
             return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
         }
 
-        // Upcoming events plus the latest posts, read once every few minutes while the panel is used
+        // Upcoming events, the latest posts and the asker's own posts, read once every few minutes while the panel is used
         async function loadAiCorpus() {
-            if (Date.now() - aiCorpus.loadedAt < AI_CORPUS_TTL) return aiCorpus.items;
-            const [events, recent] = await Promise.all([
+            const me = currentAuthor();
+            if (aiCorpus.author === me && Date.now() - aiCorpus.loadedAt < AI_CORPUS_TTL) return aiCorpus.items;
+            const [events, recent, mine] = await Promise.all([
                 getDocs(query(collection(db, "photos"), where("party.date", ">=", aiDateKey(Date.now())))),
-                getDocs(query(collection(db, "photos"), orderBy("createdAt", "desc"), limit(60)))
+                getDocs(query(collection(db, "photos"), orderBy("createdAt", "desc"), limit(60))),
+                me ? getDocs(query(collection(db, "photos"), where("auth", "==", me))) : { docs: [] }
             ]);
             const byId = new Map();
-            [...events.docs, ...recent.docs].forEach((d) => {
+            [...events.docs, ...recent.docs, ...mine.docs].forEach((d) => {
                 if (!d.data().archived) byId.set(d.id, d.data());
             });
-            aiCorpus = { items: [...byId].map(([id, data]) => ({ id, data })), loadedAt: Date.now() };
+            aiCorpus = { items: [...byId].map(([id, data]) => ({ id, data })), author: me, loadedAt: Date.now() };
             return aiCorpus.items;
         }
 
         function aiLineOf({ id, data }) {
             const p = data.party;
             const from = nameOf(data.auth);
+            const me = currentAuthor();
+            const caption = (data.comment || "").slice(0, AI_MAX_CAPTION);
             if (p) {
-                return { id, from, time: partyWhen(p), text: `Sự kiện ${p.kind || ""}: ${p.title} tại ${p.place}, ${(p.going || []).length}/${p.capacity} người tham gia. ${data.comment || ""}` };
+                const going = p.going || [];
+                const names = going.slice(0, 8).map((userId) => authorOfId(userId)).filter(Boolean).map(nameOf).join(", ");
+                const joined = me && going.includes(userIdOf(me)) ? " Người hỏi đã tham gia." : "";
+                return { id, from, time: partyWhen(p), text: `Sự kiện ${p.kind || ""}: ${p.title} tại ${p.place}, ${going.length}/${p.capacity} người tham gia${names ? ` (${names})` : ""}.${joined} ${caption}` };
             }
-            return { id, from, time: new Date(data.createdAt).toLocaleDateString("vi-VN"), text: `Bài viết: ${data.comment || "(không có chú thích)"}` };
+            const likes = data.likes || [];
+            const liked = me && likes.includes(me) ? " Người hỏi đã thích." : "";
+            return { id, from, time: new Date(data.createdAt).toLocaleDateString("vi-VN"), text: `Bài viết, ${likes.length} lượt thích.${liked} ${caption || "(không có chú thích)"}` };
         }
 
-        // Events are time-sensitive, so all upcoming ones go in; other posts by keyword, else the newest
+        // Events are time-sensitive, so all upcoming ones go in; then the most liked posts and the asker's
+        // newest posts (for "top" and "my" questions), then posts by keyword, else the newest
         function pickAiCommunityContext(question, items) {
             const words = [...new Set(normalizeAiText(question).split(/[^a-z0-9]+/))].filter((w) => w.length > 1 && !AI_STOPWORDS.has(w));
             const events = items.filter((it) => it.data.party).sort((a, b) => a.data.party.date.localeCompare(b.data.party.date)).slice(0, AI_MAX_EVENTS);
             const posts = items.filter((it) => !it.data.party);
+            const top = [...posts].sort((a, b) => (b.data.likes || []).length - (a.data.likes || []).length).slice(0, AI_MAX_TOP);
+            const mine = posts.filter((it) => it.data.auth === currentAuthor())
+                .sort((a, b) => toMillis(b.data.createdAt) - toMillis(a.data.createdAt)).slice(0, AI_MAX_TOP);
             const scored = posts.map((it) => {
                 const text = normalizeAiText(it.data.comment);
                 return { it, score: words.filter((w) => text.includes(w)).length };
             }).filter((s) => s.score > 0).sort((a, b) => b.score - a.score).map((s) => s.it);
-            return [...events, ...(scored.length ? scored : posts).slice(0, AI_MAX_POSTS)];
+            return [...new Set([...events, ...top, ...mine, ...(scored.length ? scored : posts).slice(0, AI_MAX_POSTS)])];
+        }
+
+        // Counts the model should not work out itself: posts per member (all and last 7 days) over the loaded
+        // posts, and the asker's own totals
+        function aiStatsLines(items) {
+            const posts = items.filter((it) => !it.data.party);
+            const weekAgo = Date.now() - 7 * 24 * 3600 * 1000;
+            const ranking = (list) => {
+                const counts = new Map();
+                list.forEach((it) => counts.set(nameOf(it.data.auth), (counts.get(nameOf(it.data.auth)) || 0) + 1));
+                return [...counts].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([name, n]) => `${name} ${n} bài`).join(", ") || "chưa có";
+            };
+            const lines = [{
+                from: "Thống kê",
+                time: "",
+                text: `Trong ${posts.length} bài gần đây, số bài theo người đăng: ${ranking(posts)}. Riêng 7 ngày qua: ${ranking(posts.filter((it) => toMillis(it.data.createdAt) >= weekAgo))}.`
+            }];
+            const me = currentAuthor();
+            if (me) {
+                const mine = posts.filter((it) => it.data.auth === me);
+                const likes = mine.reduce((sum, it) => sum + (it.data.likes || []).length, 0);
+                const joined = items.filter((it) => (it.data.party?.going || []).includes(userIdOf(me))).length;
+                lines.push({
+                    from: "Người hỏi",
+                    time: "",
+                    text: `Người đang hỏi là ${nameOf(me)}: đã đăng ${mine.length} bài, tổng ${likes} lượt thích; đang tham gia ${joined} sự kiện sắp tới. "Tôi", "của tôi" trong câu hỏi là người này.`
+                });
+            }
+            return lines;
         }
 
         // Members (already in usersByAuthor): birthdays in the next 30 days, plus names/bios matching the
@@ -6839,7 +6887,8 @@
             try {
                 if (!AI_WORKER_URL) throw new Error("Chưa cấu hình AI_WORKER_URL, xem hướng dẫn trong thư mục worker/.");
                 if (!auth.currentUser) throw new Error("Cần đăng nhập để dùng VibeGram AI.");
-                const items = pickAiCommunityContext(question, await loadAiCorpus());
+                const corpus = await loadAiCorpus();
+                const items = pickAiCommunityContext(question, corpus);
                 const today = new Date().toLocaleDateString("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
                 const response = await fetch(AI_WORKER_URL, {
                     method: "POST",
@@ -6847,7 +6896,7 @@
                     body: JSON.stringify({
                         scope: "community",
                         question,
-                        messages: [{ from: "Hệ thống", time: "", text: `Hôm nay là ${today}.` }, ...items.map(aiLineOf), ...pickAiMembers(question)]
+                        messages: [{ from: "Hệ thống", time: "", text: `Hôm nay là ${today}.` }, ...aiStatsLines(corpus), ...items.map(aiLineOf), ...pickAiMembers(question)]
                     })
                 });
                 const data = await response.json().catch(() => ({}));
@@ -6873,7 +6922,7 @@
             if (!$("#aiMessages").children().length) {
                 appendAiRow($("<div>", { class: "ai-bubble" }).append($("<p>", {
                     class: "ai-text",
-                    text: `Chào ${nameOf(currentAuthor()) || "bạn"} 👋 Mình là VibeGram AI. Hỏi mình về sự kiện hay bài viết trong cộng đồng nhé!`
+                    text: `Chào ${nameOf(currentAuthor()) || "bạn"} 👋 Mình là VibeGram AI. Hỏi mình về sự kiện, bài viết, bảng xếp hạng hay hoạt động của chính bạn nhé!`
                 })));
             }
             $("#aiFab").hide();
