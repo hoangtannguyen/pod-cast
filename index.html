@@ -6815,7 +6815,11 @@
 
         function pickAiMembers(question) {
             const words = [...new Set(normalizeAiText(question).split(/[^a-z0-9]+/))].filter((w) => w.length > 1 && !AI_STOPWORDS.has(w));
-            const members = [...usersByAuthor.values()].filter((u) => u.author && (u.bio || parseBirthday(u.birthday)));
+            const all = [...usersByAuthor.values()].filter((u) => u.author);
+            const members = all.filter((u) => u.bio || parseBirthday(u.birthday));
+            // A question about members in general lists everyone too, those with a bio first
+            const asksMembers = /thanh vien|member|moi nguoi|nguoi nao|\bai\b/.test(normalizeAiText(question));
+            const everyone = asksMembers ? [...all].sort((a, b) => !!b.bio - !!a.bio) : [];
             const withBirthday = members.filter((u) => parseBirthday(u.birthday))
                 .sort((a, b) => daysUntilBirthday(a.birthday) - daysUntilBirthday(b.birthday));
             // A date or month in the question picks those birthdays, however far away; "sinh nhật" alone
@@ -6832,11 +6836,14 @@
                 const text = normalizeAiText(`${nameOf(u.author)} ${u.bio || ""}`);
                 return words.some((w) => text.includes(w));
             });
-            return [...new Set([...onDate, ...soon, ...matched])].slice(0, AI_MAX_MEMBERS).map((u) => {
+            const lines = [...new Set([...onDate, ...soon, ...matched, ...everyone])].slice(0, AI_MAX_MEMBERS).map((u) => {
                 const days = daysUntilBirthday(u.birthday);
                 const birthday = days === null ? "" : ` Sinh nhật: ${birthdayLabel(u.birthday)} (${days === 0 ? "hôm nay" : `còn ${days} ngày`}).`;
                 return { from: nameOf(u.author), time: "", text: `Thành viên.${u.bio ? ` Giới thiệu: ${u.bio}.` : ""}${birthday}` };
             });
+            if (!asksMembers) return lines;
+            const shown = all.length > AI_MAX_MEMBERS ? `, dưới đây chỉ liệt kê ${AI_MAX_MEMBERS} người` : "";
+            return [{ from: "Thống kê", time: "", text: `Cộng đồng có ${all.length} thành viên${shown}.` }, ...lines];
         }
 
         function scrollAiToBottom() {
