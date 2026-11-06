@@ -94,7 +94,7 @@ export default {
             const error = (await response.json().catch(() => ({}))).error || {};
             console.error("Gemini error", response.status, error.status || "", String(error.message || "").slice(0, 200));
             if (response.status === 429) return reply(429, { error: "VibeGram AI đã dùng hết lượt miễn phí của Gemini, thử lại sau ít phút nhé." });
-            return reply(502, { error: "AI đang sử dụng gói miễn phí nên đôi lúc hệ thống bận. Vui lòng thử lại sau nhé!" });
+            return reply(502, { error: "AI đang sử dụng miễn phí nên đôi lúc hệ thống bận. Vui lòng thử lại sau nhé!" });
         }
         const data = await response.json();
         const answer = (data.candidates?.[0]?.content?.parts || []).map((p) => p.text || "").join("").trim();
