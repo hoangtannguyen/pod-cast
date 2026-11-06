@@ -544,8 +544,16 @@
         <div class="ai-messages" id="aiMessages" aria-live="polite"></div>
         <!-- Filled from AI_SUGGESTIONS: categories, then the picked category's questions -->
         <div class="ai-suggest">
-            <div class="ai-cats" id="aiCats" aria-label="Chủ đề gợi ý"></div>
-            <div class="ai-chips" id="aiChips" aria-label="Câu hỏi gợi ý"></div>
+            <div class="ai-row">
+                <button type="button" class="ai-scroll is-prev" aria-label="Cuộn sang trái"><i class="fa-solid fa-chevron-left"></i></button>
+                <div class="ai-cats" id="aiCats" aria-label="Chủ đề gợi ý"></div>
+                <button type="button" class="ai-scroll is-next" aria-label="Cuộn sang phải"><i class="fa-solid fa-chevron-right"></i></button>
+            </div>
+            <div class="ai-row">
+                <button type="button" class="ai-scroll is-prev" aria-label="Cuộn sang trái"><i class="fa-solid fa-chevron-left"></i></button>
+                <div class="ai-chips" id="aiChips" aria-label="Câu hỏi gợi ý"></div>
+                <button type="button" class="ai-scroll is-next" aria-label="Cuộn sang phải"><i class="fa-solid fa-chevron-right"></i></button>
+            </div>
         </div>
         <form class="ai-form" id="aiForm">
             <i class="fa-solid fa-wand-magic-sparkles ai-form-icon" aria-hidden="true"></i>
@@ -6999,6 +7007,7 @@
             }
             $("#aiFab").hide();
             $("#aiPanel").fadeIn(150);
+            updateAiArrows(); // the rows have no width while the panel is hidden
             $("#aiInput").trigger("focus");
         }
 
@@ -7035,8 +7044,26 @@
                 "data-q": q,
                 text: q
             })));
+            updateAiArrows();
+        }
+
+        // Each < > shows only while its side of the row still has more to scroll
+        function updateAiArrows() {
+            $("#aiCats, #aiChips").each(function () {
+                const $row = $(this).parent();
+                $row.find(".is-prev").toggleClass("is-visible", this.scrollLeft > 2);
+                $row.find(".is-next").toggleClass("is-visible", this.scrollLeft + this.clientWidth < this.scrollWidth - 2);
+            });
         }
         renderAiSuggestions(0);
+
+        $("#aiCats, #aiChips").on("scroll", updateAiArrows);
+        $(window).on("resize", updateAiArrows);
+
+        $(".ai-scroll").on("click", function () {
+            const row = $(this).siblings(".ai-cats, .ai-chips")[0];
+            row.scrollBy({ left: ($(this).hasClass("is-prev") ? -1 : 1) * row.clientWidth * 0.7, behavior: "smooth" });
+        });
 
         $("#aiCats").on("click", ".ai-cat", function () {
             renderAiSuggestions(Number($(this).attr("data-index")));

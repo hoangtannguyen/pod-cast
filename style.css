@@ -5996,31 +5996,53 @@ a.profile-about-row:hover {
     display: none;
 }
 
-/* Mouse users get a thin scrollbar and a grab cursor (the rows can be dragged) */
-@media (hover: hover) and (pointer: fine) {
-    .ai-cats,
-    .ai-chips {
-        padding-bottom: 6px;
-        scrollbar-width: thin;
-        scrollbar-color: #4c3f7a transparent;
-        cursor: grab;
-    }
+/* < > buttons over each suggestion row, shown only when that side has more to scroll */
+.ai-row {
+    position: relative;
+}
 
-    .ai-cats:active,
-    .ai-chips:active {
-        cursor: grabbing;
-    }
+.ai-scroll {
+    position: absolute;
+    top: 50%;
+    z-index: 1;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 1px solid #3a3160;
+    border-radius: 50%;
+    background: #241c44;
+    color: #e4e0f3;
+    font-size: 12px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+    transform: translateY(-50%);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
 
-    .ai-cats::-webkit-scrollbar,
-    .ai-chips::-webkit-scrollbar {
-        display: block;
-        height: 6px;
-    }
+.ai-scroll:hover {
+    border-color: #a855f7;
+    background: #3b2a6e;
+}
 
-    .ai-cats::-webkit-scrollbar-thumb,
-    .ai-chips::-webkit-scrollbar-thumb {
-        border-radius: 3px;
-        background: #4c3f7a;
+.ai-scroll.is-prev {
+    left: 6px;
+}
+
+.ai-scroll.is-next {
+    right: 6px;
+}
+
+.ai-scroll.is-visible {
+    display: flex;
+}
+
+/* Touch screens swipe instead */
+@media (hover: none) {
+    .ai-scroll.is-visible {
+        display: none;
     }
 }
 
