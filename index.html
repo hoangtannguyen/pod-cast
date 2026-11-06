@@ -695,6 +695,7 @@
                     <span class="money-unit">đ</span>
                 </span>
             </label>
+            <p class="modal-hint item-price-hint" id="itemPriceHint" style="display:none"></p>
             <div class="event-row">
                 <label class="event-field">Tình trạng
                     <select id="itemCondition" class="modal-input">
@@ -5253,9 +5254,28 @@
             $("#itemCondition").val(composerItem?.condition || "Mới 99%");
             $("#itemSize").val(composerItem?.size || "");
             $("#itemError").hide();
+            updateItemPriceHint();
             $("#itemModal").fadeIn(150);
             $("#itemName").trigger("focus");
         }
+
+        // Price hint from items on sale with a word of the name in common (the most words in common win)
+        function updateItemPriceHint() {
+            const words = [...new Set(normalizeAiText($("#itemName").val()).split(/[^a-z0-9]+/))].filter((w) => w.length > 1 && !AI_STOPWORDS.has(w));
+            const scored = passItems.filter((it) => it.data.item?.price > 0).map((it) => {
+                const name = normalizeAiText(it.data.item.name).split(/[^a-z0-9]+/);
+                return { price: it.data.item.price, score: words.filter((w) => name.includes(w)).length };
+            });
+            const best = Math.max(0, ...scored.map((s) => s.score));
+            const prices = best ? scored.filter((s) => s.score === best).map((s) => s.price).sort((a, b) => a - b) : [];
+            if (!prices.length) return $("#itemPriceHint").hide();
+            const median = prices[Math.floor(prices.length / 2)];
+            $("#itemPriceHint").text(prices.length > 1
+                ? `💡 Gợi ý giá: ${prices.length} món tương tự đang pass ${formatMoney(prices[0])} – ${formatMoney(prices[prices.length - 1])}, phổ biến khoảng ${formatMoney(median)}`
+                : `💡 Gợi ý giá: 1 món tương tự đang pass giá ${formatMoney(median)}`).show();
+        }
+
+        $("#itemName").on("input", updateItemPriceHint);
 
         $("#itemForm").on("submit", function (e) {
             e.preventDefault();
@@ -6698,6 +6718,7 @@
             { icon: "👥", label: "Thành viên", questions: ["Giới thiệu vài thành viên trong cộng đồng", "Ai thích chụp ảnh hoặc du lịch?", "Ai đăng bài nhiều nhất?"] },
             { icon: "🛍️", label: "Pass đồ", questions: ["Đang có món đồ nào được pass?", "Món đồ pass nào rẻ nhất?", "Có ai pass quần áo không?"] },
             { icon: "☕", label: "Ăn uống", questions: ["Có quán cà phê nào chill được mọi người review?", "Quán nhậu nào hay được rủ đi?", "Chỗ nào hợp tụ tập đông người?"] },
+            { icon: "🍻", label: "Ghép kèo", questions: ["Tối nay rảnh quá, có ai đi chill không?", "Có ai đi nhậu không?", "Cuối tuần ai rảnh đi cà phê?"] },
             { icon: "🎧", label: "Phòng nhạc", questions: ["Đang có phòng nghe nhạc nào?", "Phòng nhạc nào đông người nghe nhất?", "Bạn bè mình đang nghe nhạc ở phòng nào?"] },
             { icon: "🙋", label: "Của tôi", questions: ["Tôi đang tham gia những sự kiện nào?", "Bài của tôi được bao nhiêu lượt thích, bài nào nhiều nhất?", "Tôi đã thích những bài nào?"] }
         ];
@@ -6738,7 +6759,8 @@
                 const joined = me && going.includes(userIdOf(me)) ? " Người hỏi đã tham gia." : "";
                 return { id, from, time: partyWhen(p), text: `Sự kiện ${p.kind || ""}: ${p.title} tại ${p.place}, ${going.length}/${p.capacity} người tham gia${names ? ` (${names})` : ""}.${joined} ${caption}` };
             }
-            const time = new Date(data.createdAt).toLocaleDateString("vi-VN");
+            // With the hour, so "tối nay" / "rảnh quá" posts can be told apart from older ones
+            const time = new Date(toMillis(data.createdAt)).toLocaleString("vi-VN", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit", year: "numeric" });
             if (data.item) {
                 const item = data.item;
                 const details = [formatMoney(item.price), item.condition, item.size ? `size ${item.size}` : ""].filter(Boolean).join(", ");
@@ -6751,6 +6773,9 @@
 
         const AI_PLACE_RE = /quan|cafe|ca phe|coffee|tra sua|nhau|an uong|an gi|uong gi|nha hang|tu tap|dia diem|cho nao|di dau/;
         const AI_PLACE_WORDS = ["quan", "cafe", "coffee", "ca phe", "tra sua", "nhau", "nha hang", "lau", "nuong", "bia", "chill", "view", "ngon"];
+
+        const AI_HANGOUT_RE = /ranh|nhau|chill|keo|tu tap|di choi|di an|ca phe|cafe|them|co ai|ai di|buon|chan qua/;
+        const AI_HANGOUT_WINDOW = 2 * 24 * 3600 * 1000;
 
         // The recent and own posts also hold past events, so the date alone (from the query) is not enough
         function isUpcomingParty(p) {
@@ -6767,7 +6792,7 @@
             const forSale = items.filter((it) => it.data.item && !it.data.item.sold)
                 .sort((a, b) => toMillis(b.data.createdAt) - toMillis(a.data.createdAt));
             const matchedItems = forSale.filter((it) => {
-                const text = normalizeAiText(`${it.data.item.name} ${it.data.comment || ""}`);
+                const text = normalizeAiText(`${it.data.item.name} ${it.data.item.size || ""} ${it.data.comment || ""}`);
                 return words.some((w) => text.includes(w));
             });
             const top = [...posts].sort((a, b) => (b.data.likes || []).length - (a.data.likes || []).length).slice(0, AI_MAX_TOP);
@@ -6779,8 +6804,13 @@
                 const text = normalizeAiText(it.data.comment);
                 return { it, score: matchWords.filter((w) => text.includes(w)).length };
             }).filter((s) => s.score > 0).sort((a, b) => b.score - a.score).map((s) => s.it);
+            // Looking for company ("rảnh quá", "có ai đi nhậu"): others' posts of the last two days, to match with
+            const hangout = AI_HANGOUT_RE.test(normalizeAiText(question))
+                ? posts.filter((it) => it.data.auth !== currentAuthor() && toMillis(it.data.createdAt) >= Date.now() - AI_HANGOUT_WINDOW)
+                    .sort((a, b) => toMillis(b.data.createdAt) - toMillis(a.data.createdAt)).slice(0, AI_MAX_POSTS)
+                : [];
             return [...new Set([
-                ...events, ...top, ...mine, ...(scored.length ? scored : posts).slice(0, AI_MAX_POSTS),
+                ...events, ...hangout, ...top, ...mine, ...(scored.length ? scored : posts).slice(0, AI_MAX_POSTS),
                 ...(matchedItems.length ? matchedItems : forSale).slice(0, AI_MAX_ITEMS)
             ])];
         }
@@ -6911,6 +6941,50 @@
                     $("<button>", { type: "button", class: "ai-card-view", "data-ai-act": "room", "data-room": room.id, text: inside ? "Mở phòng" : "Tham gia phòng" })
                 )
             );
+        }
+
+        // Matchmaking: the authors (not the asker) of the posts the model matched, with a quick group chat
+        function aiMatchCardOf(posts) {
+            const me = currentAuthor();
+            const authors = [...new Set(posts.map((it) => it.data.auth))].filter((a) => a && a !== me && userIdOf(a)).slice(0, 6);
+            if (!authors.length) return null;
+            const names = authors.map(nameOf).join(", ");
+            return $("<div>", { class: "ai-card ai-member" }).append(
+                $("<div>", { class: "ai-match-avatars" }).append(authors.map((a) => fillAvatar($("<span>", { class: "avatar ai-member-avatar", title: nameOf(a) }), a))),
+                $("<strong>", { class: "ai-card-title", text: `🍻 ${authors.length} thành viên cũng đang tìm kèo` }),
+                $("<span>", { class: "ai-card-caption", text: names }),
+                $("<div>", { class: "ai-next" }).append(
+                    $("<button>", { type: "button", class: "ai-card-view", "data-ai-act": "group", "data-authors": JSON.stringify(authors), text: "💬 Tạo nhóm chat nhanh" })
+                )
+            );
+        }
+
+        // A group chat with the matched members, after the asker confirms (it adds them without asking)
+        async function createAiMatchGroup($btn) {
+            if (!requireAuthor()) return;
+            const myId = userIdOf(currentAuthor());
+            let authors = [];
+            try {
+                authors = JSON.parse($btn.attr("data-authors") || "[]");
+            } catch (e) {
+                return;
+            }
+            const memberIds = authors.map(userIdOf).filter(Boolean);
+            if (!myId || !memberIds.length) return showToast("Chưa tạo được nhóm, thử tải lại trang.");
+            if (!confirm(`Tạo nhóm chat với ${authors.map(nameOf).join(", ")}?`)) return;
+            $btn.prop("disabled", true);
+            try {
+                const day = new Date().toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" });
+                const conv = { type: "group", name: `🍻 Kèo ${day}`, memberIds: [myId, ...memberIds], createdBy: myId, lastText: "Nhóm vừa được tạo từ VibeGram AI", lastAt: Date.now(), lastFromId: myId };
+                const ref = await addDoc(collection(db, "conversations"), conv);
+                if (!WIDE_LAYOUT.matches) closeAiPanel(false);
+                openConversation({ id: ref.id, ...conv });
+            } catch (err) {
+                console.error(err);
+                showToast(errorMessage(err));
+            } finally {
+                $btn.prop("disabled", false);
+            }
         }
 
         // Name, address and vibe come from the model as plain text; the map link is built here
@@ -7061,7 +7135,10 @@
                 const [name = "", address = "", vibe = "", id = ""] = body.split("|").map((s) => s.trim());
                 return { name: name.slice(0, 80), address: address.slice(0, 120), vibe: vibe.slice(0, 160), post: items.find((it) => it.id === id) };
             }).filter((place) => place.name).slice(0, 4);
-            let text = answer.replace(/\s*\[\[place:[^\]]*\]\]/g, "").replace(/\s*\[\[web:[^\]]*\]\]/g, "").replace(/\s*\[\[offtopic(?::[^\]]*)?\]\]/g, "").replace(/\s*\[\[post:([^\]\s]+)\]\]/g, (mark, id) => {
+            // [[match:ID,ID]]: posts of others looking for the same plan; one card with their authors
+            const matchIds = (/\[\[match:([^\]]{1,400})\]\]/.exec(answer)?.[1] || "").split(",").map((s) => s.trim()).filter(Boolean);
+            const matched = matchIds.map((id) => items.find((it) => it.id === id)).filter(Boolean);
+            let text = answer.replace(/\s*\[\[match:[^\]]*\]\]/g, "").replace(/\s*\[\[place:[^\]]*\]\]/g, "").replace(/\s*\[\[web:[^\]]*\]\]/g, "").replace(/\s*\[\[offtopic(?::[^\]]*)?\]\]/g, "").replace(/\s*\[\[post:([^\]\s]+)\]\]/g, (mark, id) => {
                 if (!ids.includes(id)) ids.push(id);
                 return "";
             }).trim();
@@ -7072,7 +7149,7 @@
                 text = text.slice(newline + 1).trim();
             }
             // A post already shown as a place's review does not get its own card too
-            const reviewed = new Set(places.map((place) => place.post?.id).filter(Boolean));
+            const reviewed = new Set([...places.map((place) => place.post?.id), ...matched.map((it) => it.id)].filter(Boolean));
             const found = ids.filter((id) => !reviewed.has(id)).map((id) => items.find((it) => it.id === id)).filter(Boolean);
             const rooms = ids.map((id) => musicRooms.find((room) => room.id === id)).filter(Boolean);
             const users = [...usersByAuthor.values()];
@@ -7080,11 +7157,12 @@
             const members = ids.filter((id) => id.startsWith("m-")).map((id) => users.find((u) => u.author && `m-${u.id}` === id)).filter(Boolean);
             const featured = found.length > 0 && AI_RANKING_RE.test(normalizeAiText(question));
             const cards = [
+                aiMatchCardOf(matched),
                 ...places.map(aiPlaceCardOf),
                 ...found.slice(0, 4).map((it, i) => aiCardOf(it, featured && i === 0)),
                 ...rooms.slice(0, 4).map(aiRoomCardOf),
                 ...members.slice(0, 4).map((u) => aiMemberCardOf(u, topPosters))
-            ];
+            ].filter(Boolean);
             // More members than cards: say so, and offer the next ones (the model has no memory of this answer)
             const shown = members.slice(0, 4).map((u) => nameOf(u.author));
             const moreMembers = shown.length ? users.filter((u) => u.author).length - shown.length : 0;
@@ -7161,14 +7239,39 @@
             return items;
         }
 
-        async function discoverAiRandom() {
+        // Answers built here without the model (random find, memories): label shown as the asker's bubble,
+        // build() returns the answer's { title, text, posts, icon, meta }
+        async function runAiLocal(label, build) {
             if (aiBusy) return;
             aiBusy = true;
             $("#aiSend").prop("disabled", true);
-            appendAiQuestion("🎲 Khám phá ngẫu nhiên");
+            appendAiQuestion(label);
             $("#aiPanel").removeClass("is-fresh");
             updateAiSuggestBar();
             try {
+                const { title, text, posts, icon, meta } = await build();
+                appendAiRow($("<div>", { class: "ai-bubble" }).append(
+                    $("<h3>", { class: "ai-answer-title", text: title }),
+                    $("<p>", { class: "ai-text", text: text }),
+                    posts.length ? $("<div>", { class: "ai-cards" }).append(posts.map((it) => aiCardOf(it))) : null,
+                    aiNextChips(posts[0]),
+                    $("<div>", { class: "ai-meta" }).append(
+                        $("<span>").append($("<i>", { class: icon }), $("<span>", { text: meta })),
+                        $("<span>", { text: chatTime(Date.now()) })
+                    )
+                ));
+            } catch (err) {
+                console.error(err);
+                appendAiRow($("<div>", { class: "ai-bubble is-error", text: err.message || "Chưa tìm được, thử lại sau." }));
+            } finally {
+                aiBusy = false;
+                $("#aiSend").prop("disabled", false);
+                scrollAiToBottom();
+            }
+        }
+
+        function discoverAiRandom() {
+            return runAiLocal("🎲 Khám phá ngẫu nhiên", async () => {
                 const others = (await loadAiDiscoverPool()).filter((it) => it.data.auth !== currentAuthor());
                 const older = others.filter((it) => toMillis(it.data.createdAt) < Date.now() - AI_DISCOVER_MIN_AGE);
                 let pool = (older.length ? older : others).filter((it) => !aiDiscovered.has(it.id));
@@ -7179,24 +7282,46 @@
                 if (!pool.length) throw new Error("Chưa có bài viết nào để khám phá.");
                 const it = pool[Math.floor(Math.random() * pool.length)];
                 aiDiscovered.add(it.id);
-                appendAiRow($("<div>", { class: "ai-bubble" }).append(
-                    $("<h3>", { class: "ai-answer-title", text: "🎲 Biết đâu bạn đã lướt qua" }),
-                    $("<p>", { class: "ai-text", text: `Bài của ${nameOf(it.data.auth)} từ ${new Date(toMillis(it.data.createdAt)).toLocaleDateString("vi-VN")} 👀` }),
-                    $("<div>", { class: "ai-cards" }).append(aiCardOf(it)),
-                    aiNextChips(it),
-                    $("<div>", { class: "ai-meta" }).append(
-                        $("<span>").append($("<i>", { class: "fa-solid fa-shuffle" }), $("<span>", { text: "Gợi ý ngẫu nhiên từ VibeGram" })),
-                        $("<span>", { text: chatTime(Date.now()) })
-                    )
-                ));
-            } catch (err) {
-                console.error(err);
-                appendAiRow($("<div>", { class: "ai-bubble is-error", text: err.message || "Chưa khám phá được, thử lại sau." }));
-            } finally {
-                aiBusy = false;
-                $("#aiSend").prop("disabled", false);
-                scrollAiToBottom();
-            }
+                return {
+                    title: "🎲 Biết đâu bạn đã lướt qua",
+                    text: `Bài của ${nameOf(it.data.auth)} từ ${new Date(toMillis(it.data.createdAt)).toLocaleDateString("vi-VN")} 👀`,
+                    posts: [it],
+                    icon: "fa-solid fa-shuffle",
+                    meta: "Gợi ý ngẫu nhiên từ VibeGram"
+                };
+            });
+        }
+
+        // Memory lane: the most liked posts and events from around this date (± a few days) in past years
+        const AI_MEMORY_YEARS = 3;
+        const AI_MEMORY_DAYS = 3;
+        const AI_MEMORY_SHOWN = 3;
+
+        function showAiMemories() {
+            return runAiLocal("📅 Ngày này năm xưa", async () => {
+                const now = new Date();
+                const day = 24 * 3600 * 1000;
+                const snapshots = await Promise.all(Array.from({ length: AI_MEMORY_YEARS }, (_, i) => {
+                    const center = new Date(now.getFullYear() - i - 1, now.getMonth(), now.getDate()).getTime();
+                    return getDocs(query(collection(db, "photos"),
+                        where("createdAt", ">=", center - AI_MEMORY_DAYS * day),
+                        where("createdAt", "<", center + (AI_MEMORY_DAYS + 1) * day)));
+                }));
+                const posts = snapshots.flatMap((s) => s.docs.map((d) => ({ id: d.id, data: d.data() })))
+                    .filter(({ data }) => !data.archived && !data.item)
+                    .sort((a, b) => (b.data.likes || []).length - (a.data.likes || []).length)
+                    .slice(0, AI_MEMORY_SHOWN);
+                const years = [...new Set(posts.map((it) => now.getFullYear() - new Date(toMillis(it.data.createdAt)).getFullYear()))];
+                return {
+                    title: "📅 Ngày này năm xưa",
+                    text: posts.length
+                        ? `Dịp này ${years.length === 1 ? `${years[0]} năm` : "những năm"} trước, hội Vibe-er đã có ${posts.length} khoảnh khắc đáng nhớ nè! Xem lại cùng mình nhé ✨`
+                        : "Dịp này những năm trước chưa có bài nào, cùng nhau tạo kỷ niệm mới nha ✨",
+                    posts,
+                    icon: "fa-solid fa-clock-rotate-left",
+                    meta: "Kỷ niệm từ VibeGram"
+                };
+            });
         }
 
         async function askVibeGramAi(question) {
@@ -7296,11 +7421,12 @@
                     class: "ai-topic",
                     "data-index": i
                 }).append(
-                    $("<span>", { class: "ai-topic-icon", "aria-hidden": "true", text: category.icon }),
-                    $("<strong>", { class: "ai-topic-text", text: category.label }),
-                    $("<i>", { class: "fa-solid fa-chevron-right", "aria-hidden": "true" })
+                    $("<span>", { class: "ai-topic-text", text: category.label })
                 ))),
-                $("<button>", { type: "button", class: "ai-random", "data-ai-act": "random", text: "🎲 Khám phá ngẫu nhiên" }),
+                $("<div>", { class: "ai-quick" }).append(
+                    $("<button>", { type: "button", class: "ai-random", "data-ai-act": "random", text: "🎲 Khám phá ngẫu nhiên" }),
+                    $("<button>", { type: "button", class: "ai-random", "data-ai-act": "memory", text: "📅 Ngày này năm xưa" })
+                ),
                 $("<p>", { class: "ai-tip", text: "💡 Bạn cũng có thể nhập câu hỏi trực tiếp ở bên dưới nhé!" })
             ));
         }
@@ -7418,6 +7544,8 @@
             if (act === "random") return discoverAiRandom();
             if (act === "ask") return askVibeGramAi($(this).attr("data-q"));
             if (act === "room") return joinMusicRoomFromAi($(this));
+            if (act === "group") return createAiMatchGroup($(this));
+            if (act === "memory") return showAiMemories();
             if (act === "profile") {
                 if (!WIDE_LAYOUT.matches) closeAiPanel(false);
                 return showProfile($(this).attr("data-author"));

@@ -5863,6 +5863,15 @@ a.profile-about-row:hover {
     margin-top: 0;
 }
 
+.ai-match-avatars {
+    display: flex;
+}
+
+.ai-match-avatars .avatar + .avatar {
+    margin-left: -10px;
+    border: 2px solid #211b3a;
+}
+
 .ai-member-tags {
     display: flex;
     flex-wrap: wrap;
@@ -6092,31 +6101,22 @@ a.profile-about-row:hover {
     filter: drop-shadow(0 0 10px rgba(168, 85, 247, 0.6));
 }
 
+/* Topics as small pills that wrap, so the welcome screen stays short */
 .ai-topics {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
 .ai-topic {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-width: 0;
-    padding: 12px 10px;
-    border: 1px solid #2e2648;
-    border-radius: 14px;
+    padding: 7px 14px;
+    border: 1px solid #3a3160;
+    border-radius: 999px;
     background: #1a1530;
     color: inherit;
     font: inherit;
-    text-align: left;
     cursor: pointer;
     transition: border-color 0.15s, background 0.15s;
-}
-
-/* An odd last card takes the whole row */
-.ai-topic:last-child:nth-child(odd) {
-    grid-column: 1 / -1;
 }
 
 .ai-topic:hover {
@@ -6124,26 +6124,17 @@ a.profile-about-row:hover {
     background: #231c40;
 }
 
-.ai-topic-icon {
-    flex-shrink: 0;
-    font-size: 24px;
-    line-height: 1;
-}
-
 .ai-topic-text {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    font-size: 14px;
+    font-size: 13px;
+    font-weight: 600;
     color: #fff;
     white-space: nowrap;
-    text-overflow: ellipsis;
 }
 
-.ai-topic > i {
-    flex-shrink: 0;
-    font-size: 11px;
-    color: #a59fbf;
+.ai-quick {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
 }
 
 .ai-random {
