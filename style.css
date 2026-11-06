@@ -5987,6 +5987,15 @@ a.profile-about-row:hover {
     filter: brightness(1.1);
 }
 
+/* Place card: review and map buttons side by side */
+.ai-card-info .ai-next {
+    margin-top: 4px;
+}
+
+.ai-next .ai-card-view {
+    margin-top: 0;
+}
+
 .ai-status {
     display: flex;
     align-items: center;

@@ -6697,6 +6697,7 @@
             { icon: "📅", label: "Sự kiện", questions: ["Sắp tới có sự kiện nào?", "Cuối tuần này có kèo gì?", "Kèo nào đang đông người tham gia nhất?"] },
             { icon: "👥", label: "Thành viên", questions: ["Giới thiệu vài thành viên trong cộng đồng", "Ai thích chụp ảnh hoặc du lịch?", "Ai đăng bài nhiều nhất?"] },
             { icon: "🛍️", label: "Pass đồ", questions: ["Đang có món đồ nào được pass?", "Món đồ pass nào rẻ nhất?", "Có ai pass quần áo không?"] },
+            { icon: "☕", label: "Ăn uống", questions: ["Có quán cà phê nào chill được mọi người review?", "Quán nhậu nào hay được rủ đi?", "Chỗ nào hợp tụ tập đông người?"] },
             { icon: "🎧", label: "Phòng nhạc", questions: ["Đang có phòng nghe nhạc nào?", "Phòng nhạc nào đông người nghe nhất?", "Bạn bè mình đang nghe nhạc ở phòng nào?"] },
             { icon: "🙋", label: "Của tôi", questions: ["Tôi đang tham gia những sự kiện nào?", "Bài của tôi được bao nhiêu lượt thích, bài nào nhiều nhất?", "Tôi đã thích những bài nào?"] }
         ];
@@ -6748,6 +6749,9 @@
             return { id, from, time, text: `Bài viết, ${likes.length} lượt thích.${liked} ${caption || "(không có chú thích)"}` };
         }
 
+        const AI_PLACE_RE = /quan|cafe|ca phe|coffee|tra sua|nhau|an uong|an gi|uong gi|nha hang|tu tap|dia diem|cho nao|di dau/;
+        const AI_PLACE_WORDS = ["quan", "cafe", "coffee", "ca phe", "tra sua", "nhau", "nha hang", "lau", "nuong", "bia", "chill", "view", "ngon"];
+
         // The recent and own posts also hold past events, so the date alone (from the query) is not enough
         function isUpcomingParty(p) {
             return !!p && new Date(`${p.date}T${p.time}`).getTime() >= Date.now();
@@ -6769,14 +6773,31 @@
             const top = [...posts].sort((a, b) => (b.data.likes || []).length - (a.data.likes || []).length).slice(0, AI_MAX_TOP);
             const mine = posts.filter((it) => it.data.auth === currentAuthor())
                 .sort((a, b) => toMillis(b.data.createdAt) - toMillis(a.data.createdAt)).slice(0, AI_MAX_TOP);
+            // Places to eat, drink or hang out: posts mentioning any place word count too
+            const matchWords = AI_PLACE_RE.test(normalizeAiText(question)) ? [...new Set([...words, ...AI_PLACE_WORDS])] : words;
             const scored = posts.map((it) => {
                 const text = normalizeAiText(it.data.comment);
-                return { it, score: words.filter((w) => text.includes(w)).length };
+                return { it, score: matchWords.filter((w) => text.includes(w)).length };
             }).filter((s) => s.score > 0).sort((a, b) => b.score - a.score).map((s) => s.it);
             return [...new Set([
                 ...events, ...top, ...mine, ...(scored.length ? scored : posts).slice(0, AI_MAX_POSTS),
                 ...(matchedItems.length ? matchedItems : forSale).slice(0, AI_MAX_ITEMS)
             ])];
+        }
+
+        // The asker's own birthday and age, worked out here so the model does not count years itself
+        function aiMyProfileText(me) {
+            const user = usersByAuthor.get(me) || {};
+            const b = parseBirthday(user.birthday);
+            const bio = user.bio ? ` Giới thiệu của người hỏi: ${user.bio}.` : "";
+            if (!b) return `Người hỏi chưa điền sinh nhật trong phần Giới thiệu của trang cá nhân.${bio}`;
+            const days = daysUntilBirthday(user.birthday);
+            const next = days === 0 ? "hôm nay là sinh nhật" : `còn ${days} ngày nữa tới sinh nhật`;
+            if (!b.year) return `Sinh nhật của người hỏi: ${birthdayLabel(user.birthday)}, ${next}; không ghi năm sinh nên không tính được tuổi.${bio}`;
+            const today = new Date();
+            const thisYear = today.getFullYear();
+            const passed = new Date(thisYear, b.month - 1, b.day) <= today;
+            return `Sinh nhật của người hỏi: ${birthdayLabel(user.birthday)}, ${next}. Năm ${thisYear} người hỏi tròn ${thisYear - b.year} tuổi, hiện tại ${passed ? thisYear - b.year : thisYear - b.year - 1} tuổi.${bio}`;
         }
 
         // Counts the model should not work out itself: posts per member (all and last 7 days) over the loaded
@@ -6802,7 +6823,7 @@
                 lines.push({
                     from: "Người hỏi",
                     time: "",
-                    text: `Người đang hỏi là ${nameOf(me)}: đã đăng ${mine.length} bài, tổng ${likes} lượt thích; đang tham gia ${joined} sự kiện sắp tới. "Tôi", "của tôi" trong câu hỏi là người này.`
+                    text: `Người đang hỏi là ${nameOf(me)}: đã đăng ${mine.length} bài, tổng ${likes} lượt thích; đang tham gia ${joined} sự kiện sắp tới. "Tôi", "của tôi" trong câu hỏi là người này. ${aiMyProfileText(me)}`
                 });
             }
             return lines;
@@ -6888,6 +6909,30 @@
                     line("fa-solid fa-crown", `Chủ phòng: ${nameOf(room.host)}`),
                     line("fa-solid fa-headphones", `${members.length} đang nghe · ${(room.queue || []).length} bài chờ`),
                     $("<button>", { type: "button", class: "ai-card-view", "data-ai-act": "room", "data-room": room.id, text: inside ? "Mở phòng" : "Tham gia phòng" })
+                )
+            );
+        }
+
+        // Name, address and vibe come from the model as plain text; the map link is built here
+        function aiPlaceCardOf({ name, address, vibe, post }) {
+            const first = post ? postMedia(post.data)[0] : null;
+            const line = (icon, text) => $("<span>", { class: "ai-card-line" }).append($("<i>", { class: icon }), $("<span>", { text: text }));
+            return $("<div>", { class: "ai-card" }).append(
+                first ? $("<img>", { class: "ai-card-thumb", src: mediaThumb(first, 200), alt: "", loading: "lazy" }) : null,
+                $("<div>", { class: "ai-card-info" }).append(
+                    $("<strong>", { class: "ai-card-title", text: `📍 ${name}` }),
+                    address ? line("fa-solid fa-location-dot", address) : null,
+                    vibe ? $("<span>", { class: "ai-card-caption", text: `“${vibe}”` }) : null,
+                    $("<div>", { class: "ai-next" }).append(
+                        post ? $("<button>", { type: "button", class: "ai-next-chip ai-card-view", "data-id": post.id, "data-kind": "post", text: post.data.party ? "📅 Xem sự kiện" : "📝 Xem bài review" }) : null,
+                        $("<a>", {
+                            class: "ai-next-chip is-link",
+                            href: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${name} ${address}`.trim())}`,
+                            target: "_blank",
+                            rel: "noopener noreferrer",
+                            text: "🗺️ Xem vị trí"
+                        })
+                    )
                 )
             );
         }
@@ -7011,7 +7056,12 @@
             const offtopic = mark ? (mark[1] || "").trim() || true : false;
             const webLinks = [...answer.matchAll(/\[\[web:(weather|maps|google):([^\]]{1,80})\]\]/g)]
                 .map(([, kind, q]) => ({ kind, q: q.trim() })).filter((link) => link.q).slice(0, 2);
-            let text = answer.replace(/\s*\[\[web:[^\]]*\]\]/g, "").replace(/\s*\[\[offtopic(?::[^\]]*)?\]\]/g, "").replace(/\s*\[\[post:([^\]\s]+)\]\]/g, (mark, id) => {
+            // [[place:Name|Address|Vibe|ID]]: a place card; the review link only for an ID that was sent
+            const places = [...answer.matchAll(/\[\[place:([^\]]{1,400})\]\]/g)].map(([, body]) => {
+                const [name = "", address = "", vibe = "", id = ""] = body.split("|").map((s) => s.trim());
+                return { name: name.slice(0, 80), address: address.slice(0, 120), vibe: vibe.slice(0, 160), post: items.find((it) => it.id === id) };
+            }).filter((place) => place.name).slice(0, 4);
+            let text = answer.replace(/\s*\[\[place:[^\]]*\]\]/g, "").replace(/\s*\[\[web:[^\]]*\]\]/g, "").replace(/\s*\[\[offtopic(?::[^\]]*)?\]\]/g, "").replace(/\s*\[\[post:([^\]\s]+)\]\]/g, (mark, id) => {
                 if (!ids.includes(id)) ids.push(id);
                 return "";
             }).trim();
@@ -7021,13 +7071,16 @@
                 title = text.slice(0, newline).replace(/^[#*\s]+|[*\s]+$/g, "");
                 text = text.slice(newline + 1).trim();
             }
-            const found = ids.map((id) => items.find((it) => it.id === id)).filter(Boolean);
+            // A post already shown as a place's review does not get its own card too
+            const reviewed = new Set(places.map((place) => place.post?.id).filter(Boolean));
+            const found = ids.filter((id) => !reviewed.has(id)).map((id) => items.find((it) => it.id === id)).filter(Boolean);
             const rooms = ids.map((id) => musicRooms.find((room) => room.id === id)).filter(Boolean);
             const users = [...usersByAuthor.values()];
             const topPosters = aiTopPosters();
             const members = ids.filter((id) => id.startsWith("m-")).map((id) => users.find((u) => u.author && `m-${u.id}` === id)).filter(Boolean);
             const featured = found.length > 0 && AI_RANKING_RE.test(normalizeAiText(question));
             const cards = [
+                ...places.map(aiPlaceCardOf),
                 ...found.slice(0, 4).map((it, i) => aiCardOf(it, featured && i === 0)),
                 ...rooms.slice(0, 4).map(aiRoomCardOf),
                 ...members.slice(0, 4).map((u) => aiMemberCardOf(u, topPosters))
