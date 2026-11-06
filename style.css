@@ -5986,7 +5986,7 @@ a.profile-about-row:hover {
     padding: 0 16px;
     overflow-x: auto;
     scrollbar-width: none;
-    scroll-snap-type: x proximity;
+    user-select: none;
     -webkit-mask-image: linear-gradient(to right, transparent 0, #000 10px, #000 calc(100% - 28px), transparent);
     mask-image: linear-gradient(to right, transparent 0, #000 10px, #000 calc(100% - 28px), transparent);
 }
@@ -5994,6 +5994,34 @@ a.profile-about-row:hover {
 .ai-cats::-webkit-scrollbar,
 .ai-chips::-webkit-scrollbar {
     display: none;
+}
+
+/* Mouse users get a thin scrollbar and a grab cursor (the rows can be dragged) */
+@media (hover: hover) and (pointer: fine) {
+    .ai-cats,
+    .ai-chips {
+        padding-bottom: 6px;
+        scrollbar-width: thin;
+        scrollbar-color: #4c3f7a transparent;
+        cursor: grab;
+    }
+
+    .ai-cats:active,
+    .ai-chips:active {
+        cursor: grabbing;
+    }
+
+    .ai-cats::-webkit-scrollbar,
+    .ai-chips::-webkit-scrollbar {
+        display: block;
+        height: 6px;
+    }
+
+    .ai-cats::-webkit-scrollbar-thumb,
+    .ai-chips::-webkit-scrollbar-thumb {
+        border-radius: 3px;
+        background: #4c3f7a;
+    }
 }
 
 .ai-cat {
@@ -6008,7 +6036,6 @@ a.profile-about-row:hover {
     font-weight: 600;
     white-space: nowrap;
     cursor: pointer;
-    scroll-snap-align: start;
     transition: background 0.15s, color 0.15s;
 }
 
@@ -6032,7 +6059,6 @@ a.profile-about-row:hover {
     font-size: 14px;
     white-space: nowrap;
     cursor: pointer;
-    scroll-snap-align: start;
     transition: border-color 0.15s, background 0.15s;
 }
 
