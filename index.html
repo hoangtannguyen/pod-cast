@@ -6697,6 +6697,7 @@
             { icon: "📅", label: "Sự kiện", questions: ["Sắp tới có sự kiện nào?", "Cuối tuần này có kèo gì?", "Kèo nào đang đông người tham gia nhất?"] },
             { icon: "👥", label: "Thành viên", questions: ["Giới thiệu vài thành viên trong cộng đồng", "Ai thích chụp ảnh hoặc du lịch?", "Ai đăng bài nhiều nhất?"] },
             { icon: "🛍️", label: "Pass đồ", questions: ["Đang có món đồ nào được pass?", "Món đồ pass nào rẻ nhất?", "Có ai pass quần áo không?"] },
+            { icon: "🎧", label: "Phòng nhạc", questions: ["Đang có phòng nghe nhạc nào?", "Phòng nhạc nào đông người nghe nhất?", "Bạn bè mình đang nghe nhạc ở phòng nào?"] },
             { icon: "🙋", label: "Của tôi", questions: ["Tôi đang tham gia những sự kiện nào?", "Bài của tôi được bao nhiêu lượt thích, bài nào nhiều nhất?", "Tôi đã thích những bài nào?"] }
         ];
         const AI_KIND_EMOJI = { "Sinh nhật": "🎂", "Tiệc tùng": "🥳", "Họp mặt": "🤝", "Liên hoan": "🍻", "Dã ngoại": "🏕️" };
@@ -6851,6 +6852,46 @@
             return [{ from: "Thống kê", time: "", text: `Cộng đồng có ${all.length} thành viên${shown}.` }, ...lines];
         }
 
+        // Music rooms (live in musicRooms) for questions about music: the same rooms the sidebar shows the
+        // asker, i.e. theirs and their friends'
+        const AI_MUSIC_RE = /nhac|phong|nghe|bai hat|music|playlist|room/;
+
+        function pickAiMusicRooms(question) {
+            if (!AI_MUSIC_RE.test(normalizeAiText(question))) return [];
+            const myId = userIdOf(currentAuthor());
+            const rooms = (myId ? visibleMusicRooms(myId) : []).sort((a, b) => (b.memberIds || []).length - (a.memberIds || []).length);
+            return [
+                { from: "Thống kê", time: "", text: `Có ${rooms.length} phòng nghe nhạc đang mở mà người hỏi xem được.` },
+                ...rooms.map((room) => {
+                    const members = room.memberIds || [];
+                    const names = members.slice(0, 8).map((id) => authorOfId(id)).filter(Boolean).map(nameOf).join(", ");
+                    const titles = (room.queue || []).slice(0, 5).map((it) => it.title).filter(Boolean).join("; ");
+                    const here = members.includes(myId) ? " Người hỏi đang ở phòng này." : "";
+                    return {
+                        id: room.id,
+                        from: nameOf(room.host),
+                        time: "",
+                        text: `Phòng nghe nhạc: ${room.name}, chủ phòng ${nameOf(room.host)}, ${members.length} người đang nghe${names ? ` (${names})` : ""}, ${room.playing ? "đang phát" : "đang tạm dừng"}, hàng đợi ${(room.queue || []).length} bài${titles ? `: ${titles}` : ""}.${here}`
+                    };
+                })
+            ];
+        }
+
+        function aiRoomCardOf(room) {
+            const members = room.memberIds || [];
+            const inside = members.includes(userIdOf(currentAuthor()));
+            const line = (icon, text) => $("<span>", { class: "ai-card-line" }).append($("<i>", { class: icon }), $("<span>", { text: text }));
+            return $("<div>", { class: "ai-card" }).append(
+                $("<img>", { class: "ai-card-thumb", src: youtubeThumb(room.videoId), alt: "", loading: "lazy" }),
+                $("<div>", { class: "ai-card-info" }).append(
+                    $("<strong>", { class: "ai-card-title", text: `🎧 ${room.name}` }),
+                    line("fa-solid fa-crown", `Chủ phòng: ${nameOf(room.host)}`),
+                    line("fa-solid fa-headphones", `${members.length} đang nghe · ${(room.queue || []).length} bài chờ`),
+                    $("<button>", { type: "button", class: "ai-card-view", "data-ai-act": "room", "data-room": room.id, text: inside ? "Mở phòng" : "Tham gia phòng" })
+                )
+            );
+        }
+
         function scrollAiToBottom() {
             const list = $("#aiMessages")[0];
             list.scrollTop = list.scrollHeight;
@@ -6949,14 +6990,15 @@
                 text = text.slice(newline + 1).trim();
             }
             const found = ids.map((id) => items.find((it) => it.id === id)).filter(Boolean);
+            const rooms = ids.map((id) => musicRooms.find((room) => room.id === id)).filter(Boolean);
             const featured = found.length > 0 && AI_RANKING_RE.test(normalizeAiText(question));
-            const cards = found.slice(0, 4).map((it, i) => aiCardOf(it, featured && i === 0));
+            const cards = [...found.slice(0, 4).map((it, i) => aiCardOf(it, featured && i === 0)), ...rooms.slice(0, 4).map(aiRoomCardOf)];
             return $("<div>", { class: "ai-bubble" }).append(
                 title ? $("<h3>", { class: "ai-answer-title", text: title }) : null,
                 $("<p>", { class: "ai-text", text: text }),
-                found.length ? $("<p>", { class: "ai-found" }).append(
+                found.length + rooms.length ? $("<p>", { class: "ai-found" }).append(
                     $("<i>", { class: "fa-solid fa-circle-check" }),
-                    $("<span>", { text: `Đã tìm thấy ${found.length} kết quả` })
+                    $("<span>", { text: `Đã tìm thấy ${found.length + rooms.length} kết quả` })
                 ) : null,
                 cards.length ? $("<div>", { class: "ai-cards" }).append(cards) : null,
                 aiNextChips(found[0], offtopic, webLinks),
@@ -7081,7 +7123,7 @@
                     body: JSON.stringify({
                         scope: "community",
                         question,
-                        messages: [{ from: "Hệ thống", time: "", text: `Hôm nay là ${today}.` }, ...aiStatsLines(corpus), ...items.map(aiLineOf), ...pickAiMembers(question)]
+                        messages: [{ from: "Hệ thống", time: "", text: `Hôm nay là ${today}.` }, ...aiStatsLines(corpus), ...items.map(aiLineOf), ...pickAiMembers(question), ...pickAiMusicRooms(question)]
                     })
                 });
                 const data = await response.json().catch(() => ({}));
@@ -7251,7 +7293,7 @@
             }, true);
         });
 
-        $("#aiMessages").on("click", ".ai-card-view", function () {
+        $("#aiMessages").on("click", ".ai-card-view:not([data-ai-act])", function () {
             const id = $(this).attr("data-id");
             if ($(this).attr("data-kind") === "item" && passItems.some((it) => it.id === id)) {
                 if (window.matchMedia("(max-width: 600px)").matches) closeAiPanel(false);
@@ -7270,6 +7312,7 @@
             const act = $(this).attr("data-ai-act");
             if (act === "random") return discoverAiRandom();
             if (act === "ask") return askVibeGramAi($(this).attr("data-q"));
+            if (act === "room") return joinMusicRoomFromAi($(this));
             if (act === "chat") return openChat($(this).attr("data-author"));
             const $post = $(`#feed .post[data-id="${$(this).attr("data-id")}"]`);
             if (!$post.length) return showToast("Bài viết chưa được tải trong bảng tin");
@@ -8604,6 +8647,35 @@
             if (prev) await updateDoc(doc(db, "musicRooms", prev.id), { memberIds: arrayRemove(myId) });
         }
 
+        async function joinMusicRoom(myId, roomId) {
+            await leaveMyMusicRoom(myId);
+            await updateDoc(doc(db, "musicRooms", roomId), { memberIds: arrayUnion(myId) });
+            showToast("Đã vào phòng 🎧");
+        }
+
+        // From a VibeGram AI room card: join unless already in, then show the room (a bottom sheet below 1120px)
+        async function joinMusicRoomFromAi($btn) {
+            if (!requireAuthor()) return;
+            const myId = userIdOf(currentAuthor());
+            const room = musicRooms.find((r) => r.id === $btn.attr("data-room"));
+            if (!myId) return showToast("Chưa tải xong tài khoản, thử lại sau.");
+            if (!room) return showToast("Phòng này đã đóng.");
+            $btn.prop("disabled", true);
+            try {
+                if (!(room.memberIds || []).includes(myId)) await joinMusicRoom(myId, room.id);
+                $btn.text("Mở phòng");
+                if (!WIDE_LAYOUT.matches) {
+                    closeAiPanel(false);
+                    openMusicSheet();
+                }
+            } catch (err) {
+                console.error(err);
+                showToast(errorMessage(err));
+            } finally {
+                $btn.prop("disabled", false);
+            }
+        }
+
         $(document).on("click", ".music-widget [data-room]", async function () {
             if (!requireAuthor()) return;
             const myId = userIdOf(currentAuthor());
@@ -8625,9 +8697,7 @@
                 } else if (action === "leave") {
                     await updateDoc(doc(db, "musicRooms", roomId), { memberIds: arrayRemove(myId) });
                 } else {
-                    await leaveMyMusicRoom(myId);
-                    await updateDoc(doc(db, "musicRooms", roomId), { memberIds: arrayUnion(myId) });
-                    showToast("Đã vào phòng 🎧");
+                    await joinMusicRoom(myId, roomId);
                 }
             } catch (err) {
                 console.error(err);

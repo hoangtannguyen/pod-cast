@@ -6041,6 +6041,11 @@ a.profile-about-row:hover {
     transition: border-color 0.15s, background 0.15s;
 }
 
+/* An odd last card takes the whole row */
+.ai-topic:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+}
+
 .ai-topic:hover {
     border-color: #a855f7;
     background: #231c40;
