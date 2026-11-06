@@ -542,14 +542,10 @@
             <button type="button" class="ai-head-btn" id="aiClose" aria-label="Đóng và xoá hội thoại" title="Đóng"><i class="fa-solid fa-xmark"></i></button>
         </header>
         <div class="ai-messages" id="aiMessages" aria-live="polite"></div>
-        <div class="ai-chips">
-            <button type="button" class="ai-chip" data-q="Sắp tới có sự kiện nào?"><i class="fa-regular fa-calendar"></i> Xem thêm sự kiện</button>
-            <button type="button" class="ai-chip" data-q="Gần đây có bài viết nào nổi bật?"><i class="fa-solid fa-magnifying-glass"></i> Tìm bài viết liên quan</button>
-            <button type="button" class="ai-chip" data-q="Tuần này có ai tổ chức sinh nhật không?">🎂 Sinh nhật tuần này</button>
-            <button type="button" class="ai-chip" data-q="Bài viết nào nhiều lượt thích nhất?">🏆 Bài nhiều like nhất</button>
-            <button type="button" class="ai-chip" data-q="7 ngày qua ai đăng bài nhiều nhất?">📊 Ai đăng nhiều nhất tuần này</button>
-            <button type="button" class="ai-chip" data-q="Tôi đang tham gia những sự kiện nào?">🙋 Kèo tôi tham gia</button>
-            <button type="button" class="ai-chip" data-q="Bài của tôi được bao nhiêu lượt thích, bài nào nhiều nhất?">❤️ Like bài của tôi</button>
+        <!-- Filled from AI_SUGGESTIONS: categories, then the picked category's questions -->
+        <div class="ai-suggest">
+            <div class="ai-cats" id="aiCats" aria-label="Chủ đề gợi ý"></div>
+            <div class="ai-chips" id="aiChips" aria-label="Câu hỏi gợi ý"></div>
         </div>
         <form class="ai-form" id="aiForm">
             <i class="fa-solid fa-wand-magic-sparkles ai-form-icon" aria-hidden="true"></i>
@@ -6685,6 +6681,16 @@
         const AI_BIRTHDAY_DAYS = 30;
         const AI_MAX_TOP = 5; // most liked posts and the asker's own posts, sent whatever the question
         const AI_MAX_CAPTION = 200;
+        const AI_MAX_ITEMS = 10;
+        // Suggestion bar: a category row, then that category's questions
+        const AI_SUGGESTIONS = [
+            { label: "🔥 Bài viết hot", questions: ["Bài viết nào nhiều lượt thích nhất?", "Gần đây có bài viết nào nổi bật?", "7 ngày qua ai đăng bài nhiều nhất?"] },
+            { label: "📅 Sự kiện", questions: ["Sắp tới có sự kiện nào?", "Cuối tuần này có kèo gì?", "Kèo nào đang đông người tham gia nhất?"] },
+            { label: "🎂 Sinh nhật", questions: ["Tuần này có ai tổ chức sinh nhật không?", "Tháng này sinh nhật ai?", "Sinh nhật sắp tới gần nhất là của ai?"] },
+            { label: "👥 Thành viên", questions: ["Giới thiệu vài thành viên trong cộng đồng", "Ai thích chụp ảnh hoặc du lịch?", "Ai đăng bài nhiều nhất?"] },
+            { label: "🛍️ Pass đồ", questions: ["Đang có món đồ nào được pass?", "Món đồ pass nào rẻ nhất?", "Có ai pass quần áo không?"] },
+            { label: "🙋 Của tôi", questions: ["Tôi đang tham gia những sự kiện nào?", "Bài của tôi được bao nhiêu lượt thích, bài nào nhiều nhất?", "Tôi đã thích những bài nào?"] }
+        ];
         const AI_KIND_EMOJI = { "Sinh nhật": "🎂", "Tiệc tùng": "🥳", "Họp mặt": "🤝", "Liên hoan": "🍻", "Dã ngoại": "🏕️" };
         let aiCorpus = { items: [], author: null, loadedAt: 0 };
         let aiBusy = false;
@@ -6722,9 +6728,15 @@
                 const joined = me && going.includes(userIdOf(me)) ? " Người hỏi đã tham gia." : "";
                 return { id, from, time: partyWhen(p), text: `Sự kiện ${p.kind || ""}: ${p.title} tại ${p.place}, ${going.length}/${p.capacity} người tham gia${names ? ` (${names})` : ""}.${joined} ${caption}` };
             }
+            const time = new Date(data.createdAt).toLocaleDateString("vi-VN");
+            if (data.item) {
+                const item = data.item;
+                const details = [formatMoney(item.price), item.condition, item.size ? `size ${item.size}` : ""].filter(Boolean).join(", ");
+                return { id, from, time, text: `Món đồ pass${item.sold ? " (đã bán)" : ""}: ${item.name}, ${details}. ${caption}` };
+            }
             const likes = data.likes || [];
             const liked = me && likes.includes(me) ? " Người hỏi đã thích." : "";
-            return { id, from, time: new Date(data.createdAt).toLocaleDateString("vi-VN"), text: `Bài viết, ${likes.length} lượt thích.${liked} ${caption || "(không có chú thích)"}` };
+            return { id, from, time, text: `Bài viết, ${likes.length} lượt thích.${liked} ${caption || "(không có chú thích)"}` };
         }
 
         // Events are time-sensitive, so all upcoming ones go in; then the most liked posts and the asker's
@@ -6732,7 +6744,14 @@
         function pickAiCommunityContext(question, items) {
             const words = [...new Set(normalizeAiText(question).split(/[^a-z0-9]+/))].filter((w) => w.length > 1 && !AI_STOPWORDS.has(w));
             const events = items.filter((it) => it.data.party).sort((a, b) => a.data.party.date.localeCompare(b.data.party.date)).slice(0, AI_MAX_EVENTS);
-            const posts = items.filter((it) => !it.data.party);
+            const posts = items.filter((it) => !it.data.party && !it.data.item);
+            // Items for sale: keyword matches, else the newest unsold ones
+            const forSale = items.filter((it) => it.data.item && !it.data.item.sold)
+                .sort((a, b) => toMillis(b.data.createdAt) - toMillis(a.data.createdAt));
+            const matchedItems = forSale.filter((it) => {
+                const text = normalizeAiText(`${it.data.item.name} ${it.data.comment || ""}`);
+                return words.some((w) => text.includes(w));
+            });
             const top = [...posts].sort((a, b) => (b.data.likes || []).length - (a.data.likes || []).length).slice(0, AI_MAX_TOP);
             const mine = posts.filter((it) => it.data.auth === currentAuthor())
                 .sort((a, b) => toMillis(b.data.createdAt) - toMillis(a.data.createdAt)).slice(0, AI_MAX_TOP);
@@ -6740,13 +6759,16 @@
                 const text = normalizeAiText(it.data.comment);
                 return { it, score: words.filter((w) => text.includes(w)).length };
             }).filter((s) => s.score > 0).sort((a, b) => b.score - a.score).map((s) => s.it);
-            return [...new Set([...events, ...top, ...mine, ...(scored.length ? scored : posts).slice(0, AI_MAX_POSTS)])];
+            return [...new Set([
+                ...events, ...top, ...mine, ...(scored.length ? scored : posts).slice(0, AI_MAX_POSTS),
+                ...(matchedItems.length ? matchedItems : forSale).slice(0, AI_MAX_ITEMS)
+            ])];
         }
 
         // Counts the model should not work out itself: posts per member (all and last 7 days) over the loaded
         // posts, and the asker's own totals
         function aiStatsLines(items) {
-            const posts = items.filter((it) => !it.data.party);
+            const posts = items.filter((it) => !it.data.party && !it.data.item);
             const weekAgo = Date.now() - 7 * 24 * 3600 * 1000;
             const ranking = (list) => {
                 const counts = new Map();
@@ -6834,10 +6856,18 @@
             scrollAiToBottom();
         }
 
-        function aiCardOf({ id, data }) {
+        const AI_RANKING_RE = /nhieu nhat|noi bat|hot nhat|top|xep hang|dong nhat/;
+
+        // Result card: who posted, the photo, the numbers that matter, and a button to open it
+        function aiCardOf({ id, data }, featured) {
             const p = data.party;
+            const item = data.item;
             const first = postMedia(data)[0];
             const line = (icon, text) => $("<span>", { class: "ai-card-line" }).append($("<i>", { class: icon }), $("<span>", { text: text }));
+            const author = $("<span>", { class: "ai-card-author" }).append(
+                fillAvatar($("<span>", { class: "avatar ai-card-author-avatar" }), data.auth),
+                $("<span>", { text: nameOf(data.auth) })
+            );
             const $info = $("<div>", { class: "ai-card-info" });
             if (p) {
                 const going = p.going || [];
@@ -6852,28 +6882,57 @@
                         )
                         : null
                 );
+            } else if (item) {
+                $info.append(
+                    $("<strong>", { class: "ai-card-title", text: `🛍️ ${item.name}` }),
+                    line("fa-solid fa-tag", [formatMoney(item.price), item.condition, item.size].filter(Boolean).join(" · ")),
+                    author
+                );
             } else {
                 $info.append(
-                    $("<strong>", { class: "ai-card-title", text: nameOf(data.auth) }),
-                    $("<span>", { class: "ai-card-caption", text: data.comment || "" })
+                    author,
+                    data.comment ? $("<span>", { class: "ai-card-caption", text: data.comment }) : null,
+                    line("fa-solid fa-heart", `${(data.likes || []).length} lượt thích`)
                 );
             }
-            return $("<button>", { type: "button", class: "ai-card", "data-id": id }).append(
-                $info,
-                first ? $("<img>", { class: "ai-card-thumb", src: mediaThumb(first, 200), alt: "", loading: "lazy" }) : null
+            $info.append($("<button>", {
+                type: "button",
+                class: "ai-card-view",
+                "data-id": id,
+                "data-kind": item ? "item" : "post",
+                text: p ? "Xem sự kiện" : item ? "Xem món đồ" : "Xem bài viết"
+            }));
+            return $("<div>", { class: "ai-card" }).toggleClass("is-featured", !!featured).append(
+                featured ? $("<span>", { class: "ai-card-badge", text: "🏆 Nổi bật nhất" }) : null,
+                first ? $("<img>", { class: "ai-card-thumb", src: mediaThumb(first, featured ? 600 : 200), alt: "", loading: "lazy" }) : null,
+                $info
             );
         }
 
-        // The Worker marks every post it mentions as [[post:ID]]: strip the marks, show those posts as cards
-        function aiAnswerBubble(answer, items) {
+        // The Worker starts with a one-line title, then the answer, and marks every post it mentions as
+        // [[post:ID]]: strip the marks, show those posts as cards
+        function aiAnswerBubble(answer, items, question) {
             const ids = [];
-            const text = answer.replace(/\s*\[\[post:([^\]\s]+)\]\]/g, (mark, id) => {
+            let text = answer.replace(/\s*\[\[post:([^\]\s]+)\]\]/g, (mark, id) => {
                 if (!ids.includes(id)) ids.push(id);
                 return "";
             }).trim();
-            const cards = ids.map((id) => items.find((it) => it.id === id)).filter(Boolean).slice(0, 4).map(aiCardOf);
+            let title = "";
+            const newline = text.indexOf("\n");
+            if (newline > 0 && newline <= 80) {
+                title = text.slice(0, newline).replace(/^[#*\s]+|[*\s]+$/g, "");
+                text = text.slice(newline + 1).trim();
+            }
+            const found = ids.map((id) => items.find((it) => it.id === id)).filter(Boolean);
+            const featured = found.length > 0 && AI_RANKING_RE.test(normalizeAiText(question));
+            const cards = found.slice(0, 4).map((it, i) => aiCardOf(it, featured && i === 0));
             return $("<div>", { class: "ai-bubble" }).append(
+                title ? $("<h3>", { class: "ai-answer-title", text: title }) : null,
                 $("<p>", { class: "ai-text", text: text }),
+                found.length ? $("<p>", { class: "ai-found" }).append(
+                    $("<i>", { class: "fa-solid fa-circle-check" }),
+                    $("<span>", { text: `Đã tìm thấy ${found.length} kết quả` })
+                ) : null,
                 cards.length ? $("<div>", { class: "ai-cards" }).append(cards) : null,
                 $("<div>", { class: "ai-meta" }).append(
                     $("<span>").append($("<i>", { class: "fa-solid fa-circle-check" }), $("<span>", { text: "Trả lời dựa trên dữ liệu từ VibeGram (RAG)" })),
@@ -6888,12 +6947,20 @@
             $("#aiSend").prop("disabled", true);
             $("#aiInput").val("");
             appendAiQuestion(question);
-            const $pending = appendAiRow($("<div>", { class: "ai-bubble ai-typing", "aria-label": "Đang trả lời" }).append("<span></span><span></span><span></span>"));
+            const $pending = appendAiRow($("<div>", { class: "ai-bubble ai-status" }).append(
+                $("<span>", { class: "ai-typing", "aria-hidden": "true" }).append("<span></span><span></span><span></span>"),
+                $("<span>", { class: "ai-status-text", text: "Đang tìm kiếm bài viết..." })
+            ));
+            const setStatus = (text) => $pending.find(".ai-status-text").text(text);
             try {
                 if (!AI_WORKER_URL) throw new Error("Chưa cấu hình AI_WORKER_URL, xem hướng dẫn trong thư mục worker/.");
                 if (!auth.currentUser) throw new Error("Cần đăng nhập để dùng VibeGram AI.");
-                const corpus = await loadAiCorpus();
+                // Unsold items come from the live Pass đồ list, already in memory
+                const byId = new Map((await loadAiCorpus()).map((it) => [it.id, it]));
+                passItems.forEach((it) => byId.set(it.id, it));
+                const corpus = [...byId.values()];
                 const items = pickAiCommunityContext(question, corpus);
+                setStatus(`Đã đọc ${items.length} bài viết, sự kiện liên quan · Đang suy nghĩ...`);
                 const today = new Date().toLocaleDateString("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
                 const response = await fetch(AI_WORKER_URL, {
                     method: "POST",
@@ -6906,7 +6973,7 @@
                 });
                 const data = await response.json().catch(() => ({}));
                 if (!response.ok) throw new Error(data.error || "AI chưa trả lời được, thử lại sau.");
-                $pending.replaceWith(aiAnswerBubble(data.answer, items));
+                $pending.replaceWith(aiAnswerBubble(data.answer, items, question));
             } catch (err) {
                 console.error(err);
                 $pending.replaceWith($("<div>", { class: "ai-bubble is-error", text: err.message || "AI chưa trả lời được, thử lại sau." }));
@@ -6954,12 +7021,48 @@
             askVibeGramAi($.trim($("#aiInput").val()));
         });
 
-        $(".ai-chip").on("click", function () {
+        function renderAiSuggestions(index) {
+            $("#aiCats").empty().append(AI_SUGGESTIONS.map((category, i) => $("<button>", {
+                type: "button",
+                class: "ai-cat",
+                "data-index": i,
+                "aria-pressed": i === index,
+                text: category.label
+            }).toggleClass("is-active", i === index)));
+            $("#aiChips").empty().scrollLeft(0).append(AI_SUGGESTIONS[index].questions.map((q) => $("<button>", {
+                type: "button",
+                class: "ai-chip",
+                "data-q": q,
+                text: q
+            })));
+        }
+        renderAiSuggestions(0);
+
+        $("#aiCats").on("click", ".ai-cat", function () {
+            renderAiSuggestions(Number($(this).attr("data-index")));
+        });
+
+        $("#aiChips").on("click", ".ai-chip", function () {
             askVibeGramAi($(this).attr("data-q"));
         });
 
-        $("#aiMessages").on("click", ".ai-card", function () {
-            const $post = $(`#feed .post[data-id="${$(this).attr("data-id")}"]`);
+        // A mouse wheel scrolls the suggestion rows sideways on desktop
+        $("#aiCats, #aiChips").on("wheel", function (e) {
+            const { deltaX, deltaY } = e.originalEvent;
+            if (Math.abs(deltaY) <= Math.abs(deltaX) || this.scrollWidth <= this.clientWidth) return;
+            this.scrollLeft += deltaY;
+            e.preventDefault();
+        });
+
+        $("#aiMessages").on("click", ".ai-card-view", function () {
+            const id = $(this).attr("data-id");
+            if ($(this).attr("data-kind") === "item" && passItems.some((it) => it.id === id)) {
+                if (window.matchMedia("(max-width: 600px)").matches) closeAiPanel(false);
+                passDetail = { id, index: 0 };
+                if (renderPassDetail()) $("#itemDetailModal").fadeIn(150);
+                return;
+            }
+            const $post = $(`#feed .post[data-id="${id}"]`);
             if (!$post.length) return showToast("Bài viết chưa được tải trong bảng tin");
             // On a phone the panel covers the feed
             if (window.matchMedia("(max-width: 600px)").matches) closeAiPanel(false);
