@@ -1316,6 +1316,50 @@ body.no-scroll {
     font-size: 13px;
 }
 
+.site-footer {
+    margin-top: 16px;
+    padding: 24px 16px 32px;
+    border-top: 1px solid var(--border-soft);
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.site-footer p {
+    margin: 4px 0 0;
+}
+
+.site-footer-logo {
+    font-family: "Grand Hotel", cursive;
+    font-size: 26px;
+    background: linear-gradient(90deg, #f58529, #dd2a7b, #8134af, #515bd4);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+.site-footer-heart {
+    display: inline-block;
+    color: #ed4956;
+    animation: site-footer-beat 1.4s ease-in-out infinite;
+}
+
+.site-footer-sub {
+    font-size: 12px;
+}
+
+@keyframes site-footer-beat {
+    0%, 100% { transform: scale(1); }
+    15% { transform: scale(1.25); }
+    30% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .site-footer-heart {
+        animation: none;
+    }
+}
+
 .feed-retry {
     display: flex;
     margin: 24px auto;
