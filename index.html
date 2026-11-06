@@ -6936,7 +6936,9 @@
             const ids = [];
             const mark = /\[\[offtopic(?::([^\]]*))?\]\]/.exec(answer);
             const offtopic = mark ? (mark[1] || "").trim() || true : false;
-            let text = answer.replace(/\s*\[\[offtopic(?::[^\]]*)?\]\]/g, "").replace(/\s*\[\[post:([^\]\s]+)\]\]/g, (mark, id) => {
+            const webLinks = [...answer.matchAll(/\[\[web:(weather|maps|google):([^\]]{1,80})\]\]/g)]
+                .map(([, kind, q]) => ({ kind, q: q.trim() })).filter((link) => link.q).slice(0, 2);
+            let text = answer.replace(/\s*\[\[web:[^\]]*\]\]/g, "").replace(/\s*\[\[offtopic(?::[^\]]*)?\]\]/g, "").replace(/\s*\[\[post:([^\]\s]+)\]\]/g, (mark, id) => {
                 if (!ids.includes(id)) ids.push(id);
                 return "";
             }).trim();
@@ -6957,12 +6959,24 @@
                     $("<span>", { text: `Đã tìm thấy ${found.length} kết quả` })
                 ) : null,
                 cards.length ? $("<div>", { class: "ai-cards" }).append(cards) : null,
-                aiNextChips(found[0], offtopic),
+                aiNextChips(found[0], offtopic, webLinks),
                 $("<div>", { class: "ai-meta" }).append(
                     $("<span>").append($("<i>", { class: "fa-solid fa-circle-check" }), $("<span>", { text: "Trả lời dựa trên dữ liệu từ VibeGram (RAG)" })),
                     $("<span>", { text: chatTime(Date.now()) })
                 )
             );
+        }
+
+        // [[web:kind:query]] from the model: the link is built here, to fixed sites, never taken from the answer
+        const AI_WEB_LINKS = {
+            weather: (q) => ({ text: `🌡️ Xem thời tiết ${q}`, href: `https://www.google.com/search?q=${encodeURIComponent(`thời tiết ${q}`)}` }),
+            maps: (q) => ({ text: "🗺️ Tìm đường trên Google Maps", href: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}` }),
+            google: (q) => ({ text: "🌍 Tra cứu Google", href: `https://www.google.com/search?q=${encodeURIComponent(q)}` })
+        };
+
+        function aiWebLink({ kind, q }) {
+            const { text, href } = AI_WEB_LINKS[kind](q);
+            return $("<a>", { class: "ai-next-chip is-link", href: href, target: "_blank", rel: "noopener noreferrer", text: text, title: q });
         }
 
         // The topic named in [[offtopic:Topic]], else (no or unknown name) hot posts and events
@@ -6972,11 +6986,12 @@
         }
 
         // Next steps under an answer, for its first result: its comments, a chat with its author; and a random find
-        function aiNextChips(first, offtopic) {
+        function aiNextChips(first, offtopic, webLinks = []) {
             const chip = (text, attrs) => $("<button>", { type: "button", class: "ai-next-chip", text: text, ...attrs });
             const data = first?.data;
             const ask = (category) => chip(`${category.icon} ${category.label}`, { "data-ai-act": "ask", "data-q": category.questions[0] });
             return $("<div>", { class: "ai-next" }).append(
+                webLinks.map(aiWebLink),
                 offtopic ? aiPivotTopics(offtopic).map(ask) : null,
                 data && !data.party && !data.item ? chip("💬 Xem bình luận", { "data-ai-act": "comments", "data-id": first.id }) : null,
                 data?.auth && data.auth !== currentAuthor() ? chip(`✉️ Nhắn tin cho ${nameOf(data.auth)}`, { "data-ai-act": "chat", "data-author": data.auth }) : null,

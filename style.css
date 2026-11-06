@@ -6106,6 +6106,13 @@ a.profile-about-row:hover {
     transition: border-color 0.15s, background 0.15s;
 }
 
+.ai-next-chip.is-link {
+    border-color: #2f5f8a;
+    background: #15243a;
+    color: #bfe1ff;
+    text-decoration: none;
+}
+
 .ai-next-chip:hover {
     border-color: #a855f7;
     background: #2a2150;
