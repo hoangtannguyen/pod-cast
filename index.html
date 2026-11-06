@@ -6930,12 +6930,13 @@
         }
 
         // The Worker starts with a one-line title, then the answer, and marks every post it mentions as
-        // [[post:ID]]: strip the marks, show those posts as cards. [[offtopic]] (outside VibeGram or not
-        // found) turns the chips into shortcuts back to what it can answer
+        // [[post:ID]]: strip the marks, show those posts as cards. [[offtopic:Topic]] (outside VibeGram or not
+        // found) turns the chips into a shortcut to the topic the model pivoted to
         function aiAnswerBubble(answer, items, question) {
             const ids = [];
-            const offtopic = answer.includes("[[offtopic]]");
-            let text = answer.replace(/\s*\[\[offtopic\]\]/g, "").replace(/\s*\[\[post:([^\]\s]+)\]\]/g, (mark, id) => {
+            const mark = /\[\[offtopic(?::([^\]]*))?\]\]/.exec(answer);
+            const offtopic = mark ? (mark[1] || "").trim() || true : false;
+            let text = answer.replace(/\s*\[\[offtopic(?::[^\]]*)?\]\]/g, "").replace(/\s*\[\[post:([^\]\s]+)\]\]/g, (mark, id) => {
                 if (!ids.includes(id)) ids.push(id);
                 return "";
             }).trim();
@@ -6964,13 +6965,19 @@
             );
         }
 
+        // The topic named in [[offtopic:Topic]], else (no or unknown name) hot posts and events
+        function aiPivotTopics(name) {
+            const named = AI_SUGGESTIONS.find((c) => typeof name === "string" && normalizeAiText(c.label) === normalizeAiText(name));
+            return named ? [named] : AI_SUGGESTIONS.filter((c) => c.label === "Bài viết hot" || c.label === "Sự kiện");
+        }
+
         // Next steps under an answer, for its first result: its comments, a chat with its author; and a random find
         function aiNextChips(first, offtopic) {
             const chip = (text, attrs) => $("<button>", { type: "button", class: "ai-next-chip", text: text, ...attrs });
             const data = first?.data;
             const ask = (category) => chip(`${category.icon} ${category.label}`, { "data-ai-act": "ask", "data-q": category.questions[0] });
             return $("<div>", { class: "ai-next" }).append(
-                offtopic ? AI_SUGGESTIONS.filter((c) => c.label === "Bài viết hot" || c.label === "Sự kiện").map(ask) : null,
+                offtopic ? aiPivotTopics(offtopic).map(ask) : null,
                 data && !data.party && !data.item ? chip("💬 Xem bình luận", { "data-ai-act": "comments", "data-id": first.id }) : null,
                 data?.auth && data.auth !== currentAuthor() ? chip(`✉️ Nhắn tin cho ${nameOf(data.auth)}`, { "data-ai-act": "chat", "data-author": data.auth }) : null,
                 chip("🎲 Khám phá ngẫu nhiên", { "data-ai-act": "random" })
