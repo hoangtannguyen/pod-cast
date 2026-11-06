@@ -5863,6 +5863,31 @@ a.profile-about-row:hover {
     margin-top: 0;
 }
 
+.ai-member-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.ai-member-tags span {
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: rgba(168, 85, 247, 0.18);
+    color: #e9d5ff;
+    font-size: 12px;
+}
+
+.ai-more {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 10px 0 0;
+    font-size: 13px;
+    color: #c9c4dd;
+}
+
 .ai-answer-title {
     margin: 0 0 6px;
     font-size: 15px;

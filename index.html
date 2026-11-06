@@ -6893,10 +6893,19 @@
         }
 
         // Only what the member made public (bio, birthday); the pass chip shows when they have items for sale
-        function aiMemberCardOf(u) {
+        // "Nổi bật": among the top AI_MAX_TOP posters of the recently loaded posts
+        function aiTopPosters() {
+            const counts = new Map();
+            aiCorpus.items.filter((it) => !it.data.party && !it.data.item)
+                .forEach((it) => counts.set(it.data.auth, (counts.get(it.data.auth) || 0) + 1));
+            return new Set([...counts].sort((a, b) => b[1] - a[1]).slice(0, AI_MAX_TOP).map(([author]) => author));
+        }
+
+        function aiMemberCardOf(u, topPosters) {
             const name = nameOf(u.author);
             const chip = (text, attrs) => $("<button>", { type: "button", class: "ai-next-chip", text: text, ...attrs });
-            const selling = passItems.some((it) => it.data.auth === u.author && !it.data.item?.sold);
+            const selling = passItems.filter((it) => it.data.auth === u.author && !it.data.item?.sold).length;
+            const tags = [topPosters.has(u.author) ? "🏅 Thành viên nổi bật" : "", selling ? `🛍️ Đang pass ${selling} món` : ""].filter(Boolean);
             return $("<div>", { class: "ai-card ai-member" }).append(
                 $("<div>", { class: "ai-member-head" }).append(
                     fillAvatar($("<span>", { class: "avatar ai-member-avatar" }), u.author),
@@ -6905,6 +6914,7 @@
                         parseBirthday(u.birthday) ? $("<span>", { text: `🎂 Sinh nhật: ${birthdayLabel(u.birthday)}` }) : null
                     )
                 ),
+                tags.length ? $("<div>", { class: "ai-member-tags" }).append(tags.map((tag) => $("<span>", { text: tag }))) : null,
                 u.bio ? $("<p>", { class: "ai-card-caption", text: u.bio }) : null,
                 $("<div>", { class: "ai-next" }).append(
                     chip("👤 Trang cá nhân", { "data-ai-act": "profile", "data-author": u.author }),
@@ -7014,13 +7024,17 @@
             const found = ids.map((id) => items.find((it) => it.id === id)).filter(Boolean);
             const rooms = ids.map((id) => musicRooms.find((room) => room.id === id)).filter(Boolean);
             const users = [...usersByAuthor.values()];
+            const topPosters = aiTopPosters();
             const members = ids.filter((id) => id.startsWith("m-")).map((id) => users.find((u) => u.author && `m-${u.id}` === id)).filter(Boolean);
             const featured = found.length > 0 && AI_RANKING_RE.test(normalizeAiText(question));
             const cards = [
                 ...found.slice(0, 4).map((it, i) => aiCardOf(it, featured && i === 0)),
                 ...rooms.slice(0, 4).map(aiRoomCardOf),
-                ...members.slice(0, 4).map(aiMemberCardOf)
+                ...members.slice(0, 4).map((u) => aiMemberCardOf(u, topPosters))
             ];
+            // More members than cards: say so, and offer the next ones (the model has no memory of this answer)
+            const shown = members.slice(0, 4).map((u) => nameOf(u.author));
+            const moreMembers = shown.length ? users.filter((u) => u.author).length - shown.length : 0;
             return $("<div>", { class: "ai-bubble" }).append(
                 title ? $("<h3>", { class: "ai-answer-title", text: title }) : null,
                 $("<p>", { class: "ai-text", text: text }),
@@ -7029,6 +7043,16 @@
                     $("<span>", { text: `Đã tìm thấy ${cards.length} kết quả` })
                 ) : null,
                 cards.length ? $("<div>", { class: "ai-cards" }).append(cards) : null,
+                moreMembers > 0 ? $("<p>", { class: "ai-more" }).append(
+                    $("<span>", { text: `…cùng ${moreMembers} thành viên khác nữa 👥` }),
+                    $("<button>", {
+                        type: "button",
+                        class: "ai-next-chip",
+                        "data-ai-act": "ask",
+                        "data-q": `Giới thiệu thêm các thành viên khác, ngoài ${shown.join(", ")}`,
+                        text: "Xem thêm thành viên"
+                    })
+                ) : null,
                 aiNextChips(found[0], offtopic, webLinks),
                 $("<div>", { class: "ai-meta" }).append(
                     $("<span>").append($("<i>", { class: "fa-solid fa-circle-check" }), $("<span>", { text: "Trả lời dựa trên dữ liệu từ VibeGram (RAG)" })),
