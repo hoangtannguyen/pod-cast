@@ -6747,11 +6747,16 @@
             return { id, from, time, text: `Bài viết, ${likes.length} lượt thích.${liked} ${caption || "(không có chú thích)"}` };
         }
 
+        // The recent and own posts also hold past events, so the date alone (from the query) is not enough
+        function isUpcomingParty(p) {
+            return !!p && new Date(`${p.date}T${p.time}`).getTime() >= Date.now();
+        }
+
         // Events are time-sensitive, so all upcoming ones go in; then the most liked posts and the asker's
         // newest posts (for "top" and "my" questions), then posts by keyword, else the newest
         function pickAiCommunityContext(question, items) {
             const words = [...new Set(normalizeAiText(question).split(/[^a-z0-9]+/))].filter((w) => w.length > 1 && !AI_STOPWORDS.has(w));
-            const events = items.filter((it) => it.data.party).sort((a, b) => a.data.party.date.localeCompare(b.data.party.date)).slice(0, AI_MAX_EVENTS);
+            const events = items.filter((it) => isUpcomingParty(it.data.party)).sort((a, b) => a.data.party.date.localeCompare(b.data.party.date)).slice(0, AI_MAX_EVENTS);
             const posts = items.filter((it) => !it.data.party && !it.data.item);
             // Items for sale: keyword matches, else the newest unsold ones
             const forSale = items.filter((it) => it.data.item && !it.data.item.sold)
@@ -6792,7 +6797,7 @@
             if (me) {
                 const mine = posts.filter((it) => it.data.auth === me);
                 const likes = mine.reduce((sum, it) => sum + (it.data.likes || []).length, 0);
-                const joined = items.filter((it) => (it.data.party?.going || []).includes(userIdOf(me))).length;
+                const joined = items.filter((it) => isUpcomingParty(it.data.party) && it.data.party.going?.includes(userIdOf(me))).length;
                 lines.push({
                     from: "Người hỏi",
                     time: "",
