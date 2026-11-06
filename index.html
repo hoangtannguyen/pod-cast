@@ -6692,12 +6692,12 @@
         const AI_MAX_ITEMS = 10;
         // Suggestion bar: a category row, then that category's questions
         const AI_SUGGESTIONS = [
-            { label: "🔥 Bài viết hot", questions: ["Bài viết nào nhiều lượt thích nhất?", "Gần đây có bài viết nào nổi bật?", "7 ngày qua ai đăng bài nhiều nhất?"] },
-            { label: "📅 Sự kiện", questions: ["Sắp tới có sự kiện nào?", "Cuối tuần này có kèo gì?", "Kèo nào đang đông người tham gia nhất?"] },
-            { label: "🎂 Sinh nhật", questions: ["Tuần này có ai tổ chức sinh nhật không?", "Tháng này sinh nhật ai?", "Sinh nhật sắp tới gần nhất là của ai?"] },
-            { label: "👥 Thành viên", questions: ["Giới thiệu vài thành viên trong cộng đồng", "Ai thích chụp ảnh hoặc du lịch?", "Ai đăng bài nhiều nhất?"] },
-            { label: "🛍️ Pass đồ", questions: ["Đang có món đồ nào được pass?", "Món đồ pass nào rẻ nhất?", "Có ai pass quần áo không?"] },
-            { label: "🙋 Của tôi", questions: ["Tôi đang tham gia những sự kiện nào?", "Bài của tôi được bao nhiêu lượt thích, bài nào nhiều nhất?", "Tôi đã thích những bài nào?"] }
+            { icon: "🔥", label: "Bài viết hot", hint: "Bài nào nhiều lượt thích nhất?", questions: ["Bài viết nào nhiều lượt thích nhất?", "Gần đây có bài viết nào nổi bật?", "7 ngày qua ai đăng bài nhiều nhất?"] },
+            { icon: "🎂", label: "Sinh nhật", hint: "Ai sắp đến sinh nhật?", questions: ["Tuần này có ai tổ chức sinh nhật không?", "Tháng này sinh nhật ai?", "Sinh nhật sắp tới gần nhất là của ai?"] },
+            { icon: "📅", label: "Sự kiện", hint: "Có sự kiện nào sắp tới?", questions: ["Sắp tới có sự kiện nào?", "Cuối tuần này có kèo gì?", "Kèo nào đang đông người tham gia nhất?"] },
+            { icon: "👥", label: "Thành viên", hint: "Giới thiệu thành viên mới.", questions: ["Giới thiệu vài thành viên trong cộng đồng", "Ai thích chụp ảnh hoặc du lịch?", "Ai đăng bài nhiều nhất?"] },
+            { icon: "🛍️", label: "Pass đồ", hint: "Có sản phẩm nào đang bán?", questions: ["Đang có món đồ nào được pass?", "Món đồ pass nào rẻ nhất?", "Có ai pass quần áo không?"] },
+            { icon: "🙋", label: "Của tôi", hint: "Hoạt động của bạn.", questions: ["Tôi đang tham gia những sự kiện nào?", "Bài của tôi được bao nhiêu lượt thích, bài nào nhiều nhất?", "Tôi đã thích những bài nào?"] }
         ];
         const AI_KIND_EMOJI = { "Sinh nhật": "🎂", "Tiệc tùng": "🥳", "Họp mặt": "🤝", "Liên hoan": "🍻", "Dã ngoại": "🏕️" };
         let aiCorpus = { items: [], author: null, loadedAt: 0 };
@@ -6955,6 +6955,8 @@
             $("#aiSend").prop("disabled", true);
             $("#aiInput").val("");
             appendAiQuestion(question);
+            $("#aiPanel").removeClass("is-fresh");
+            updateAiSuggestBar();
             const $pending = appendAiRow($("<div>", { class: "ai-bubble ai-status" }).append(
                 $("<span>", { class: "ai-typing", "aria-hidden": "true" }).append("<span></span><span></span><span></span>"),
                 $("<span>", { class: "ai-status-text", text: "Đang tìm kiếm bài viết..." })
@@ -7000,10 +7002,9 @@
         function openAiPanel() {
             if (!aiPanelEnabled()) return;
             if (!$("#aiMessages").children().length) {
-                appendAiRow($("<div>", { class: "ai-bubble" }).append($("<p>", {
-                    class: "ai-text",
-                    text: `Chào ${nameOf(currentAuthor()) || "bạn"} 👋 Mình là VibeGram AI. Hỏi mình về sự kiện, bài viết, bảng xếp hạng hay hoạt động của chính bạn nhé!`
-                })));
+                renderAiWelcome();
+                $("#aiPanel").addClass("is-fresh");
+                renderAiSuggestions(-1);
             }
             $("#aiFab").hide();
             $("#aiPanel").fadeIn(150);
@@ -7030,20 +7031,57 @@
             askVibeGramAi($.trim($("#aiInput").val()));
         });
 
+        // Empty conversation: a greeting, one card per suggestion category and a hint to type freely
+        function renderAiWelcome() {
+            $("#aiMessages").append($("<div>", { class: "ai-welcome" }).append(
+                $("<div>", { class: "ai-hello" }).append(
+                    $("<div>", { class: "ai-hello-text" }).append(
+                        $("<strong>", { text: `Xin chào ${nameOf(currentAuthor()) || "bạn"}! 👋` }),
+                        $("<span>", { text: "Bạn muốn khám phá điều gì hôm nay?" })
+                    ),
+                    $("<span>", { class: "ai-hello-bot", "aria-hidden": "true" }).append($("<i>", { class: "fa-solid fa-robot" }))
+                ),
+                $("<div>", { class: "ai-topics" }).append(AI_SUGGESTIONS.map((category, i) => $("<button>", {
+                    type: "button",
+                    class: "ai-topic",
+                    "data-index": i
+                }).append(
+                    $("<span>", { class: "ai-topic-icon", "aria-hidden": "true", text: category.icon }),
+                    $("<span>", { class: "ai-topic-text" }).append(
+                        $("<strong>", { text: category.label }),
+                        $("<small>", { text: category.hint })
+                    ),
+                    $("<i>", { class: "fa-solid fa-chevron-right", "aria-hidden": "true" })
+                ))),
+                $("<p>", { class: "ai-tip", text: "💡 Bạn cũng có thể nhập câu hỏi trực tiếp ở bên dưới nhé!" })
+            ));
+        }
+
+        // index -1: no category picked, so only the category row shows
         function renderAiSuggestions(index) {
             $("#aiCats").empty().append(AI_SUGGESTIONS.map((category, i) => $("<button>", {
                 type: "button",
                 class: "ai-cat",
                 "data-index": i,
                 "aria-pressed": i === index,
-                text: category.label
+                text: `${category.icon} ${category.label}`
             }).toggleClass("is-active", i === index)));
-            $("#aiChips").empty().scrollLeft(0).append(AI_SUGGESTIONS[index].questions.map((q) => $("<button>", {
+            $("#aiChips").empty().scrollLeft(0).append((AI_SUGGESTIONS[index]?.questions || []).map((q) => $("<button>", {
                 type: "button",
                 class: "ai-chip",
                 "data-q": q,
                 text: q
             })));
+            updateAiSuggestBar();
+        }
+
+        // Until the first question the welcome cards stand in for the category row, so only picked questions show
+        function updateAiSuggestBar() {
+            const fresh = $("#aiPanel").hasClass("is-fresh");
+            const picked = $("#aiChips").children().length > 0;
+            $("#aiCats").parent().toggle(!fresh);
+            $("#aiChips").parent().toggle(picked);
+            $(".ai-suggest").toggle(!fresh || picked);
             updateAiArrows();
         }
 
@@ -7055,7 +7093,7 @@
                 $row.find(".is-next").toggleClass("is-visible", this.scrollLeft + this.clientWidth < this.scrollWidth - 2);
             });
         }
-        renderAiSuggestions(0);
+        renderAiSuggestions(-1);
 
         $("#aiCats, #aiChips").on("scroll", updateAiArrows);
         $(window).on("resize", updateAiArrows);
@@ -7066,6 +7104,11 @@
         });
 
         $("#aiCats").on("click", ".ai-cat", function () {
+            renderAiSuggestions(Number($(this).attr("data-index")));
+        });
+
+        // A welcome card opens its category's questions in the bar below
+        $("#aiMessages").on("click", ".ai-topic", function () {
             renderAiSuggestions(Number($(this).attr("data-index")));
         });
 
