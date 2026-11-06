@@ -6692,12 +6692,12 @@
         const AI_MAX_ITEMS = 10;
         // Suggestion bar: a category row, then that category's questions
         const AI_SUGGESTIONS = [
-            { icon: "🔥", label: "Bài viết hot", hint: "Bài nào nhiều lượt thích nhất?", questions: ["Bài viết nào nhiều lượt thích nhất?", "Gần đây có bài viết nào nổi bật?", "7 ngày qua ai đăng bài nhiều nhất?"] },
-            { icon: "🎂", label: "Sinh nhật", hint: "Ai sắp đến sinh nhật?", questions: ["Tuần này có ai tổ chức sinh nhật không?", "Tháng này sinh nhật ai?", "Sinh nhật sắp tới gần nhất là của ai?"] },
-            { icon: "📅", label: "Sự kiện", hint: "Có sự kiện nào sắp tới?", questions: ["Sắp tới có sự kiện nào?", "Cuối tuần này có kèo gì?", "Kèo nào đang đông người tham gia nhất?"] },
-            { icon: "👥", label: "Thành viên", hint: "Giới thiệu thành viên mới.", questions: ["Giới thiệu vài thành viên trong cộng đồng", "Ai thích chụp ảnh hoặc du lịch?", "Ai đăng bài nhiều nhất?"] },
-            { icon: "🛍️", label: "Pass đồ", hint: "Có sản phẩm nào đang bán?", questions: ["Đang có món đồ nào được pass?", "Món đồ pass nào rẻ nhất?", "Có ai pass quần áo không?"] },
-            { icon: "🙋", label: "Của tôi", hint: "Hoạt động của bạn.", questions: ["Tôi đang tham gia những sự kiện nào?", "Bài của tôi được bao nhiêu lượt thích, bài nào nhiều nhất?", "Tôi đã thích những bài nào?"] }
+            { icon: "🔥", label: "Bài viết hot", questions: ["Bài viết nào nhiều lượt thích nhất?", "Gần đây có bài viết nào nổi bật?", "7 ngày qua ai đăng bài nhiều nhất?"] },
+            { icon: "🎂", label: "Sinh nhật", questions: ["Tuần này có ai tổ chức sinh nhật không?", "Tháng này sinh nhật ai?", "Sinh nhật sắp tới gần nhất là của ai?"] },
+            { icon: "📅", label: "Sự kiện", questions: ["Sắp tới có sự kiện nào?", "Cuối tuần này có kèo gì?", "Kèo nào đang đông người tham gia nhất?"] },
+            { icon: "👥", label: "Thành viên", questions: ["Giới thiệu vài thành viên trong cộng đồng", "Ai thích chụp ảnh hoặc du lịch?", "Ai đăng bài nhiều nhất?"] },
+            { icon: "🛍️", label: "Pass đồ", questions: ["Đang có món đồ nào được pass?", "Món đồ pass nào rẻ nhất?", "Có ai pass quần áo không?"] },
+            { icon: "🙋", label: "Của tôi", questions: ["Tôi đang tham gia những sự kiện nào?", "Bài của tôi được bao nhiêu lượt thích, bài nào nhiều nhất?", "Tôi đã thích những bài nào?"] }
         ];
         const AI_KIND_EMOJI = { "Sinh nhật": "🎂", "Tiệc tùng": "🥳", "Họp mặt": "🤝", "Liên hoan": "🍻", "Dã ngoại": "🏕️" };
         let aiCorpus = { items: [], author: null, loadedAt: 0 };
@@ -6949,11 +6949,76 @@
                     $("<span>", { text: `Đã tìm thấy ${found.length} kết quả` })
                 ) : null,
                 cards.length ? $("<div>", { class: "ai-cards" }).append(cards) : null,
+                aiNextChips(found[0]),
                 $("<div>", { class: "ai-meta" }).append(
                     $("<span>").append($("<i>", { class: "fa-solid fa-circle-check" }), $("<span>", { text: "Trả lời dựa trên dữ liệu từ VibeGram (RAG)" })),
                     $("<span>", { text: chatTime(Date.now()) })
                 )
             );
+        }
+
+        // Next steps under an answer, for its first result: its comments, a chat with its author; and a random find
+        function aiNextChips(first) {
+            const chip = (text, attrs) => $("<button>", { type: "button", class: "ai-next-chip", text: text, ...attrs });
+            const data = first?.data;
+            return $("<div>", { class: "ai-next" }).append(
+                data && !data.party && !data.item ? chip("💬 Xem bình luận", { "data-ai-act": "comments", "data-id": first.id }) : null,
+                data?.auth && data.auth !== currentAuthor() ? chip(`✉️ Nhắn tin cho ${nameOf(data.auth)}`, { "data-ai-act": "chat", "data-author": data.auth }) : null,
+                chip("🎲 Khám phá ngẫu nhiên", { "data-ai-act": "random" })
+            );
+        }
+
+        // Random discovery: an older post from someone else, picked locally without asking the model
+        const AI_DISCOVER_POOL = 150;
+        const AI_DISCOVER_MIN_AGE = 3 * 24 * 3600 * 1000;
+        let aiDiscover = { items: [], loadedAt: 0 };
+        const aiDiscovered = new Set();
+
+        async function loadAiDiscoverPool() {
+            if (Date.now() - aiDiscover.loadedAt < AI_CORPUS_TTL) return aiDiscover.items;
+            const snapshot = await getDocs(query(collection(db, "photos"), orderBy("createdAt", "desc"), limit(AI_DISCOVER_POOL)));
+            const items = snapshot.docs.map((d) => ({ id: d.id, data: d.data() }))
+                .filter(({ data }) => !data.archived && !data.party && !data.item && (data.comment || postMedia(data).length));
+            aiDiscover = { items, loadedAt: Date.now() };
+            return items;
+        }
+
+        async function discoverAiRandom() {
+            if (aiBusy) return;
+            aiBusy = true;
+            $("#aiSend").prop("disabled", true);
+            appendAiQuestion("🎲 Khám phá ngẫu nhiên");
+            $("#aiPanel").removeClass("is-fresh");
+            updateAiSuggestBar();
+            try {
+                const others = (await loadAiDiscoverPool()).filter((it) => it.data.auth !== currentAuthor());
+                const older = others.filter((it) => toMillis(it.data.createdAt) < Date.now() - AI_DISCOVER_MIN_AGE);
+                let pool = (older.length ? older : others).filter((it) => !aiDiscovered.has(it.id));
+                if (!pool.length) {
+                    aiDiscovered.clear(); // everything was shown once: start over
+                    pool = older.length ? older : others;
+                }
+                if (!pool.length) throw new Error("Chưa có bài viết nào để khám phá.");
+                const it = pool[Math.floor(Math.random() * pool.length)];
+                aiDiscovered.add(it.id);
+                appendAiRow($("<div>", { class: "ai-bubble" }).append(
+                    $("<h3>", { class: "ai-answer-title", text: "🎲 Biết đâu bạn đã lướt qua" }),
+                    $("<p>", { class: "ai-text", text: `Bài của ${nameOf(it.data.auth)} từ ${new Date(toMillis(it.data.createdAt)).toLocaleDateString("vi-VN")} 👀` }),
+                    $("<div>", { class: "ai-cards" }).append(aiCardOf(it)),
+                    aiNextChips(it),
+                    $("<div>", { class: "ai-meta" }).append(
+                        $("<span>").append($("<i>", { class: "fa-solid fa-shuffle" }), $("<span>", { text: "Gợi ý ngẫu nhiên từ VibeGram" })),
+                        $("<span>", { text: chatTime(Date.now()) })
+                    )
+                ));
+            } catch (err) {
+                console.error(err);
+                appendAiRow($("<div>", { class: "ai-bubble is-error", text: err.message || "Chưa khám phá được, thử lại sau." }));
+            } finally {
+                aiBusy = false;
+                $("#aiSend").prop("disabled", false);
+                scrollAiToBottom();
+            }
         }
 
         async function askVibeGramAi(question) {
@@ -7044,7 +7109,7 @@
                 $("<div>", { class: "ai-hello" }).append(
                     $("<div>", { class: "ai-hello-text" }).append(
                         $("<strong>", { text: `Xin chào ${nameOf(currentAuthor()) || "bạn"}! 👋` }),
-                        $("<span>", { text: "Bạn muốn khám phá điều gì hôm nay?" })
+                        $("<span>", { text: "Hỏi mình mọi chuyện trong VibeGram nha, chuyện ngoài app thì mình chịu 😅" })
                     ),
                     $("<span>", { class: "ai-hello-bot", "aria-hidden": "true" }).append($("<i>", { class: "fa-solid fa-robot" }))
                 ),
@@ -7054,16 +7119,10 @@
                     "data-index": i
                 }).append(
                     $("<span>", { class: "ai-topic-icon", "aria-hidden": "true", text: category.icon }),
-                    $("<span>", { class: "ai-topic-text" }).append(
-                        $("<strong>", { text: category.label }),
-                        $("<small>", { text: category.hint })
-                    ),
+                    $("<strong>", { class: "ai-topic-text", text: category.label }),
                     $("<i>", { class: "fa-solid fa-chevron-right", "aria-hidden": "true" })
                 ))),
-                $("<p>", { class: "ai-scope" }).append(
-                    $("<i>", { class: "fa-solid fa-circle-info", "aria-hidden": "true" }),
-                    $("<span>", { text: "Mình chỉ trả lời về bài viết, sự kiện, thành viên và đồ pass trong VibeGram. Câu hỏi ngoài ứng dụng (thời tiết, kiến thức chung...) mình chưa hỗ trợ nhé." })
-                ),
+                $("<button>", { type: "button", class: "ai-random", "data-ai-act": "random", text: "🎲 Khám phá ngẫu nhiên" }),
                 $("<p>", { class: "ai-tip", text: "💡 Bạn cũng có thể nhập câu hỏi trực tiếp ở bên dưới nhé!" })
             ));
         }
@@ -7174,6 +7233,17 @@
             // On a phone the panel covers the feed
             if (window.matchMedia("(max-width: 600px)").matches) closeAiPanel(false);
             $post[0].scrollIntoView({ behavior: "smooth", block: "center" });
+        });
+
+        $("#aiMessages").on("click", "[data-ai-act]", function () {
+            const act = $(this).attr("data-ai-act");
+            if (act === "random") return discoverAiRandom();
+            if (act === "chat") return openChat($(this).attr("data-author"));
+            const $post = $(`#feed .post[data-id="${$(this).attr("data-id")}"]`);
+            if (!$post.length) return showToast("Bài viết chưa được tải trong bảng tin");
+            if (window.matchMedia("(max-width: 600px)").matches) closeAiPanel(false);
+            $post[0].scrollIntoView({ behavior: "smooth", block: "center" });
+            $post.find(".comment-input")[0]?.focus({ preventScroll: true });
         });
 
         /* Conversation list */

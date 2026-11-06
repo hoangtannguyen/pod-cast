@@ -6055,20 +6055,9 @@ a.profile-about-row:hover {
 .ai-topic-text {
     flex: 1;
     min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.ai-topic-text strong {
+    overflow: hidden;
     font-size: 14px;
     color: #fff;
-}
-
-.ai-topic-text small {
-    overflow: hidden;
-    font-size: 11px;
-    color: #a59fbf;
     white-space: nowrap;
     text-overflow: ellipsis;
 }
@@ -6079,21 +6068,47 @@ a.profile-about-row:hover {
     color: #a59fbf;
 }
 
-.ai-scope {
-    display: flex;
-    gap: 8px;
-    margin: 0;
-    padding: 10px 12px;
-    border-radius: 12px;
-    background: rgba(124, 58, 237, 0.12);
-    font-size: 12px;
-    line-height: 1.5;
-    color: #c9c4dd;
+.ai-random {
+    padding: 11px;
+    border: 1px dashed #4c3a85;
+    border-radius: 14px;
+    background: transparent;
+    color: #e4e0f3;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
 }
 
-.ai-scope i {
-    margin-top: 3px;
-    color: #c084fc;
+.ai-random:hover {
+    border-color: #a855f7;
+    background: #231c40;
+}
+
+/* Smart chips: next steps under an answer */
+.ai-next {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 12px;
+}
+
+.ai-next-chip {
+    padding: 6px 12px;
+    border: 1px solid #3a3160;
+    border-radius: 999px;
+    background: #211b3a;
+    color: #e4e0f3;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.ai-next-chip:hover {
+    border-color: #a855f7;
+    background: #2a2150;
 }
 
 .ai-tip {
