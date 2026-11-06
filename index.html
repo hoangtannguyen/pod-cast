@@ -536,7 +536,7 @@
             <span class="ai-logo"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
             <div class="ai-head-text">
                 <h2 class="ai-title">VibeGram AI</h2>
-                <p class="ai-subtitle">Hỏi gì cũng biết · Trả lời dựa trên dữ liệu cộng đồng</p>
+                <p class="ai-subtitle">Trợ lý riêng của VibeGram · Chỉ trả lời trong ứng dụng</p>
             </div>
             <button type="button" class="ai-head-btn" id="aiMinimize" aria-label="Thu nhỏ" title="Thu nhỏ"><i class="fa-solid fa-minus"></i></button>
             <button type="button" class="ai-head-btn" id="aiClose" aria-label="Đóng và xoá hội thoại" title="Đóng"><i class="fa-solid fa-xmark"></i></button>
@@ -7053,6 +7053,10 @@
                     ),
                     $("<i>", { class: "fa-solid fa-chevron-right", "aria-hidden": "true" })
                 ))),
+                $("<p>", { class: "ai-scope" }).append(
+                    $("<i>", { class: "fa-solid fa-circle-info", "aria-hidden": "true" }),
+                    $("<span>", { text: "Mình chỉ trả lời về bài viết, sự kiện, thành viên và đồ pass trong VibeGram. Câu hỏi ngoài ứng dụng (thời tiết, kiến thức chung...) mình chưa hỗ trợ nhé." })
+                ),
                 $("<p>", { class: "ai-tip", text: "💡 Bạn cũng có thể nhập câu hỏi trực tiếp ở bên dưới nhé!" })
             ));
         }

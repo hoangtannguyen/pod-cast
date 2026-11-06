@@ -6079,6 +6079,23 @@ a.profile-about-row:hover {
     color: #a59fbf;
 }
 
+.ai-scope {
+    display: flex;
+    gap: 8px;
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(124, 58, 237, 0.12);
+    font-size: 12px;
+    line-height: 1.5;
+    color: #c9c4dd;
+}
+
+.ai-scope i {
+    margin-top: 3px;
+    color: #c084fc;
+}
+
 .ai-tip {
     align-self: center;
     margin: 2px 0 0;
