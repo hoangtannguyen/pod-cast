@@ -6930,10 +6930,12 @@
         }
 
         // The Worker starts with a one-line title, then the answer, and marks every post it mentions as
-        // [[post:ID]]: strip the marks, show those posts as cards
+        // [[post:ID]]: strip the marks, show those posts as cards. [[offtopic]] (outside VibeGram or not
+        // found) turns the chips into shortcuts back to what it can answer
         function aiAnswerBubble(answer, items, question) {
             const ids = [];
-            let text = answer.replace(/\s*\[\[post:([^\]\s]+)\]\]/g, (mark, id) => {
+            const offtopic = answer.includes("[[offtopic]]");
+            let text = answer.replace(/\s*\[\[offtopic\]\]/g, "").replace(/\s*\[\[post:([^\]\s]+)\]\]/g, (mark, id) => {
                 if (!ids.includes(id)) ids.push(id);
                 return "";
             }).trim();
@@ -6954,7 +6956,7 @@
                     $("<span>", { text: `Đã tìm thấy ${found.length} kết quả` })
                 ) : null,
                 cards.length ? $("<div>", { class: "ai-cards" }).append(cards) : null,
-                aiNextChips(found[0]),
+                aiNextChips(found[0], offtopic),
                 $("<div>", { class: "ai-meta" }).append(
                     $("<span>").append($("<i>", { class: "fa-solid fa-circle-check" }), $("<span>", { text: "Trả lời dựa trên dữ liệu từ VibeGram (RAG)" })),
                     $("<span>", { text: chatTime(Date.now()) })
@@ -6963,10 +6965,12 @@
         }
 
         // Next steps under an answer, for its first result: its comments, a chat with its author; and a random find
-        function aiNextChips(first) {
+        function aiNextChips(first, offtopic) {
             const chip = (text, attrs) => $("<button>", { type: "button", class: "ai-next-chip", text: text, ...attrs });
             const data = first?.data;
+            const ask = (category) => chip(`${category.icon} ${category.label}`, { "data-ai-act": "ask", "data-q": category.questions[0] });
             return $("<div>", { class: "ai-next" }).append(
+                offtopic ? AI_SUGGESTIONS.filter((c) => c.label === "Bài viết hot" || c.label === "Sự kiện").map(ask) : null,
                 data && !data.party && !data.item ? chip("💬 Xem bình luận", { "data-ai-act": "comments", "data-id": first.id }) : null,
                 data?.auth && data.auth !== currentAuthor() ? chip(`✉️ Nhắn tin cho ${nameOf(data.auth)}`, { "data-ai-act": "chat", "data-author": data.auth }) : null,
                 chip("🎲 Khám phá ngẫu nhiên", { "data-ai-act": "random" })
@@ -7243,6 +7247,7 @@
         $("#aiMessages").on("click", "[data-ai-act]", function () {
             const act = $(this).attr("data-ai-act");
             if (act === "random") return discoverAiRandom();
+            if (act === "ask") return askVibeGramAi($(this).attr("data-q"));
             if (act === "chat") return openChat($(this).attr("data-author"));
             const $post = $(`#feed .post[data-id="${$(this).attr("data-id")}"]`);
             if (!$post.length) return showToast("Bài viết chưa được tải trong bảng tin");

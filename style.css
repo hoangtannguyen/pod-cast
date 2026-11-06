@@ -5656,7 +5656,7 @@ a.profile-about-row:hover {
     display: flex;
     flex-direction: column;
     gap: 14px;
-    padding: 16px;
+    padding: 16px 16px 28px; /* the last message clears the suggestion bar when scrolled to the bottom */
     overflow-y: auto;
     overscroll-behavior: contain;
     scrollbar-width: thin;
