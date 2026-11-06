@@ -5824,6 +5824,45 @@ a.profile-about-row:hover {
     object-fit: cover;
 }
 
+.ai-card.ai-member {
+    flex-direction: column;
+    background: linear-gradient(135deg, #2a1f4d, #211b3a);
+}
+
+.ai-member-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.ai-member-avatar {
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    font-size: 18px;
+}
+
+.ai-member-name {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ai-member-name strong {
+    font-size: 15px;
+    color: #fff;
+}
+
+.ai-member-name span {
+    font-size: 12px;
+    color: #c9c4dd;
+}
+
+.ai-member .ai-next {
+    margin-top: 0;
+}
+
 .ai-answer-title {
     margin: 0 0 6px;
     font-size: 15px;

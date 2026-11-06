@@ -6845,7 +6845,7 @@
             const lines = [...new Set([...onDate, ...soon, ...matched, ...everyone])].slice(0, AI_MAX_MEMBERS).map((u) => {
                 const days = daysUntilBirthday(u.birthday);
                 const birthday = days === null ? "" : ` Sinh nhật: ${birthdayLabel(u.birthday)} (${days === 0 ? "hôm nay" : `còn ${days} ngày`}).`;
-                return { from: nameOf(u.author), time: "", text: `Thành viên.${u.bio ? ` Giới thiệu: ${u.bio}.` : ""}${birthday}` };
+                return { id: u.id ? `m-${u.id}` : "", from: nameOf(u.author), time: "", text: `Thành viên.${u.bio ? ` Giới thiệu: ${u.bio}.` : ""}${birthday}` };
             });
             if (!asksMembers) return lines;
             const shown = all.length > AI_MAX_MEMBERS ? `, dưới đây chỉ liệt kê ${AI_MAX_MEMBERS} người` : "";
@@ -6888,6 +6888,28 @@
                     line("fa-solid fa-crown", `Chủ phòng: ${nameOf(room.host)}`),
                     line("fa-solid fa-headphones", `${members.length} đang nghe · ${(room.queue || []).length} bài chờ`),
                     $("<button>", { type: "button", class: "ai-card-view", "data-ai-act": "room", "data-room": room.id, text: inside ? "Mở phòng" : "Tham gia phòng" })
+                )
+            );
+        }
+
+        // Only what the member made public (bio, birthday); the pass chip shows when they have items for sale
+        function aiMemberCardOf(u) {
+            const name = nameOf(u.author);
+            const chip = (text, attrs) => $("<button>", { type: "button", class: "ai-next-chip", text: text, ...attrs });
+            const selling = passItems.some((it) => it.data.auth === u.author && !it.data.item?.sold);
+            return $("<div>", { class: "ai-card ai-member" }).append(
+                $("<div>", { class: "ai-member-head" }).append(
+                    fillAvatar($("<span>", { class: "avatar ai-member-avatar" }), u.author),
+                    $("<div>", { class: "ai-member-name" }).append(
+                        $("<strong>", { text: name }),
+                        parseBirthday(u.birthday) ? $("<span>", { text: `🎂 Sinh nhật: ${birthdayLabel(u.birthday)}` }) : null
+                    )
+                ),
+                u.bio ? $("<p>", { class: "ai-card-caption", text: u.bio }) : null,
+                $("<div>", { class: "ai-next" }).append(
+                    chip("👤 Trang cá nhân", { "data-ai-act": "profile", "data-author": u.author }),
+                    selling ? chip("🛍️ Xem đồ pass", { "data-ai-act": "ask", "data-q": `${name} đang pass những món đồ nào?` }) : null,
+                    u.author !== currentAuthor() ? chip("✉️ Nhắn tin", { "data-ai-act": "chat", "data-author": u.author }) : null
                 )
             );
         }
@@ -6991,14 +7013,20 @@
             }
             const found = ids.map((id) => items.find((it) => it.id === id)).filter(Boolean);
             const rooms = ids.map((id) => musicRooms.find((room) => room.id === id)).filter(Boolean);
+            const users = [...usersByAuthor.values()];
+            const members = ids.filter((id) => id.startsWith("m-")).map((id) => users.find((u) => u.author && `m-${u.id}` === id)).filter(Boolean);
             const featured = found.length > 0 && AI_RANKING_RE.test(normalizeAiText(question));
-            const cards = [...found.slice(0, 4).map((it, i) => aiCardOf(it, featured && i === 0)), ...rooms.slice(0, 4).map(aiRoomCardOf)];
+            const cards = [
+                ...found.slice(0, 4).map((it, i) => aiCardOf(it, featured && i === 0)),
+                ...rooms.slice(0, 4).map(aiRoomCardOf),
+                ...members.slice(0, 4).map(aiMemberCardOf)
+            ];
             return $("<div>", { class: "ai-bubble" }).append(
                 title ? $("<h3>", { class: "ai-answer-title", text: title }) : null,
                 $("<p>", { class: "ai-text", text: text }),
-                found.length + rooms.length ? $("<p>", { class: "ai-found" }).append(
+                cards.length ? $("<p>", { class: "ai-found" }).append(
                     $("<i>", { class: "fa-solid fa-circle-check" }),
-                    $("<span>", { text: `Đã tìm thấy ${found.length + rooms.length} kết quả` })
+                    $("<span>", { text: `Đã tìm thấy ${cards.length} kết quả` })
                 ) : null,
                 cards.length ? $("<div>", { class: "ai-cards" }).append(cards) : null,
                 aiNextChips(found[0], offtopic, webLinks),
@@ -7313,6 +7341,10 @@
             if (act === "random") return discoverAiRandom();
             if (act === "ask") return askVibeGramAi($(this).attr("data-q"));
             if (act === "room") return joinMusicRoomFromAi($(this));
+            if (act === "profile") {
+                if (!WIDE_LAYOUT.matches) closeAiPanel(false);
+                return showProfile($(this).attr("data-author"));
+            }
             if (act === "chat") return openChat($(this).attr("data-author"));
             const $post = $(`#feed .post[data-id="${$(this).attr("data-id")}"]`);
             if (!$post.length) return showToast("Bài viết chưa được tải trong bảng tin");
