@@ -210,6 +210,15 @@
 
             <div class="media-grid" id="composerMedia" style="display:none"></div>
 
+            <div class="ai-write-result" id="aiWriteResult" style="display:none" aria-live="polite">
+                <p class="ai-write-text" id="aiWriteText"></p>
+                <div class="ai-write-actions">
+                    <button type="button" class="btn-primary" id="aiWriteUse">Dùng nội dung này</button>
+                    <button type="button" class="btn-ghost" id="aiWriteRetry">Viết lại</button>
+                    <button type="button" class="btn-ghost" id="aiWriteClose">Đóng</button>
+                </div>
+            </div>
+
             <div class="composer-actions">
                 <input type="file" id="mediaFiles" accept="image/*,video/*" multiple hidden>
                 <div class="composer-tools">
@@ -221,6 +230,19 @@
                         <i class="fa-regular fa-face-smile"></i>
                         <span>Emoji</span>
                     </button>
+                    <!-- VibeGram AI writing help: the result shows in #aiWriteResult before it replaces anything -->
+                    <div class="ai-write">
+                        <button type="button" class="btn-ghost" id="btnAiWrite" aria-haspopup="menu" aria-expanded="false">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i>
+                            <span>AI viết</span>
+                        </button>
+                        <div class="admin-menu ai-write-menu" id="aiWriteMenu" role="menu" style="display:none">
+                            <button type="button" class="admin-menu-item" data-task="rewrite" role="menuitem">✍️ <span>Viết lại hay hơn</span></button>
+                            <button type="button" class="admin-menu-item" data-task="caption" role="menuitem">📷 <span>Gợi ý caption cho ảnh</span></button>
+                            <button type="button" class="admin-menu-item" data-task="birthday" role="menuitem">🎂 <span>Lời chúc sinh nhật</span></button>
+                            <button type="button" class="admin-menu-item" data-task="event" role="menuitem">📣 <span>Thông báo sự kiện</span></button>
+                        </div>
+                    </div>
                 </div>
                 <button type="button" class="btn-primary" id="btnPost">
                     <i class="fa-solid fa-paper-plane"></i>
@@ -4458,6 +4480,7 @@
 
         function resetComposer() {
             $("#comment").val("").css("height", "");
+            $("#aiWriteResult").hide();
             releaseMedia(composerMedia);
             composerMedia = [];
             renderComposerMedia();
@@ -4478,6 +4501,94 @@
         $("#comment").on("input", function () {
             this.style.height = "auto";
             this.style.height = this.scrollHeight + "px";
+        });
+
+        /* VibeGram AI writing help (scope "write" on the Worker): the draft, the event being created or a
+           downscaled photo go along; the answer is shown first and only replaces the draft on "Dùng" */
+
+        const AI_WRITE_TASKS = {
+            rewrite: "Viết lại bản nháp cho tự nhiên, cuốn hút và chỉn chu hơn, giữ nguyên ý chính, độ dài tương đương.",
+            caption: "Gợi ý 1 caption ngắn (tối đa 25 từ) cho ảnh này, hợp đăng mạng xã hội bạn bè, có 1-2 emoji. Có bản nháp thì theo ý bản nháp.",
+            birthday: "Viết 1 lời chúc sinh nhật ấm áp, vui vẻ (tối đa 50 từ). Tên người nhận và ý muốn nhắn lấy từ bản nháp nếu có.",
+            event: "Viết thông báo mời mọi người tham gia sự kiện, hấp dẫn, tối đa 70 từ, nhắc đủ thời gian và địa điểm có trong dữ liệu."
+        };
+        const AI_IMAGE_SIZE = 512;
+        let aiWriteTask = "";
+
+        // The first photo of the draft as a small JPEG (base64), enough for the model to see what is in it
+        async function aiImageOf(item) {
+            const img = new Image();
+            img.src = item.url;
+            await img.decode();
+            const scale = Math.min(1, AI_IMAGE_SIZE / Math.max(img.naturalWidth, img.naturalHeight));
+            const canvas = document.createElement("canvas");
+            canvas.width = Math.round(img.naturalWidth * scale);
+            canvas.height = Math.round(img.naturalHeight * scale);
+            canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+            return { mimeType: "image/jpeg", data: canvas.toDataURL("image/jpeg", 0.7).split(",")[1] };
+        }
+
+        async function runAiWrite(task) {
+            aiWriteTask = task;
+            const draft = $.trim($("#comment").val());
+            const photo = composerMedia.find((m) => m.type === "image");
+            const party = composerParty;
+            if (!AI_WORKER_URL || !auth.currentUser) return showToast("Đăng nhập để dùng AI viết bài nhé");
+            if (task === "rewrite" && !draft) return showToast("Viết vài dòng trước, AI sẽ viết lại cho hay hơn");
+            if (task === "caption" && !photo) return showToast("Chọn ảnh trước để AI gợi ý caption");
+            if (task === "event" && !party && !draft) return showToast("Tạo sự kiện hoặc ghi vài thông tin trước nhé");
+
+            const $result = $("#aiWriteResult").show();
+            $("#aiWriteText").text("✨ AI đang viết...");
+            $result.find("button").prop("disabled", true);
+            let ok = false;
+            try {
+                const messages = [
+                    draft ? { from: "Bản nháp", text: draft } : null,
+                    party ? { from: "Sự kiện", text: `${party.kind || ""} ${party.title}, ${partyWhen(party)}, tại ${party.place}, tối đa ${party.capacity} người` } : null
+                ].filter(Boolean);
+                const response = await fetch(AI_WORKER_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${await auth.currentUser.getIdToken()}` },
+                    body: JSON.stringify({
+                        scope: "write",
+                        question: AI_WRITE_TASKS[task],
+                        messages,
+                        ...(task === "caption" ? { image: await aiImageOf(photo) } : {})
+                    })
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(data.error || "AI chưa viết được, thử lại sau.");
+                $("#aiWriteText").text(String(data.answer || "").trim().replace(/^["“]|["”]$/g, ""));
+                ok = true;
+            } catch (err) {
+                console.error(err);
+                $("#aiWriteText").text(err.message || "AI chưa viết được, thử lại sau.");
+            } finally {
+                $result.find("button").prop("disabled", false);
+                $("#aiWriteUse").prop("disabled", !ok); // an error message is not a draft
+            }
+        }
+
+        $("#btnAiWrite").on("click", function (e) {
+            e.stopPropagation();
+            const open = !$("#aiWriteMenu").is(":visible");
+            $("#aiWriteMenu").toggle(open);
+            $(this).attr("aria-expanded", String(open));
+        });
+        $(document).on("click", function (e) {
+            if (!$(e.target).closest(".ai-write").length) $("#aiWriteMenu").hide();
+        });
+        $("#aiWriteMenu").on("click", "[data-task]", function () {
+            $("#aiWriteMenu").hide();
+            $("#btnAiWrite").attr("aria-expanded", "false");
+            runAiWrite($(this).attr("data-task"));
+        });
+        $("#aiWriteRetry").on("click", () => runAiWrite(aiWriteTask));
+        $("#aiWriteClose").on("click", () => $("#aiWriteResult").hide());
+        $("#aiWriteUse").on("click", function () {
+            $("#comment").val($("#aiWriteText").text()).trigger("input").trigger("focus");
+            $("#aiWriteResult").hide();
         });
 
         $("#btnPost").on("click", async function () {

@@ -1115,6 +1115,36 @@ body.no-scroll {
     overflow-wrap: anywhere;
 }
 
+/* VibeGram AI writing help in the composer */
+.ai-write {
+    position: relative;
+}
+
+.ai-write-menu {
+    left: 0;
+    right: auto;
+}
+
+.ai-write-result {
+    margin-top: 10px;
+    padding: 12px;
+    border: 1px solid rgba(139, 92, 246, 0.35);
+    border-radius: var(--radius);
+    background: rgba(139, 92, 246, 0.08);
+}
+
+.ai-write-text {
+    margin: 0 0 10px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.ai-write-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
 /* Facebook / TikTok video from a link in the caption */
 .post-embed {
     padding: 0 12px 10px;
