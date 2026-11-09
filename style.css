@@ -540,6 +540,7 @@ body.no-scroll {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 8px;
     padding-top: 12px;
     border-top: 1px solid var(--border-soft);
 }
@@ -568,6 +569,31 @@ body.no-scroll {
 
 .composer-tools .btn-emoji i {
     color: #f7b928;
+}
+
+.composer-tools .btn-ghost,
+#btnPost {
+    white-space: nowrap;
+}
+
+.composer-tools .btn-ai-write i {
+    color: #8b5cf6;
+}
+
+/* Phones: Emoji and AI keep only their icon so one row fits "Ảnh/Video" and "Đăng" */
+@media (max-width: 480px) {
+    .composer-tools {
+        gap: 0;
+    }
+
+    .composer-tools .btn-ghost {
+        padding: 6px 8px;
+    }
+
+    .composer-tools .btn-emoji span,
+    .composer-tools .btn-ai-write span {
+        display: none;
+    }
 }
 
 /* Emoji picker */
