@@ -7,7 +7,8 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <!-- Apply the theme before the page paints, so a dark page does not flash white.
          By the clock: light 06:00-18:00, dark otherwise. A theme picked with the button lasts until
-         the next of those two times ("vibegram:themeUntil"), then the clock takes over again. -->
+         the next of those two times ("vibegram:themeUntil"), then the clock takes over again.
+         "sepia" and "dim" are tones on top of light / dark (data-tone), so the dark-theme styles still apply. -->
     <script>
         (function () {
             var hour = new Date().getHours();
@@ -15,9 +16,11 @@
             try {
                 var picked = localStorage.getItem("vibegram:theme");
                 var until = Number(localStorage.getItem("vibegram:themeUntil")) || 0;
-                if ((picked === "light" || picked === "dark") && Date.now() < until) theme = picked;
+                if (["light", "sepia", "dark", "dim"].indexOf(picked) >= 0 && Date.now() < until) theme = picked;
             } catch (e) {}
-            document.documentElement.setAttribute("data-theme", theme);
+            var base = theme === "sepia" ? "light" : theme === "dim" ? "dark" : theme;
+            document.documentElement.setAttribute("data-theme", base);
+            if (base !== theme) document.documentElement.setAttribute("data-tone", theme);
         })();
     </script>
     <link rel="stylesheet" href="style.css">
@@ -2336,13 +2339,37 @@
         /* ---------- Light / dark theme ---------- */
 
         // The theme itself is applied by the inline script in <head>; this keeps the button in sync
+        // The button cycles through these; it shows the label / icon of the theme it switches to
+        const THEMES = {
+            light: { base: "light", label: "Chế độ sáng", icon: "fa-regular fa-sun" },
+            sepia: { base: "light", tone: "sepia", label: "Chế độ kem", icon: "fa-solid fa-mug-hot" },
+            dark: { base: "dark", label: "Chế độ tối", icon: "fa-regular fa-moon" },
+            dim: { base: "dark", tone: "dim", label: "Chế độ xanh đêm", icon: "fa-regular fa-star" },
+        };
+        const THEME_ORDER = ["light", "sepia", "dark", "dim"];
+
+        function currentTheme() {
+            const root = document.documentElement;
+            return root.getAttribute("data-tone") || root.getAttribute("data-theme");
+        }
+
+        function applyTheme(name) {
+            const theme = THEMES[name];
+            document.documentElement.setAttribute("data-theme", theme.base);
+            if (theme.tone) document.documentElement.setAttribute("data-tone", theme.tone);
+            else document.documentElement.removeAttribute("data-tone");
+        }
+
+        function nextTheme() {
+            return THEME_ORDER[(THEME_ORDER.indexOf(currentTheme()) + 1) % THEME_ORDER.length];
+        }
+
         function renderThemeButton() {
-            const isDark = document.documentElement.getAttribute("data-theme") === "dark";
-            const label = isDark ? "Chế độ sáng" : "Chế độ tối";
-            $("#btnTheme").attr({ "data-tip": label, "aria-label": label, "aria-pressed": isDark })
-                .find("i").attr("class", isDark ? "fa-regular fa-sun" : "fa-regular fa-moon");
-            $("#moreThemeIcon").attr("class", isDark ? "fa-regular fa-sun" : "fa-regular fa-moon");
-            $("#moreThemeLabel").text(label);
+            const next = THEMES[nextTheme()];
+            $("#btnTheme").attr({ "data-tip": next.label, "aria-label": next.label, "aria-pressed": THEMES[currentTheme()]?.base === "dark" })
+                .find("i").attr("class", next.icon);
+            $("#moreThemeIcon").attr("class", next.icon);
+            $("#moreThemeLabel").text(next.label);
         }
 
         /* ---------- Phone navigation: "more" menu + bottom bar ---------- */
@@ -2416,8 +2443,8 @@
         }
 
         $("#btnTheme").on("click", function () {
-            const next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
-            document.documentElement.setAttribute("data-theme", next);
+            const next = nextTheme();
+            applyTheme(next);
             try {
                 localStorage.setItem("vibegram:theme", next);
                 localStorage.setItem("vibegram:themeUntil", String(nextThemeSwitch()));
@@ -2431,8 +2458,8 @@
         setInterval(() => {
             if (pickedThemeActive()) return;
             const theme = clockTheme();
-            if (document.documentElement.getAttribute("data-theme") === theme) return;
-            document.documentElement.setAttribute("data-theme", theme);
+            if (currentTheme() === theme) return;
+            applyTheme(theme);
             renderThemeButton();
         }, 60 * 1000);
 
