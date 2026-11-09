@@ -1115,12 +1115,6 @@ body.no-scroll {
     overflow-wrap: anywhere;
 }
 
-.composer-hint {
-    margin: 4px 0 0;
-    font-size: 12px;
-    color: var(--muted);
-}
-
 /* Facebook / TikTok video from a link in the caption */
 .post-embed {
     padding: 0 12px 10px;

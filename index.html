@@ -202,8 +202,7 @@
                 <button type="button" class="link-btn" id="composerPartyEdit">Sửa</button>
             </div>
 
-            <textarea id="comment" placeholder="Bạn đang nghĩ gì? ✨" rows="2" maxlength="2000"></textarea>
-            <p class="composer-hint">🎬 Mẹo: dán link video Facebook hoặc TikTok, bài sẽ tự hiện video, không cần chọn ảnh.</p>
+            <textarea id="comment" placeholder="Bạn đang nghĩ gì? ✨ Dán link video Facebook/TikTok cũng hiện video nhé 🎬" rows="2" maxlength="2000"></textarea>
 
             <div class="media-grid" id="composerMedia" style="display:none"></div>
 
@@ -5127,7 +5126,7 @@
             if (composerParty) $("#composerPartyText").text(`🎉 ${composerParty.title} · ${partyWhen(composerParty)}`);
             if (composerItem) $("#composerPartyText").text(`🛍️ ${composerItem.name} · ${formatMoney(composerItem.price)}`);
             $("#comment").attr("placeholder", composerParty ? "Lời mời / mô tả sự kiện (không bắt buộc) ✨"
-                : composerItem ? "Mô tả thêm về món đồ (không bắt buộc) ✨" : "Bạn đang nghĩ gì? ✨");
+                : composerItem ? "Mô tả thêm về món đồ (không bắt buộc) ✨" : "Bạn đang nghĩ gì? ✨ Dán link video Facebook/TikTok cũng hiện video nhé 🎬");
             // The label's first text node ("Ảnh/Video "), before the file count
             $("label[for='mediaFiles'] > span").contents()[0].nodeValue = composerParty ? "Ảnh bìa " : composerItem ? "Ảnh sản phẩm " : "Ảnh/Video ";
         }
@@ -8367,9 +8366,12 @@
             return `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
         }
 
+        // In two rooms at once (a join from another tab or device, or one made before the room list caught up),
+        // the room I host wins, so its host still sees "Đóng phòng"
         function myMusicRoom() {
             const myId = userIdOf(currentAuthor());
-            return myId ? musicRooms.find((r) => (r.memberIds || []).includes(myId)) : undefined;
+            const rooms = myId ? musicRooms.filter((r) => (r.memberIds || []).includes(myId)) : [];
+            return rooms.find((r) => r.hostId === myId) || rooms[0];
         }
 
         // Rooms hosted by me or a friend; a room I am already in stays listed so I can still leave it
@@ -8945,13 +8947,14 @@
         }
 
         // One room at a time: joining or creating a room leaves the previous one
-        async function leaveMyMusicRoom(myId) {
-            const prev = myMusicRoom();
-            if (prev) await updateDoc(doc(db, "musicRooms", prev.id), { memberIds: arrayRemove(myId) });
+        // Leaves every room I am in (except `keepId`), so being in two rooms at once fixes itself on the next join
+        async function leaveMyMusicRoom(myId, keepId) {
+            const rooms = musicRooms.filter((r) => r.id !== keepId && (r.memberIds || []).includes(myId));
+            await Promise.all(rooms.map((r) => updateDoc(doc(db, "musicRooms", r.id), { memberIds: arrayRemove(myId) })));
         }
 
         async function joinMusicRoom(myId, roomId) {
-            await leaveMyMusicRoom(myId);
+            await leaveMyMusicRoom(myId, roomId);
             await updateDoc(doc(db, "musicRooms", roomId), { memberIds: arrayUnion(myId) });
             showToast("Đã vào phòng 🎧");
         }
