@@ -88,6 +88,10 @@
                             <i class="fa-solid fa-chart-pie"></i>
                             <span>Dung lượng</span>
                         </button>
+                        <button type="button" class="admin-menu-item" id="btnAnalytics" role="menuitem" aria-haspopup="dialog">
+                            <i class="fa-solid fa-chart-column"></i>
+                            <span>Analytics</span>
+                        </button>
                         <button type="button" class="admin-menu-item" id="btnUsers" role="menuitem" aria-haspopup="dialog">
                             <i class="fa-solid fa-users"></i>
                             <span>Quản lý người dùng</span>
@@ -846,15 +850,38 @@
     <!-- Storage stats popup (admin only) -->
     <div class="modal" id="statsModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="statsTitle">
         <div class="modal-card stats-card">
-            <h2 class="modal-title" id="statsTitle">Dung lượng 📊</h2>
+            <header class="stats-head">
+                <img src="images/vibe-logo.svg" alt="" width="36" height="36">
+                <div>
+                    <h2 class="modal-title" id="statsTitle">VibeGram</h2>
+                    <p>Dung lượng sử dụng</p>
+                </div>
+                <button type="button" class="icon-btn modal-close" aria-label="Đóng"><i class="fa-solid fa-xmark"></i></button>
+            </header>
             <div class="stats-body" id="statsBody"></div>
-            <p class="stats-note">
-                Số liệu do app tự ước tính từ dữ liệu đọc được. Số chính xác xem tại
-                <a href="https://console.firebase.google.com/project/mini-photo-app-891a5/firestore" target="_blank" rel="noopener">Firebase Console</a>
-                và <a href="https://console.cloudinary.com/" target="_blank" rel="noopener">Cloudinary</a>.
-            </p>
+            <footer class="stats-foot">
+                <p class="stats-note">
+                    💡 <strong>Mẹo nhỏ</strong><br>
+                    Số liệu do app tự ước tính. Số chính xác xem tại
+                    <a href="https://console.firebase.google.com/project/mini-photo-app-891a5/firestore" target="_blank" rel="noopener">Firebase Console</a>
+                    và <a href="https://console.cloudinary.com/" target="_blank" rel="noopener">Cloudinary</a>.
+                    Cần thêm chỗ thì xoá ảnh/video không cần thiết hoặc nâng cấp gói.
+                </p>
+                <div class="stats-actions">
+                    <button type="button" class="btn-ghost" id="statsRefresh">Làm mới</button>
+                    <button type="button" class="btn-primary modal-close"><i class="fa-solid fa-check"></i> Đóng</button>
+                </div>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Activity analytics (admin only) -->
+    <div class="modal" id="analyticsModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="analyticsTitle">
+        <div class="modal-card stats-card">
+            <h2 class="modal-title" id="analyticsTitle">VibeGram Analytics 📈</h2>
+            <div class="stats-body" id="analyticsBody"></div>
             <div class="modal-actions">
-                <button type="button" class="btn-ghost" id="statsRefresh">Làm mới</button>
+                <button type="button" class="btn-ghost" id="analyticsRefresh">Làm mới</button>
                 <button type="button" class="btn-primary modal-close">Đóng</button>
             </div>
         </div>
@@ -3449,7 +3476,7 @@
             $("#adminMenuWrap").toggle(isAdmin);
             closeAiPanel(!aiPanelEnabled());
             if (!isAdmin) closeAdminMenu();
-            if (!isAdmin) $("#statsModal, #usersModal, #userEditModal").hide();
+            if (!isAdmin) $("#statsModal, #analyticsModal, #usersModal, #userEditModal").hide();
         }
 
         function setAdmin(value) {
@@ -3921,23 +3948,43 @@
             }
         }
 
-        function statBlock(icon, title, value, lines, percent) {
-            const $block = $("<div>", { class: "stat" }).append(
-                $("<div>", { class: "stat-head" }).append(
-                    $("<i>", { class: icon }),
-                    $("<strong>", { text: title }),
-                    $("<span>", { class: "stat-value", text: value })
-                )
+        // One storage card: head with the used / limit box, a bar, two columns of { label, value, sub, dot } rows
+        // and a note. `tone` picks the accent (blue for Firestore, purple for Cloudinary).
+        function storageCard({ icon, tone, title, subtitle, used, limit, percent, left, right, note }) {
+            const rows = (list) => $("<ul>", { class: "storage-list" }).append(list.filter(Boolean).map((row) => $("<li>").append(
+                $("<span>", { class: `storage-dot is-${row.dot || "muted"}` }),
+                $("<div>").append(
+                    $("<span>", { class: "storage-label", text: row.label }),
+                    row.sub ? $("<small>", { text: row.sub }) : null
+                ),
+                row.value ? $("<span>", { class: "storage-num", text: row.value }) : null
+            )));
+            return $("<section>", { class: `storage-card is-${tone}` }).append(
+                $("<div>", { class: "storage-head" }).append(
+                    $("<span>", { class: "storage-icon" }).append($("<i>", { class: icon })),
+                    $("<div>", { class: "storage-title" }).append($("<strong>", { text: title }), $("<span>", { text: subtitle })),
+                    $("<div>", { class: "storage-value" }).append(
+                        $("<div>").append($("<strong>", { text: used }), $("<span>", { text: ` / ${limit}` })),
+                        $("<small>", { text: `≈ ${percent < 0.01 ? "0.00" : percent.toFixed(2)}%` })
+                    )
+                ),
+                $("<div>", { class: "stat-bar" }).append($("<span>").css("width", `${Math.max(percent, 1)}%`)),
+                $("<div>", { class: "storage-cols" }).append(rows(left), rows(right)),
+                $("<p>", { class: "storage-note" }).append($("<i>", { class: "fa-solid fa-circle-info" }), $("<span>", { text: note }))
             );
-            lines.filter(Boolean).forEach((line) => $block.append($("<p>", { class: "stat-line", text: line })));
+        }
 
-            if (percent !== null) {
-                $block.append(
-                    $("<div>", { class: "stat-bar" }).append($("<span>").css("width", `${Math.max(percent, 0.5)}%`)),
-                    $("<p>", { class: "stat-line", text: `Đã dùng ${percent < 0.01 ? "< 0.01" : percent.toFixed(2)}% quota miễn phí` })
-                );
-            }
-            return $block;
+        // Green under half of the free quota, yellow under 80%, red above
+        function storageSummary(percent) {
+            const [tone, title, text] = percent < 50
+                ? ["ok", "Bạn đang sử dụng rất ít dung lượng!", "Cả Firestore và Cloudinary đều đang ở mức an toàn."]
+                : percent < 80
+                    ? ["warn", "Dung lượng đang tăng dần", "Nên dọn bớt ảnh/video cũ hoặc tính tới nâng cấp gói."]
+                    : ["danger", "Sắp hết quota miễn phí!", "Cần dọn dữ liệu hoặc nâng cấp gói sớm để app không bị gián đoạn."];
+            return $("<div>", { class: `storage-summary is-${tone}` }).append(
+                $("<i>", { class: tone === "ok" ? "fa-solid fa-circle-check" : "fa-solid fa-triangle-exclamation" }),
+                $("<div>").append($("<strong>", { text: `Tổng quan: ${title}` }), $("<span>", { text }))
+            );
         }
 
         async function loadStats() {
@@ -4013,32 +4060,57 @@
                 });
                 const mediaBytes = sizes.reduce((sum, size) => sum + (size || 0), 0);
                 const unknown = sizes.filter((size) => !size).length;
-                const videos = fileList.filter(({ media }) => media.type === "video").length;
                 const percent = Math.min(100, (firestoreBytes / FIRESTORE_FREE_BYTES) * 100);
                 const mediaPercent = Math.min(100, (mediaBytes / CLOUDINARY_FREE_BYTES) * 100);
-                const kindLine = (k, docs, bytes) => `${k.label[0].toUpperCase()}${k.label.slice(1)}: ${docs} · ${formatBytes(bytes)}`;
+                const docRow = (k, dot, sub) => ({ label: `${k.label[0].toUpperCase()}${k.label.slice(1)}`, value: `${k.docs} · ${formatBytes(k.bytes)}`, dot, sub });
+                const fileRow = (k, dot) => ({ label: `${k.label[0].toUpperCase()}${k.label.slice(1)}`, value: `${k.files} file · ${formatBytes(k.fileBytes)}`, dot });
+                const postVideos = fileList.filter(({ kind, media }) => kind === "post" && media.type === "video").length;
+                const extraDots = ["green", "blue", "purple", "orange", "pink"];
 
                 $body.empty().append(
-                    statBlock("fa-solid fa-database", "Firestore", `${formatBytes(firestoreBytes)} / 1 GB`,
-                        [
-                            kindLine(kinds.post, kinds.post.docs, kinds.post.bytes),
-                            kindLine(kinds.pass, kinds.pass.docs, kinds.pass.bytes),
-                            `${kindLine(kinds.story, kinds.story.docs, kinds.story.bytes)} (${expiredStories} đã hết hạn, nằm trong Kho lưu trữ)`,
-                            `Bình luận: ${comments.size} · ${formatBytes(commentBytes)}`,
-                            extras.filter((e) => e.count !== null).map((e) => `${e.count.toLocaleString("vi-VN")} ${e.label} · ${formatBytes(e.bytes)}${e.sampled ? " (ước tính)" : ""}`).join(" · "),
-                            unreadable.length ? `Không đọc được: ${unreadable.join(", ")} (bị Firestore rules chặn)` : null,
-                            `Tính theo công thức dung lượng của Firestore${sampled.length ? `; ${sampled.join(", ")} ước tính theo mẫu ${STATS_SAMPLE_SIZE} bản ghi` : ""}. Chưa gồm index (Firestore tự tạo index cho mọi field) nên số thực tế ở Firebase Console → Firestore → Usage sẽ cao hơn.`
-                        ], percent),
-                    statBlock("fa-regular fa-images", "Ảnh & video (Cloudinary)", `${formatBytes(mediaBytes)} / 25 GB`,
-                        [
-                            `${fileList.length - videos} ảnh · ${videos} video`,
-                            kindLine(kinds.post, `${kinds.post.files} file`, kinds.post.fileBytes),
-                            kindLine(kinds.pass, `${kinds.pass.files} file`, kinds.pass.fileBytes),
-                            kindLine(kinds.story, `${kinds.story.files} file`, kinds.story.fileBytes),
-                            unknown ? `${unknown} file không đọc được dung lượng (chưa tính vào tổng)` : null,
-                            "Chỉ tính file gốc, chưa gồm ảnh thu nhỏ / poster video Cloudinary tự tạo ra.",
-                            "25 credit/tháng dùng chung cho lưu trữ, băng thông và xử lý ảnh — 25 GB là mức tối đa nếu chỉ dùng để lưu trữ."
-                        ], mediaPercent)
+                    storageCard({
+                        icon: "fa-solid fa-database",
+                        tone: "blue",
+                        title: "Firestore",
+                        subtitle: "Cơ sở dữ liệu của ứng dụng",
+                        used: formatBytes(firestoreBytes),
+                        limit: "1 GB",
+                        percent,
+                        left: [
+                            docRow(kinds.post, "blue"),
+                            docRow(kinds.pass, "purple"),
+                            docRow(kinds.story, "orange", `${expiredStories} đã hết hạn, nằm trong Kho lưu trữ`)
+                        ],
+                        right: [
+                            { label: "Bình luận", value: `${comments.size} · ${formatBytes(commentBytes)}`, dot: "blue" },
+                            ...extras.filter((e) => e.count !== null).map((e, i) => ({
+                                label: `${e.count.toLocaleString("vi-VN")} ${e.label}`,
+                                value: `${formatBytes(e.bytes)}${e.sampled ? " *" : ""}`,
+                                dot: extraDots[i % extraDots.length]
+                            })),
+                            unreadable.length ? { label: "Không đọc được", sub: `${unreadable.join(", ")} (bị Firestore rules chặn)` } : null
+                        ],
+                        note: `Tính theo công thức dung lượng của Firestore${sampled.length ? `; * ước tính theo mẫu ${STATS_SAMPLE_SIZE} bản ghi` : ""}. Chưa gồm index (Firestore tự tạo index cho mỗi field) nên số thực tế ở Firebase Console → Firestore có thể cao hơn.`
+                    }),
+                    storageCard({
+                        icon: "fa-regular fa-images",
+                        tone: "purple",
+                        title: "Ảnh & video",
+                        subtitle: "Lưu trữ hình ảnh, video của bạn (Cloudinary)",
+                        used: formatBytes(mediaBytes),
+                        limit: "25 GB",
+                        percent: mediaPercent,
+                        left: [
+                            { label: "Ảnh & video bài viết", sub: `${kinds.post.files - postVideos} ảnh · ${postVideos} video`, value: formatBytes(kinds.post.fileBytes), dot: "blue" },
+                            fileRow(kinds.pass, "orange")
+                        ],
+                        right: [
+                            fileRow(kinds.story, "blue"),
+                            { label: "25 credit/tháng", sub: "Dùng chung cho lưu trữ, băng thông và xử lý ảnh", dot: "purple" }
+                        ],
+                        note: `Chỉ tính file gốc, chưa gồm ảnh thu nhỏ / poster video Cloudinary tự tạo.${unknown ? ` ${unknown} file không đọc được dung lượng (chưa tính vào tổng).` : ""} Đã dùng ${mediaPercent < 0.01 ? "< 0.01" : mediaPercent.toFixed(2)}% quota miễn phí.`
+                    }),
+                    storageSummary(Math.max(percent, mediaPercent))
                 );
             } catch (err) {
                 console.error(err);
@@ -4052,6 +4124,64 @@
         });
 
         $("#statsRefresh").on("click", loadStats);
+
+        // Kept cheap: two server-side counts, plus only the last 7 days of posts and comments.
+        // "Active" = posted or commented that day; interactions = likes on those posts + those comments.
+        async function loadAnalytics() {
+            if (!isAdmin) return;
+            const $body = $("#analyticsBody").html('<div class="spinner"></div>');
+            try {
+                const day = 24 * 3600 * 1000;
+                const from = new Date().setHours(0, 0, 0, 0) - 6 * day;
+                const [members, posts, recentPosts, recentComments] = await Promise.all([
+                    getCountFromServer(collection(db, "users")),
+                    getCountFromServer(collection(db, "photos")),
+                    getDocs(query(collection(db, "photos"), where("createdAt", ">=", from))),
+                    getDocs(query(collection(db, "comments"), where("createdAt", ">=", from)))
+                ]);
+                const days = Array.from({ length: 7 }, (_, i) => ({ start: from + i * day, people: new Set() }));
+                const track = (who, at) => {
+                    const d = days[Math.floor((toMillis(at) - from) / day)];
+                    if (d && who) d.people.add(who);
+                };
+                let likes = 0;
+                recentPosts.forEach((s) => {
+                    likes += (s.data().likes || []).length;
+                    track(s.data().auth, s.data().createdAt);
+                });
+                recentComments.forEach((s) => track(s.data().author, s.data().createdAt));
+                const max = Math.max(1, ...days.map((d) => d.people.size));
+                const tile = (label, value) => $("<div>", { class: "analytics-tile" }).append(
+                    $("<span>", { text: label }),
+                    $("<strong>", { text: value.toLocaleString("vi-VN") })
+                );
+                $body.empty().append(
+                    $("<div>", { class: "analytics-tiles" }).append(
+                        tile("Tổng thành viên", members.data().count),
+                        tile("Hoạt động hôm nay", days[6].people.size),
+                        tile("Bài viết", posts.data().count),
+                        tile("Tương tác 7 ngày", likes + recentComments.size)
+                    ),
+                    $("<h3>", { class: "analytics-sub", text: "Hoạt động thành viên trong 7 ngày" }),
+                    $("<div>", { class: "analytics-chart" }).append(days.map((d) => $("<div>", { class: "analytics-bar", title: `${d.people.size} người hoạt động` }).append(
+                        $("<span>", { text: d.people.size }),
+                        $("<i>").css("height", `${Math.round((d.people.size / max) * 100)}px`), // the chart keeps 100px for bars
+                        $("<small>", { text: new Date(d.start).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" }) })
+                    ))),
+                    $("<p>", { class: "stat-line", text: "Hoạt động: có đăng bài hoặc bình luận trong ngày. Tương tác: lượt thích trên bài đăng 7 ngày qua cộng số bình luận 7 ngày qua." })
+                );
+            } catch (err) {
+                console.error(err);
+                $body.empty().append(renderState("fa-solid fa-triangle-exclamation", "Không tải được số liệu", errorMessage(err)));
+            }
+        }
+
+        $("#btnAnalytics").on("click", function () {
+            $("#analyticsModal").fadeIn(150);
+            loadAnalytics();
+        });
+
+        $("#analyticsRefresh").on("click", loadAnalytics);
 
         /* ---------- Media viewer (lightbox) ---------- */
 
