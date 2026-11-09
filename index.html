@@ -203,6 +203,7 @@
             </div>
 
             <textarea id="comment" placeholder="Bạn đang nghĩ gì? ✨" rows="2" maxlength="2000"></textarea>
+            <p class="composer-hint">🎬 Mẹo: dán link video Facebook hoặc TikTok, bài sẽ tự hiện video, không cần chọn ảnh.</p>
 
             <div class="media-grid" id="composerMedia" style="display:none"></div>
 
@@ -4354,10 +4355,12 @@
             const comment = $.trim($("#comment").val());
 
             if (!requireAuthor()) return;
-            // An event needs a cover photo; its caption is optional (the event has a title)
-            if (!composerMedia.length || (!comment && !composerParty && !composerItem)) {
+            // An event needs a cover photo; its caption is optional (the event has a title). A plain post
+            // can be a Facebook / TikTok video link alone: the player is its media.
+            const linkOnly = !composerParty && !composerItem && !!captionVideoLink(comment)?.src;
+            if ((!composerMedia.length && !linkOnly) || (!comment && !composerParty && !composerItem)) {
                 showToast(composerParty ? "Chọn ảnh bìa cho sự kiện nhé!"
-                    : composerItem ? "Chọn ảnh sản phẩm nhé!" : "Chọn ảnh/video và nhập nội dung nhé!");
+                    : composerItem ? "Chọn ảnh sản phẩm nhé!" : "Chọn ảnh/video (hoặc dán link video Facebook/TikTok) và nhập nội dung nhé!");
                 return;
             }
             const myId = userIdOf(currentAuthor());
@@ -4396,12 +4399,74 @@
         const CAPTION_CLAMP_CHARS = 180;
         const CAPTION_CLAMP_LINES = 3;
 
+        // The full caption is kept in data("caption") for editing; a video link that plays in the post is
+        // left out of the text shown, since the player stands in for it
         function renderCaption($post, text) {
-            const isLong = text.length > CAPTION_CLAMP_CHARS || text.split("\n").length > CAPTION_CLAMP_LINES;
-            $post.find(".post-caption-text").text(text);
-            $post.find(".post-text").toggle(!!text); // no empty gap under the header
+            const link = captionVideoLink(text);
+            const shown = link?.src ? text.replace(link.raw, "").trim() : text;
+            const isLong = shown.length > CAPTION_CLAMP_CHARS || shown.split("\n").length > CAPTION_CLAMP_LINES;
+            $post.data("caption", text);
+            $post.find(".post-caption-text").text(shown);
+            $post.find(".post-text").toggle(!!shown); // no empty gap under the header
             $post.find(".post-caption").show().toggleClass("is-clamped", isLong); // hidden while editing
             $post.find(".post-caption-more").toggle(isLong);
+            $post.find(".post-embed").remove();
+            $post.find(".post-text").after(postEmbedOf(link));
+        }
+
+        // A Facebook or TikTok video link in the caption plays in the post. The player URL is built from the
+        // parsed link only. TikTok short links (vt./vm./tiktok.com/t/) hide the video id behind a redirect the
+        // browser cannot follow (CORS), so they get a link card instead.
+        function videoLinkOf(url) {
+            let u;
+            try {
+                u = new URL(url);
+            } catch (e) {
+                return null;
+            }
+            if (!/^https?:$/.test(u.protocol)) return null;
+            const host = u.hostname.replace(/^(www|m|web)\./, "");
+            if (host === "tiktok.com") {
+                const id = /\/video\/(\d+)/.exec(u.pathname)?.[1];
+                if (id) return { site: "tiktok", src: `https://www.tiktok.com/player/v1/${id}`, portrait: true };
+                if (u.pathname.startsWith("/t/")) return { site: "tiktok", href: u.href };
+            }
+            if (host === "vm.tiktok.com" || host === "vt.tiktok.com") return { site: "tiktok", href: u.href };
+            if (host === "fb.watch" || (host === "facebook.com" && /\/(videos|watch|reel|share\/[vr])(\/|$)/.test(u.pathname))) {
+                return {
+                    site: "facebook",
+                    src: `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(u.href)}&show_text=false`,
+                    portrait: /\/(reel|share\/r)(\/|$)/.test(u.pathname)
+                };
+            }
+            return null;
+        }
+
+        // The first Facebook / TikTok video link in a caption, with the matched text as `raw`
+        function captionVideoLink(text) {
+            for (const raw of text.match(/https?:\/\/[^\s]+/g) || []) {
+                const link = videoLinkOf(raw);
+                if (link) return { ...link, raw };
+            }
+            return null;
+        }
+
+        function postEmbedOf(link) {
+            if (!link) return null;
+            const $embed = $("<div>", { class: "post-embed" }).toggleClass("is-portrait", !!link.portrait);
+            if (link.src) {
+                return $embed.append($("<iframe>", {
+                    src: link.src,
+                    title: link.site === "tiktok" ? "Video TikTok" : "Video Facebook",
+                    loading: "lazy",
+                    allow: "autoplay; encrypted-media; picture-in-picture; fullscreen",
+                    allowfullscreen: true
+                }));
+            }
+            return $embed.append($("<a>", { class: "post-embed-link", href: link.href, target: "_blank", rel: "noopener noreferrer" }).append(
+                $("<i>", { class: "fa-brands fa-tiktok", "aria-hidden": "true" }),
+                $("<span>").append($("<small>", { text: "TIKTOK.COM" }), $("<strong>", { text: "Xem video trên TikTok" }))
+            ));
         }
 
         function buildPost(id, data) {
@@ -4737,14 +4802,14 @@
             $post.find(".post-caption, .post-caption-more").hide();
             $post.find(".post-text").show();
             $form.show()
-                .find(".edit-input").val($post.find(".post-caption-text").text()).trigger("focus");
+                .find(".edit-input").val($post.data("caption") || "").trigger("focus");
         }
 
         function closePostEdit($post) {
             const $form = $post.find(".post-edit-form");
             releaseMedia($form.data("media") || []);
             $form.removeData("media").hide();
-            renderCaption($post, $post.find(".post-caption-text").text());
+            renderCaption($post, $post.data("caption") || "");
         }
 
         async function savePostEdit($post) {
@@ -4759,11 +4824,12 @@
                 showToast("Nội dung không được để trống");
                 return;
             }
-            if (!items.length) {
-                showToast("Bài viết cần ít nhất 1 ảnh hoặc video");
+            // A Facebook / TikTok video link stands in for media on a plain post
+            if (!items.length && !(captionVideoLink(text)?.src && !$post.data("party") && !$post.data("item"))) {
+                showToast("Bài viết cần ít nhất 1 ảnh, video hoặc link video Facebook/TikTok");
                 return;
             }
-            if (text === $post.find(".post-caption-text").text() && !mediaChanged) {
+            if (text === $post.data("caption") && !mediaChanged) {
                 closePostEdit($post);
                 return;
             }
@@ -4781,7 +4847,7 @@
 
                 await updateDoc(doc(db, "photos", $post.attr("data-id")), changes);
 
-                $post.find(".post-caption-text").text(text);
+                $post.data("caption", text);
                 if (changes.media) {
                     $post.data("media", changes.media);
                     renderPostMedia($post, changes.media);
