@@ -5328,6 +5328,11 @@ a.profile-about-row:hover {
     inset: 0;
 }
 
+/* The host clicks through to YouTube's own play and "Skip ad" buttons */
+.music-screen.is-host .music-screen-shield {
+    display: none;
+}
+
 .music-fullscreen {
     position: absolute;
     top: 8px;

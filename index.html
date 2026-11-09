@@ -8862,6 +8862,8 @@
                 .find("i").attr("class", `fa-solid ${icon}`);
             $("#musicSkip").toggle(isHost);
             $("#musicSeek").prop("disabled", !isHost);
+            // The host can click the video itself: YouTube's play button and "Skip ad" (see onMusicStateChange)
+            $("#musicScreen").toggleClass("is-host", isHost);
             $("#musicProgress").toggle(!failed);
             $("#musicError").toggle(failed);
             if (failed) {
@@ -8901,6 +8903,13 @@
             const room = myMusicRoom();
             if (e.data === YT.PlayerState.ENDED && room?.playing && musicPlayer.getVideoData()?.video_id === room.videoId) {
                 playNextInQueue(room).catch((err) => console.error(err));
+            }
+            // The host played or paused by clicking the video: the room follows. Only when the player and the
+            // room disagree, so the room's own syncing (which makes them agree) never writes back.
+            const { PLAYING, PAUSED } = YT.PlayerState;
+            if (isMusicHost(room) && !musicSeeking && musicPlayer.getVideoData()?.video_id === room.videoId
+                && ((e.data === PAUSED && room.playing) || (e.data === PLAYING && !room.playing))) {
+                setMusicState(room, { playing: e.data === PLAYING, position: musicPlayer.getCurrentTime() }).catch((err) => console.error(err));
             }
             updateMusicControls();
         }
