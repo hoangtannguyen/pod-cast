@@ -7092,3 +7092,469 @@ a.profile-about-row:hover {
         padding-top: calc(14px + env(safe-area-inset-top));
     }
 }
+
+/* ---------- Chill Room: 2D dancefloor (front end only) ---------- */
+
+.chill-open {
+    font-size: 16px;
+}
+
+.chill-modal {
+    padding: 8px;
+}
+
+.chill-room {
+    display: flex;
+    flex-direction: column;
+    width: min(920px, 100%);
+    height: min(660px, calc(100dvh - 16px));
+    overflow: hidden;
+    border-radius: 18px;
+    background: #120c24;
+    color: #fff;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+}
+
+.chill-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.chill-sub {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    font-size: 12px;
+    color: #c4b5fd;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.chill-close {
+    color: #fff;
+}
+
+/* Back wall (striped curtain) over a warm wooden floor */
+.chill-scene {
+    position: relative;
+    flex: 1;
+    overflow: hidden;
+    background:
+        repeating-linear-gradient(90deg, #2b1a5c 0 26px, #241450 26px 52px) top / 100% 48% no-repeat,
+        repeating-linear-gradient(180deg, #d4902f 0 22px, #c27f24 22px 24px) bottom / 100% 52% no-repeat;
+    user-select: none;
+}
+
+/* String of bulbs across the top */
+.chill-lights {
+    position: absolute;
+    top: 10px;
+    left: 4%;
+    right: 4%;
+    display: flex;
+    justify-content: space-between;
+    border-top: 2px solid #1a1033;
+}
+
+.chill-lights i {
+    width: 10px;
+    height: 10px;
+    margin-top: 4px;
+    border-radius: 50%;
+    background: #fde68a;
+    box-shadow: 0 0 10px 3px rgba(253, 230, 138, 0.7);
+    animation: chill-glow 1.6s ease-in-out infinite;
+}
+
+@keyframes chill-glow {
+    50% { opacity: 0.45; box-shadow: 0 0 4px 1px rgba(253, 230, 138, 0.4); }
+}
+
+/* Stage: speakers either side of the DJ booth, LED marquee on the front */
+.chill-stage {
+    position: absolute;
+    top: 13%;
+    left: 50%;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 14px;
+    width: min(520px, 86%);
+    padding: 0 12px 34px;
+    border-radius: 0 0 12px 12px;
+    background: linear-gradient(180deg, transparent 62%, #7c4a1d 62%, #5c3510 100%);
+    transform: translateX(-50%);
+}
+
+.chill-speaker {
+    width: 38px;
+    height: 64px;
+    border-radius: 6px;
+    background:
+        radial-gradient(circle at 50% 30%, #0f0a1f 0 7px, #3b2f5c 8px 10px, transparent 11px),
+        radial-gradient(circle at 50% 70%, #0f0a1f 0 10px, #3b2f5c 11px 13px, transparent 14px),
+        #221a3a;
+}
+
+.chill-scene.is-dancing .chill-speaker {
+    animation: chill-thump 0.45s ease-in-out infinite alternate;
+}
+
+@keyframes chill-thump {
+    to { transform: scale(1.05); }
+}
+
+.chill-booth {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    width: 110px;
+    height: 96px;
+}
+
+/* The DJ desk hides the DJ's legs */
+.chill-booth::after {
+    content: "🎛️";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2;
+    height: 30px;
+    padding-top: 4px;
+    border-radius: 6px;
+    background: linear-gradient(180deg, #312654, #1c1535);
+    font-size: 15px;
+    text-align: center;
+}
+
+.chill-marquee {
+    position: absolute;
+    left: 12%;
+    right: 12%;
+    bottom: 7px;
+    overflow: hidden;
+    padding: 2px 0;
+    border-radius: 4px;
+    background: #1a0f05;
+    color: #fbbf24;
+    font: 700 11px/1.4 ui-monospace, monospace;
+    white-space: nowrap;
+    text-shadow: 0 0 6px rgba(251, 191, 36, 0.8);
+}
+
+.chill-marquee span {
+    display: inline-block;
+    padding-left: 100%;
+    animation: chill-marquee 12s linear infinite;
+}
+
+@keyframes chill-marquee {
+    to { transform: translateX(-100%); }
+}
+
+/* Floor: characters are positioned in percent of this box */
+.chill-floor {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 50%;
+    cursor: pointer;
+}
+
+.chill-empty {
+    position: absolute;
+    inset: 40% 0 auto;
+    font-size: 13px;
+    color: #3b2108;
+    text-align: center;
+}
+
+/* Character: name tag, head, body with arms, legs. `translate` / `scale` place it; `transform` is left for dancing */
+.chill-char {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    translate: -50% -100%;
+    scale: var(--depth, 1);
+    transition: left 0.8s ease-in-out, top 0.8s ease-in-out;
+    pointer-events: none;
+}
+
+.chill-booth .chill-char {
+    position: static;
+    translate: none;
+    scale: 1.1;
+}
+
+.chill-name {
+    max-width: 90px;
+    margin-bottom: 3px;
+    padding: 1px 6px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.55);
+    font-size: 10px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.chill-char.is-me .chill-name {
+    background: #8b5cf6;
+}
+
+.chill-char.is-dj .chill-name {
+    background: #db2777;
+}
+
+.chill-head {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    overflow: hidden;
+    border: 2px solid rgba(255, 255, 255, 0.85);
+    border-radius: 50%;
+    background: #fde68a;
+}
+
+.chill-char.is-me .chill-head {
+    border-color: #c084fc;
+    box-shadow: 0 0 10px rgba(192, 132, 252, 0.9);
+}
+
+.chill-head .avatar {
+    width: 100%;
+    height: 100%;
+    font-size: 17px;
+}
+
+.chill-emoji {
+    font-size: 19px;
+    line-height: 1;
+}
+
+.chill-body {
+    position: relative;
+    width: 26px;
+    height: 22px;
+    margin-top: -3px;
+    border-radius: 10px 10px 6px 6px;
+    background: var(--c);
+}
+
+.chill-char.is-facing-left .chill-body {
+    transform: scaleX(-1);
+}
+
+.chill-arm {
+    position: absolute;
+    top: 3px;
+    width: 6px;
+    height: 15px;
+    border-radius: 3px;
+    background: var(--c);
+    filter: brightness(0.85);
+    transform-origin: 50% 2px;
+}
+
+.chill-arm.is-left {
+    left: -4px;
+    transform: rotate(18deg);
+}
+
+.chill-arm.is-right {
+    right: -4px;
+    transform: rotate(-18deg);
+}
+
+.chill-legs {
+    display: flex;
+    gap: 4px;
+}
+
+.chill-legs i {
+    width: 7px;
+    height: 11px;
+    border-radius: 0 0 3px 3px;
+    background: #334155;
+    transform-origin: 50% 0;
+}
+
+/* Dancing: bob with arms up and waving; 👍 makes it faster and bouncier */
+.chill-scene.is-dancing .chill-char {
+    animation: chill-bob 0.8s ease-in-out infinite;
+}
+
+.chill-scene.is-dancing .chill-arm.is-left {
+    animation: chill-wave-left 0.4s ease-in-out infinite alternate;
+}
+
+.chill-scene.is-dancing .chill-arm.is-right {
+    animation: chill-wave-right 0.4s ease-in-out infinite alternate;
+}
+
+.chill-scene.is-hyped .chill-char {
+    animation: chill-hype 0.5s ease-in-out infinite;
+}
+
+@keyframes chill-bob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+}
+
+@keyframes chill-hype {
+    0%, 100% { transform: translateY(0) rotate(-7deg); }
+    50% { transform: translateY(-10px) rotate(7deg); }
+}
+
+@keyframes chill-wave-left {
+    from { transform: rotate(150deg); }
+    to { transform: rotate(110deg); }
+}
+
+@keyframes chill-wave-right {
+    from { transform: rotate(-110deg); }
+    to { transform: rotate(-150deg); }
+}
+
+.chill-char.is-walking .chill-legs i:first-child {
+    animation: chill-step 0.25s ease-in-out infinite alternate;
+}
+
+.chill-char.is-walking .chill-legs i:last-child {
+    animation: chill-step 0.25s ease-in-out infinite alternate-reverse;
+}
+
+@keyframes chill-step {
+    from { transform: rotate(25deg); }
+    to { transform: rotate(-25deg); }
+}
+
+/* Bottom bar: 👎 · vibe meter · 👍 · dance toggle */
+.chill-bar {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 16px;
+    padding: 10px 14px 4px;
+    background: #1a1233;
+}
+
+.chill-vote {
+    width: 46px;
+    height: 46px;
+    border: 3px solid #3b2f5c;
+    border-radius: 50%;
+    font-size: 20px;
+    cursor: pointer;
+    transition: transform 0.15s;
+}
+
+.chill-vote:hover {
+    transform: scale(1.08);
+}
+
+.chill-vote.is-down {
+    background: radial-gradient(circle at 35% 30%, #f87171, #991b1b);
+}
+
+.chill-vote.is-up {
+    background: radial-gradient(circle at 35% 30%, #4ade80, #166534);
+}
+
+.chill-vote.is-active {
+    border-color: #fde68a;
+    box-shadow: 0 0 12px rgba(253, 230, 138, 0.8);
+}
+
+.chill-meter {
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    width: 120px;
+    height: 60px;
+    overflow: hidden;
+    font-size: 9px;
+    color: #c4b5fd;
+}
+
+.chill-meter::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 -60px;
+    border-radius: 50%;
+    background: conic-gradient(from 270deg, #f87171, #facc15 90deg, #4ade80 180deg, transparent 180deg);
+    -webkit-mask: radial-gradient(circle, transparent 56%, #000 57%);
+    mask: radial-gradient(circle, transparent 56%, #000 57%);
+}
+
+.chill-needle {
+    position: absolute;
+    left: calc(50% - 2px);
+    bottom: 0;
+    width: 4px;
+    height: 52px;
+    border-radius: 4px;
+    background: #fff;
+    transform-origin: 50% 100%;
+    transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.chill-dance {
+    align-self: center;
+    padding: 8px 14px;
+    border: 0;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #7c3aed, #a855f7);
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.chill-tip {
+    padding: 2px 0 10px;
+    background: #1a1233;
+    font-size: 11px;
+    color: #a59fbf;
+    text-align: center;
+}
+
+@media (max-width: 600px) {
+    .chill-modal {
+        padding: 0;
+    }
+
+    .chill-room {
+        height: 100dvh;
+        border-radius: 0;
+    }
+
+    .chill-speaker {
+        display: none;
+    }
+
+    .chill-bar {
+        gap: 10px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .chill-scene .chill-char,
+    .chill-scene .chill-arm,
+    .chill-scene .chill-legs i,
+    .chill-lights i,
+    .chill-speaker,
+    .chill-marquee span {
+        animation: none !important;
+    }
+}
