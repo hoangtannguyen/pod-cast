@@ -3013,6 +3013,17 @@
             if (confirm("Xoá ảnh bìa?")) saveCover(null);
         });
 
+        // Clicking the cover photo or the avatar on the profile panel opens it full size (only when there is a photo)
+        $("#profileCover").on("click", function () {
+            const cover = usersByAuthor.get(profileTarget || currentAuthor())?.coverUrl;
+            if (cover) openLightbox([{ type: "image", url: cover }], 0);
+        });
+
+        $("#profilePanelAvatar").on("click", function () {
+            const avatar = avatarOf(profileTarget || currentAuthor());
+            if (avatar) openLightbox([{ type: "image", url: avatar }], 0);
+        });
+
         // Clicking a post's author opens their profile
         $("#feed").on("click", ".post-author .ring, .post-name", function () {
             const name = $(this).closest(".post").attr("data-auth");

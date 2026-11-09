@@ -2696,6 +2696,11 @@ body.no-scroll {
     height: 100%;
     object-fit: cover;
     display: block;
+    cursor: zoom-in;
+}
+
+#profilePanelAvatar.has-photo {
+    cursor: zoom-in;
 }
 
 /* top-left: the close button takes the top-right corner, the avatar the bottom middle */
