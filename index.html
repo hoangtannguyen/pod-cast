@@ -354,6 +354,7 @@
                 </div>
                 <div class="music-controls">
                     <button type="button" class="music-play" id="musicToggle" aria-label="Phát / tạm dừng"><i class="fa-solid fa-play"></i></button>
+                    <button type="button" class="icon-btn music-mute" id="musicMute" aria-label="Tắt âm thanh"><i class="fa-solid fa-volume-high"></i></button>
                     <button type="button" class="icon-btn music-skip" id="musicSkip" aria-label="Bài tiếp theo" style="display:none"><i class="fa-solid fa-forward-step"></i></button>
                     <span class="music-title" id="musicTitle"></span>
                 </div>
@@ -8965,6 +8966,13 @@
             }
 
             const position = musicPositionOf(room);
+            // A member paused for themselves: stay paused (a new song is only cued); ▶ resumes at the room's time
+            if (musicLocalPaused(room)) {
+                if (musicPlayer.getVideoData()?.video_id !== room.videoId) musicPlayer.cueVideoById(room.videoId, position);
+                else if (musicPlayer.getPlayerState() === YT.PlayerState.PLAYING) musicPlayer.pauseVideo();
+                updateMusicControls();
+                return;
+            }
             if (musicPlayer.getVideoData()?.video_id !== room.videoId) {
                 if (room.playing) musicPlayer.loadVideoById(room.videoId, position);
                 else musicPlayer.cueVideoById(room.videoId, position);
@@ -8981,10 +8989,18 @@
             updateMusicControls();
         }
 
+        /* A member's own pause (the room keeps playing for the others) and mute. Both only on this browser.
+           The pause is kept per room: changing room forgets it */
+        let musicLocalPauseRoomId = "";
+
+        function musicLocalPaused(room) {
+            return !!room && !isMusicHost(room) && musicLocalPauseRoomId === room.id;
+        }
+
         // The room plays but this browser blocked autoplay: everyone (host too) gets "Bật tiếng",
         // a tap on it is the user gesture the browser needs to start the sound
         function musicBlocked(room) {
-            if (!room.playing || !musicPlayerReady) return false;
+            if (!room.playing || !musicPlayerReady || musicLocalPaused(room)) return false;
             return ![YT.PlayerState.PLAYING, YT.PlayerState.BUFFERING, YT.PlayerState.ENDED].includes(musicPlayer.getPlayerState());
         }
 
@@ -9019,7 +9035,7 @@
             const isHost = isMusicHost(room);
             $("#musicPlayerWrap").toggleClass("is-empty", !room.videoId).toggleClass("is-failed", !!room.videoId && room.videoId === musicFailed.videoId);
             if (!room.videoId) {
-                $("#musicToggle, #musicSkip, #musicProgress, #musicError").hide();
+                $("#musicToggle, #musicMute, #musicSkip, #musicProgress, #musicError").hide();
                 $("#musicTitle").text("Chưa có bài nào · tìm bài ở ô bên dưới để phát nhé 🎶");
                 updateChillRoom(room);
                 updateMusicMini();
@@ -9027,13 +9043,21 @@
             }
             const failed = room.videoId === musicFailed.videoId;
             const blocked = !failed && musicBlocked(room);
+            const localPaused = musicLocalPaused(room);
             let icon = "fa-volume-high";
             let label = "Bật tiếng";
             if (isHost && !blocked) {
                 icon = room.playing ? "fa-pause" : "fa-play";
                 label = room.playing ? "Tạm dừng" : "Phát";
+            } else if (!blocked && room.playing) {
+                // Member: pause just for me, ▶ comes back in sync with the room
+                icon = localPaused ? "fa-play" : "fa-pause";
+                label = localPaused ? "Nghe tiếp cùng phòng" : "Tạm dừng (chỉ mình bạn)";
             }
-            $("#musicToggle").toggle(!failed && (isHost || blocked))
+            $("#musicMute").toggle(!failed)
+                .attr("aria-label", musicPlayerReady && musicPlayer.isMuted() ? "Bật âm thanh" : "Tắt âm thanh")
+                .find("i").attr("class", `fa-solid ${musicPlayerReady && musicPlayer.isMuted() ? "fa-volume-xmark" : "fa-volume-high"}`);
+            $("#musicToggle").toggle(!failed && (isHost || blocked || room.playing || localPaused))
                 .attr("aria-label", label)
                 .find("i").attr("class", `fa-solid ${icon}`);
             $("#musicSkip").toggle(isHost);
@@ -9050,7 +9074,8 @@
                 return;
             }
             const title = musicPlayerReady ? musicPlayer.getVideoData()?.title : "";
-            $("#musicTitle").text(title ? `Đang phát: ${title}` : room.playing ? "Đang tải bài hát..." : "Đang tạm dừng");
+            if (localPaused) $("#musicTitle").text(`Bạn đang tạm dừng${title ? `: ${title}` : ""} · ▶ để nghe tiếp cùng phòng`);
+            else $("#musicTitle").text(title ? `Đang phát: ${title}` : room.playing ? "Đang tải bài hát..." : "Đang tạm dừng");
             updateMusicMini();
         }
 
@@ -9910,6 +9935,12 @@
             // The host played or paused by clicking the video: the room follows. Only when the player and the
             // room disagree, so the room's own syncing (which makes them agree) never writes back.
             const { PLAYING, PAUSED } = YT.PlayerState;
+            // A member who paused for themselves pressed play on the video: same as ▶, back in sync with the room
+            if (e.data === PLAYING && musicLocalPaused(room)) {
+                musicLocalPauseRoomId = "";
+                syncMusicPlayer();
+                return;
+            }
             if (isMusicHost(room) && !musicSeeking && musicPlayer.getVideoData()?.video_id === room.videoId
                 && ((e.data === PAUSED && room.playing) || (e.data === PLAYING && !room.playing))) {
                 setMusicState(room, { playing: e.data === PLAYING, position: musicPlayer.getCurrentTime() }).catch((err) => console.error(err));
@@ -9917,9 +9948,29 @@
             updateMusicControls();
         }
 
+        // Mute only this browser's sound; the room goes on
+        $("#musicMute").on("click", function () {
+            if (!musicPlayerReady) return;
+            if (musicPlayer.isMuted()) musicPlayer.unMute();
+            else musicPlayer.mute();
+            // isMuted() reads the new state only after the player has applied it
+            setTimeout(updateMusicControls, 150);
+        });
+
         $("#musicToggle").on("click", function () {
             const room = myMusicRoom();
             if (!room || !musicPlayerReady) return;
+            if (!isMusicHost(room) && !musicBlocked(room)) {
+                // Member: pause for me only; resuming jumps back to where the room is now
+                if (musicLocalPaused(room)) {
+                    musicLocalPauseRoomId = "";
+                    musicPlayer.playVideo(); // inside the click, so the sound may start
+                } else if (room.playing) {
+                    musicLocalPauseRoomId = room.id;
+                    musicPlayer.pauseVideo();
+                }
+                return syncMusicPlayer();
+            }
             if (!isMusicHost(room) || musicBlocked(room)) return syncMusicPlayer();
             // Start the sound inside the click: after the Firestore round trip it would no longer count as a user gesture
             if (!room.playing) musicPlayer.playVideo();
