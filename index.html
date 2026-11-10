@@ -943,6 +943,7 @@
                 </div>
                 <button type="button" class="chill-vote is-up" data-chill-vibe="1" aria-label="Đỉnh">👍</button>
                 <button type="button" class="chill-dance" id="chillDance"></button>
+                <button type="button" class="chill-exit modal-close">✕ Thoát</button>
             </div>
             <p class="chill-tip">Bấm lên sàn để nhân vật của bạn đi tới đó 👆</p>
         </div>
@@ -9060,7 +9061,7 @@
                 .css({ "--c": chillColorOf(key), "animation-delay": `${(Math.random() * 0.5).toFixed(2)}s` })
                 .append(
                     $("<span>", { class: "chill-name", text: name }),
-                    $("<span>", { class: "chill-head" }).append($face),
+                    $("<span>", { class: "chill-face" }).append($face),
                     $("<span>", { class: "chill-body" }).append($("<i>", { class: "chill-arm is-left" }), $("<i>", { class: "chill-arm is-right" })),
                     $("<span>", { class: "chill-legs" }).append($("<i>"), $("<i>"))
                 );
