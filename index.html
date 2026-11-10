@@ -917,7 +917,14 @@
                     <option value="beach">🌅 Biển hoàng hôn</option>
                 </select>
                 <!-- Per viewer: rain sound (rain theme only) and party lights -->
-                <button type="button" class="chill-toggle" id="chillRain" aria-pressed="false" title="Tiếng mưa" hidden>🌧️</button>
+                <span class="chill-rain-wrap" id="chillRainWrap" hidden>
+                    <button type="button" class="chill-toggle" id="chillRain" aria-pressed="false" aria-expanded="false" aria-controls="chillRainPop" title="Tiếng mưa">🌧️</button>
+                    <!-- Rain sound on / off and its own volume, separate from the song -->
+                    <span class="chill-rain-pop" id="chillRainPop" hidden>
+                        <button type="button" class="chill-rain-switch" id="chillRainSwitch">Bật tiếng mưa</button>
+                        <label class="chill-rain-vol">🔈 <input type="range" id="chillRainVol" min="0" max="100" step="1" aria-label="Âm lượng tiếng mưa"> 🔊</label>
+                    </span>
+                </span>
                 <button type="button" class="chill-toggle" id="chillParty" aria-pressed="false" title="Party mode: đèn theo nhạc">🪩</button>
                 <button type="button" class="icon-btn chill-close modal-close" aria-label="Đóng"><i class="fa-solid fa-xmark"></i></button>
             </div>
@@ -957,6 +964,8 @@
                         <span class="chill-speaker"></span>
                     </div>
                     <div class="chill-marquee"><span id="chillMarquee"></span></div>
+                    <!-- Next Up: the first song in the queue -->
+                    <div class="chill-nextup" id="chillNextUpBar" hidden><span id="chillNextUp"></span></div>
                 </div>
                 <div class="chill-floor" id="chillFloor"></div>
                 <!-- Shown over another character when it is clicked -->
@@ -9170,6 +9179,9 @@
             $("#chillScene").toggleClass("is-playing", room ? !!room.playing : true);
             const title = musicPlayerReady && room ? musicPlayer.getVideoData()?.title : "";
             $("#chillMarquee").text(title ? `♪ ${title} ♪` : "♪ VibeGram Chill Room ♪");
+            const next = room ? musicQueueOf(room)[0] : null;
+            $("#chillNextUpBar").prop("hidden", !next);
+            $("#chillNextUp").text(next ? `⏭ Tiếp theo: ${next.title || "Video YouTube"} · ${nameOf(authorOfId(next.addedBy))} chọn` : "");
             applyChillTheme(room);
             applyChillStates(room);
             renderChillVibe();
@@ -9180,7 +9192,8 @@
             const isHost = !room || room.hostId === userIdOf(currentAuthor());
             $("#chillScene").attr("data-chill-theme", theme);
             $("#chillTheme").val(theme).prop("disabled", !isHost).attr("title", isHost ? "Đổi chủ đề phòng" : "Chỉ chủ phòng đổi được chủ đề");
-            $("#chillRain").prop("hidden", theme !== "rain");
+            $("#chillRainWrap").prop("hidden", theme !== "rain");
+            if (theme !== "rain") showChillRainPop(false);
             if (theme === "rain" && chillPref("rain")) startChillRain();
             else stopChillRain();
         }
@@ -9210,11 +9223,44 @@
 
         /* Rain sound: filtered white noise from the Web Audio API (no audio file), quiet under the song.
            Browsers only start audio after a click, so the first start comes from the 🌧️ button */
-        const CHILL_RAIN_VOLUME = 0.05;
+        const CHILL_RAIN_MAX_GAIN = 0.15; // slider at 100%; the default 35% stays well under the song
+        const CHILL_RAIN_DEFAULT_LEVEL = 35;
         let chillRainAudio = null; // { ctx, gain }
+        let chillRainLevel = null; // 0..100, read once from this browser
+
+        function chillRainLevelOf() {
+            if (chillRainLevel === null) {
+                let saved = null;
+                try {
+                    saved = localStorage.getItem("chill.rainVol");
+                } catch (err) {
+                    // storage blocked: default level
+                }
+                const n = Number(saved);
+                chillRainLevel = saved !== null && n >= 0 && n <= 100 ? n : CHILL_RAIN_DEFAULT_LEVEL;
+            }
+            return chillRainLevel;
+        }
+
+        function setChillRainLevel(level) {
+            chillRainLevel = level;
+            try {
+                localStorage.setItem("chill.rainVol", String(level));
+            } catch (err) {
+                // not remembered after a reload
+            }
+            if (chillRainAudio) chillRainAudio.gain.gain.setTargetAtTime((level / 100) * CHILL_RAIN_MAX_GAIN, chillRainAudio.ctx.currentTime, 0.05);
+        }
+
+        function showChillRainPop(open) {
+            $("#chillRainPop").prop("hidden", !open);
+            $("#chillRain").attr("aria-expanded", String(open));
+            if (open) $("#chillRainVol").val(chillRainLevelOf());
+        }
 
         function startChillRain() {
             $("#chillRain").attr("aria-pressed", "true").addClass("is-on");
+            $("#chillRainSwitch").text("Tắt tiếng mưa").addClass("is-on");
             if (chillRainAudio) {
                 chillRainAudio.ctx.resume().catch(() => {});
                 return;
@@ -9235,7 +9281,7 @@
             lowpass.type = "lowpass";
             lowpass.frequency.value = 2200;
             const gain = ctx.createGain();
-            gain.gain.value = CHILL_RAIN_VOLUME;
+            gain.gain.value = (chillRainLevelOf() / 100) * CHILL_RAIN_MAX_GAIN;
             noise.connect(highpass).connect(lowpass).connect(gain).connect(ctx.destination);
             noise.start();
             chillRainAudio = { ctx, gain };
@@ -9243,6 +9289,7 @@
 
         function stopChillRain() {
             $("#chillRain").attr("aria-pressed", "false").removeClass("is-on");
+            $("#chillRainSwitch").text("Bật tiếng mưa").removeClass("is-on");
             if (!chillRainAudio) return;
             chillRainAudio.ctx.close().catch(() => {});
             chillRainAudio = null;
@@ -9446,9 +9493,27 @@
             startChillFx();
         });
 
+        // 🌧️ opens the small rain panel: on / off and a volume of its own
         $("#chillRain").on("click", function () {
+            showChillRainPop($("#chillRainPop").prop("hidden"));
+        });
+
+        $("#chillRainSwitch").on("click", function () {
             if (chillPref("rain", !chillRainAudio)) startChillRain();
             else stopChillRain();
+        });
+
+        // Dragging the volume while the rain is off turns it on
+        $("#chillRainVol").on("input", function () {
+            setChillRainLevel(Number($(this).val()));
+            if (!chillRainAudio && chillRainLevelOf() > 0) {
+                chillPref("rain", true);
+                startChillRain();
+            }
+        });
+
+        $("#chillScene").on("click", function () {
+            showChillRainPop(false);
         });
 
         $("#chillParty").on("click", function () {
