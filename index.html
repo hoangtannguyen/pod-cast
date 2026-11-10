@@ -983,6 +983,25 @@
                     <button type="button" data-chill-act="duoAsk">💃 Nhảy đôi</button>
                 </div>
                 <!-- An invite for me (hug / duo dance): accept or decline -->
+                <!-- Pick a cartoon animal as my head instead of my avatar photo (chill.{userId}.skin) -->
+                <div class="chill-skin-pop" id="chillSkinPop" hidden>
+                    <strong>Chọn nhân vật</strong>
+                    <div class="chill-skin-grid">
+                        <button type="button" data-chill-skin="" title="Ảnh đại diện">👤</button>
+                        <button type="button" data-chill-skin="🐱" title="Mèo">🐱</button>
+                        <button type="button" data-chill-skin="🐰" title="Thỏ">🐰</button>
+                        <button type="button" data-chill-skin="🐶" title="Cún">🐶</button>
+                        <button type="button" data-chill-skin="🐼" title="Gấu trúc">🐼</button>
+                        <button type="button" data-chill-skin="🦊" title="Cáo">🦊</button>
+                        <button type="button" data-chill-skin="🐸" title="Ếch">🐸</button>
+                        <button type="button" data-chill-skin="🐯" title="Hổ">🐯</button>
+                        <button type="button" data-chill-skin="🐻" title="Gấu">🐻</button>
+                        <button type="button" data-chill-skin="🐨" title="Koala">🐨</button>
+                        <button type="button" data-chill-skin="🐷" title="Heo">🐷</button>
+                        <button type="button" data-chill-skin="🐵" title="Khỉ">🐵</button>
+                        <button type="button" data-chill-skin="🐧" title="Cánh cụt">🐧</button>
+                    </div>
+                </div>
                 <div class="chill-invite" id="chillInvite" role="alertdialog" aria-labelledby="chillInviteText" hidden>
                     <span id="chillInviteText"></span>
                     <button type="button" id="chillInviteYes"></button>
@@ -996,6 +1015,7 @@
                 <button type="button" data-chill-emote="sleep">😴<span> Ngủ gật</span></button>
                 <button type="button" data-chill-emote="clap">👏<span> Vỗ tay</span></button>
                 <button type="button" data-chill-emote="firework">🎆<span> Pháo hoa</span></button>
+                <button type="button" class="chill-skin-btn" id="chillSkinBtn" aria-controls="chillSkinPop" aria-expanded="false">🎭<span> Nhân vật</span></button>
             </div>
             <div class="chill-bar">
                 <button type="button" class="chill-vote is-down" data-chill-vibe="-1" aria-label="Chán">👎</button>
@@ -3671,6 +3691,7 @@
             renderAdmin();
             renderFriends();
             refreshPermissions();
+            renderMusicRooms(); // the admin sees every room, with a close button
         }
 
         /* ---------- Delete user (admin) ---------- */
@@ -8780,6 +8801,7 @@
 
         // Rooms hosted by me or a friend; a room I am already in stays listed so I can still leave it
         function visibleMusicRooms(myId) {
+            if (isAdmin) return musicRooms.slice(); // the admin sees (and can close) every room
             const friendIds = friendIdsOf(myId);
             return musicRooms.filter((r) => r.hostId === myId || friendIds.has(r.hostId) || (r.memberIds || []).includes(myId));
         }
@@ -8817,7 +8839,10 @@
                         }),
                         members.length > MUSIC_MEMBER_AVATARS ? $("<span>", { class: "music-more", text: `+${members.length - MUSIC_MEMBER_AVATARS}` }) : null
                     ),
-                    $("<button>", { type: "button", class: "music-join-main", "data-room": featured.id, "data-action": action, text: label })
+                    $("<button>", { type: "button", class: "music-join-main", "data-room": featured.id, "data-action": action, text: label }),
+                    isAdmin && action !== "close"
+                        ? $("<button>", { type: "button", class: "music-admin-close", "data-room": featured.id, "data-action": "close", text: "🛡️ Đóng phòng (admin)" })
+                        : null
                 );
             }
 
@@ -8828,7 +8853,11 @@
                     $("<strong>", { text: room.name }),
                     $("<span>", { text: `${(room.memberIds || []).length} đang nghe` })
                 ),
-                $("<button>", { type: "button", class: "music-join", "data-room": room.id, "data-action": "join", text: "Tham gia" })
+                $("<button>", { type: "button", class: "music-join", "data-room": room.id, "data-action": "join", text: "Tham gia" }),
+                isAdmin
+                    ? $("<button>", { type: "button", class: "icon-btn music-admin-x", "data-room": room.id, "data-action": "close", "aria-label": "Đóng phòng (admin)", title: "Đóng phòng (admin)" })
+                        .append($("<i>", { class: "fa-solid fa-xmark" }))
+                    : null
             )));
             $("#musicSuggestWidget").toggle(others.length > 0);
             syncMusicPlayer();
@@ -9106,6 +9135,8 @@
         };
         const CHILL_PAIR_GAP = { hug: 4.5, duo: 8 }; // how close (percent of the floor) the pair stands
         const CHILL_POKE_FACES = ["😳", "💢"];
+        // Heads one can pick instead of the avatar photo (chill.{userId}.skin); "" = the photo
+        const CHILL_SKINS = ["🐱", "🐰", "🐶", "🐼", "🦊", "🐸", "🐯", "🐻", "🐨", "🐷", "🐵", "🐧"];
         const CHILL_HUG_MS = 4000;
         const CHILL_DUO_MS = 16000;
         const CHILL_INVITE_MS = 20000;
@@ -9224,7 +9255,7 @@
             const { host, cast } = chillCastOf(room);
             chillCastKey = chillCastKeyOf(room);
             const saved = room?.chill?.[myId];
-            chill = { dancing: !!saved?.dancing, vote: saved?.vote || 0, emote: saved?.emote || "", act: saved?.act || null, booth: !!saved?.booth };
+            chill = { dancing: !!saved?.dancing, vote: saved?.vote || 0, emote: saved?.emote || "", act: saved?.act || null, booth: !!saved?.booth, skin: room ? saved?.skin || "" : chill.skin || "" };
             // Acts made before I came in are not played again
             chillSeenActs = {};
             Object.entries(room?.chill || {}).forEach(([id, state]) => (chillSeenActs[id] = state?.act?.at));
@@ -9269,6 +9300,7 @@
                 // Online = has the Chill Room open now (heartbeat `at`); the others in the room are only listening
                 const online = !room || isMe || (typeof state.at === "number" && Date.now() - state.at < CHILL_ONLINE_MS);
                 $char.toggleClass("is-online", online).attr("title", online ? null : "Đang nghe nhạc, chưa vào phòng 2D");
+                setChillSkin($char, CHILL_SKINS.includes(state.skin) ? state.skin : "");
                 const emote = CHILL_EMOTES[state.emote] ? state.emote : "";
                 const dancing = !!state.dancing && !emote;
                 $char.toggleClass("is-dancing", dancing).toggleClass("is-hyped", dancing && state.vote > 0);
@@ -9523,6 +9555,15 @@
             }, CHILL_FX_MS);
         }
 
+        // Swaps the head between the avatar photo (kept aside, put back on "") and a picked animal
+        function setChillSkin($char, skin) {
+            if (($char.attr("data-skin") || "") === skin) return;
+            const $face = $char.find(".chill-face");
+            if (!$char.data("photo")) $char.data("photo", $face.children().detach());
+            $face.empty().append(skin ? $("<span>", { class: "chill-emoji is-skin", text: skin }) : $char.data("photo"));
+            $char.attr("data-skin", skin || null);
+        }
+
         // Adds a class for `ms` (restarting its animation if it is already on), e.g. a hug or a startle
         function restartChillClass($char, cls, ms) {
             if (!$char.length) return;
@@ -9587,6 +9628,9 @@
             $("[data-chill-emote]").each(function () {
                 $(this).toggleClass("is-active", $(this).attr("data-chill-emote") === chill.emote);
             });
+            $("[data-chill-skin]").each(function () {
+                $(this).toggleClass("is-active", $(this).attr("data-chill-skin") === (chill.skin || ""));
+            });
         }
 
         // Shows my change at once, then writes it to the room for the others
@@ -9601,6 +9645,7 @@
             const data = { dancing: chill.dancing, vote: chill.vote, emote: chill.emote, at: away ? 0 : Date.now() };
             if (chill.act) data.act = chill.act;
             if (chill.booth) data.booth = true;
+            if (chill.skin) data.skin = chill.skin;
             const me = $("#chillFloor .chill-char.is-me")[0];
             if (spot) {
                 data.x = Math.round(spot.x * 10) / 10;
@@ -9729,6 +9774,8 @@
 
         $("#chillScene").on("click", function () {
             showChillRainPop(false);
+            $("#chillSkinPop").prop("hidden", true);
+            $("#chillSkinBtn").attr("aria-expanded", "false").removeClass("is-active");
         });
 
         $("#chillParty").on("click", function () {
@@ -9782,6 +9829,22 @@
         $("#chillDance").on("click", function () {
             chill.dancing = !chill.dancing;
             if (chill.dancing) chill.emote = "";
+            saveMyChill();
+        });
+
+        $("#chillSkinBtn").on("click", function (e) {
+            e.stopPropagation();
+            const open = $("#chillSkinPop").prop("hidden");
+            $("#chillSkinPop").prop("hidden", !open);
+            $(this).attr("aria-expanded", String(open)).toggleClass("is-active", open);
+        });
+
+        $("#chillSkinPop").on("click", "[data-chill-skin]", function (e) {
+            e.stopPropagation();
+            const skin = $(this).attr("data-chill-skin");
+            chill.skin = CHILL_SKINS.includes(skin) ? skin : "";
+            $("#chillSkinPop").prop("hidden", true);
+            $("#chillSkinBtn").attr("aria-expanded", "false").removeClass("is-active");
             saveMyChill();
         });
 
@@ -10303,7 +10366,14 @@
             if (!myId) return showToast("Chưa tải xong tài khoản, thử lại sau.");
             const roomId = $(this).attr("data-room");
             const action = $(this).attr("data-action");
-            if (action === "close" && !confirm("Đóng phòng này? Mọi người trong phòng sẽ bị thoát.")) return;
+            const room = musicRooms.find((r) => r.id === roomId);
+            const notMine = room && room.hostId !== myId;
+            // Only the host or the admin gets a close button; checked again here
+            if (action === "close" && notMine && !isAdmin) return;
+            const question = notMine
+                ? `Đóng phòng "${room.name}" của ${nameOf(room.host)}? Mọi người trong phòng sẽ bị thoát.`
+                : "Đóng phòng này? Mọi người trong phòng sẽ bị thoát.";
+            if (action === "close" && !confirm(question)) return;
 
             const $btn = $(this).prop("disabled", true);
             try {
