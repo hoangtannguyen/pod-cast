@@ -347,9 +347,9 @@
             <!-- Shown while in a room; kept outside #musicCurrent so re-rendering does not reload the player -->
             <div class="music-player-wrap" id="musicPlayerWrap" style="display:none">
                 <div class="music-screen" id="musicScreen">
+                    <!-- Everyone can click the video (YouTube's "Skip ad"). A member pausing it only pauses their own
+                         player, and the room's sync starts it again (syncMusicPlayer) -->
                     <div id="musicPlayer"></div>
-                    <!-- Covers the iframe: YouTube's own click-to-pause would only pause this member, out of sync with the room -->
-                    <div class="music-screen-shield"></div>
                     <button type="button" class="music-fullscreen" id="musicFullscreen" aria-label="Phóng to"><i class="fa-solid fa-expand"></i></button>
                 </div>
                 <div class="music-controls">
@@ -945,6 +945,11 @@
                 <button type="button" class="chill-dance" id="chillDance"></button>
                 <button type="button" class="chill-exit modal-close">✕ Thoát</button>
             </div>
+            <!-- Same chat as the music room; a new message pops up above the sender's head -->
+            <form class="chill-chat" id="chillChatForm">
+                <input type="text" id="chillChatInput" maxlength="200" placeholder="Nhắn gì đó với cả phòng..." autocomplete="off">
+                <button type="submit">Gửi</button>
+            </form>
             <p class="chill-tip">Bấm lên sàn để nhân vật của bạn đi tới đó 👆</p>
         </div>
     </div>
@@ -8948,8 +8953,6 @@
                 .find("i").attr("class", `fa-solid ${icon}`);
             $("#musicSkip").toggle(isHost);
             $("#musicSeek").prop("disabled", !isHost);
-            // The host can click the video itself: YouTube's play button and "Skip ad" (see onMusicStateChange)
-            $("#musicScreen").toggleClass("is-host", isHost);
             $("#musicProgress").toggle(!failed);
             $("#musicError").toggle(failed);
             renderMusicStage(room);
@@ -9156,6 +9159,7 @@
                 return;
             }
             $("#chillSub").text(room ? `${room.name} · ${(room.memberIds || []).length} đang nghe` : "Phòng mẫu · vào phòng nhạc để gặp bạn bè");
+            $("#chillChatForm").toggle(!!room);
             $("#chillScene").toggleClass("is-playing", room ? !!room.playing : true);
             const title = musicPlayerReady && room ? musicPlayer.getVideoData()?.title : "";
             $("#chillMarquee").text(title ? `♪ ${title} ♪` : "♪ VibeGram Chill Room ♪");
@@ -9282,6 +9286,37 @@
         $("#chillDance").on("click", function () {
             chill.dancing = !chill.dancing;
             saveMyChill();
+        });
+
+        // Speech bubble above the sender's head for a few seconds; a newer message replaces it
+        const CHILL_BUBBLE_MS = 6000;
+
+        function showChillBubble(fromId, text) {
+            if (!$("#chillModal").is(":visible")) return;
+            const $char = $("#chillScene .chill-char").filter((_, el) => el.getAttribute("data-id") === fromId);
+            if (!$char.length) return;
+            $char.find(".chill-bubble").remove();
+            const $bubble = $("<span>", { class: "chill-bubble", text: text }).prependTo($char);
+            $char.addClass("has-bubble");
+            clearTimeout($char.data("bubbleTimer"));
+            $char.data("bubbleTimer", setTimeout(() => $bubble.fadeOut(200, () => {
+                $bubble.remove();
+                $char.removeClass("has-bubble");
+            }), CHILL_BUBBLE_MS));
+        }
+
+        $("#chillChatForm").on("submit", async function (e) {
+            e.preventDefault();
+            const text = $.trim($("#chillChatInput").val());
+            if (!text) return;
+            $("#chillChatInput").val("");
+            try {
+                await sendMusicChat("text", text);
+            } catch (err) {
+                console.error(err);
+                $("#chillChatInput").val(text);
+                showToast(errorMessage(err));
+            }
         });
 
         function setMusicState(room, fields) {
@@ -9483,6 +9518,7 @@
                         snapshot.docChanges().forEach((change) => {
                             const msg = change.doc.data();
                             if (change.type === "added" && msg.type === "reaction" && !change.doc.metadata.hasPendingWrites) floatReaction(msg.text);
+                            if (change.type === "added" && msg.type === "text") showChillBubble(msg.fromId, msg.text);
                         });
                     }
                     isFirstSnapshot = false;

@@ -5367,16 +5367,6 @@ a.profile-about-row:hover {
     position: relative;
 }
 
-.music-screen-shield {
-    position: absolute;
-    inset: 0;
-}
-
-/* The host clicks through to YouTube's own play and "Skip ad" buttons */
-.music-screen.is-host .music-screen-shield {
-    display: none;
-}
-
 .music-fullscreen {
     position: absolute;
     top: 8px;
@@ -7379,6 +7369,82 @@ a.profile-about-row:hover {
     width: 100%;
     height: 100%;
     font-size: 20px;
+}
+
+/* Chat bubble above the head; its character comes to the front while it shows */
+.chill-char.has-bubble {
+    z-index: 200 !important; /* over the inline depth order */
+}
+
+.chill-bubble {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    width: max-content;
+    max-width: 160px;
+    padding: 6px 10px;
+    border-radius: 12px;
+    background: #fff;
+    color: #1f2937;
+    font-size: 12px;
+    line-height: 1.35;
+    text-align: center;
+    overflow-wrap: anywhere;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+    transform: translateX(-50%);
+    animation: chill-pop 0.25s ease-out;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.chill-bubble::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: calc(50% - 6px);
+    border: 6px solid transparent;
+    border-top-color: #fff;
+}
+
+@keyframes chill-pop {
+    from { opacity: 0; transform: translateX(-50%) scale(0.6); }
+    to { opacity: 1; transform: translateX(-50%) scale(1); }
+}
+
+/* Chat line under the bar, same messages as the music room chat */
+.chill-chat {
+    display: flex;
+    gap: 8px;
+    padding: 6px 14px 0;
+    background: #1a1233;
+}
+
+.chill-chat input {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 14px;
+    border: 1px solid #3b2f5c;
+    border-radius: 999px;
+    background: #120c24;
+    color: #fff;
+    outline: none;
+}
+
+.chill-chat input:focus {
+    border-color: #a855f7;
+}
+
+.chill-chat button {
+    padding: 8px 16px;
+    border: 0;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #7c3aed, #a855f7);
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
 }
 
 .chill-exit {
