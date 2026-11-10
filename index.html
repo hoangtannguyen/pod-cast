@@ -9115,14 +9115,17 @@
 
             $("#chillBooth").empty().append(chillCharOf(host).addClass("is-dj"));
 
-            // Saved spot, else rows of up to 6, front rows first, with a little jitter so it doesn't look like a grid
+            // Saved spot, else rows (4 per row on phones, 6 wider), front rows first, spread over the floor's depth,
+            // with a little jitter so it doesn't look like a grid
             const $floor = $("#chillFloor").empty();
+            const perRow = $("#chillFloor").width() < 480 ? 4 : 6;
+            const rowStep = Math.min(26, 62 / Math.max(1, Math.ceil(cast.length / perRow) - 1));
             cast.forEach((c, i) => {
                 const spot = room?.chill?.[c.key];
-                const row = Math.floor(i / 6);
-                const inRow = Math.min(6, cast.length - row * 6);
-                const x = typeof spot?.x === "number" ? spot.x : ((i % 6 + 1) / (inRow + 1)) * 100 + (Math.random() * 6 - 3);
-                const y = typeof spot?.y === "number" ? spot.y : Math.max(18, 80 - row * 26 + (Math.random() * 6 - 3));
+                const row = Math.floor(i / perRow);
+                const inRow = Math.min(perRow, cast.length - row * perRow);
+                const x = typeof spot?.x === "number" ? spot.x : ((i % perRow + 1) / (inRow + 1)) * 100 + (Math.random() * 6 - 3);
+                const y = typeof spot?.y === "number" ? spot.y : Math.max(18, 82 - row * rowStep + (Math.random() * 6 - 3));
                 const $char = chillCharOf(c);
                 placeChillChar($char, x, y);
                 $floor.append($char);
