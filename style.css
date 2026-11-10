@@ -7176,17 +7176,60 @@ a.profile-about-row:hover {
 /* Stage: speakers either side of the DJ booth, LED marquee on the front */
 .chill-stage {
     position: absolute;
-    top: 13%;
+    top: 30px;
     left: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: min(520px, 86%);
+    padding: 0 12px 34px;
+    border-radius: 0 0 12px 12px;
+    background: linear-gradient(180deg, transparent calc(100% - 64px), #7c4a1d calc(100% - 64px), #5c3510 100%);
+    transform: translateX(-50%);
+}
+
+.chill-stage-row {
     display: flex;
     align-items: flex-end;
     justify-content: center;
     gap: 14px;
-    width: min(520px, 86%);
-    padding: 0 12px 34px;
-    border-radius: 0 0 12px 12px;
-    background: linear-gradient(180deg, transparent 62%, #7c4a1d 62%, #5c3510 100%);
-    transform: translateX(-50%);
+}
+
+/* Video screen above the DJ: the muted iframe fills it; the thumbnail shows while it loads */
+.chill-screen {
+    position: relative;
+    width: clamp(150px, 30vw, 250px);
+    aspect-ratio: 16 / 9;
+    margin-bottom: 6px;
+    overflow: hidden;
+    border: 4px solid #1c1535;
+    border-radius: 8px;
+    background: #000 center / cover no-repeat;
+    box-shadow: 0 0 24px rgba(168, 85, 247, 0.55);
+}
+
+.chill-screen iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    pointer-events: none; /* only the room host controls playback, from the main player */
+}
+
+/* Not in a room: a placeholder instead of a video */
+.chill-screen.is-idle {
+    display: grid;
+    place-items: center;
+    background: linear-gradient(135deg, #2e1065, #831843);
+}
+
+.chill-screen.is-idle::after {
+    content: "🎶 Vào phòng nhạc để xem video";
+    padding: 0 8px;
+    font-size: 11px;
+    color: #f5d0fe;
+    text-align: center;
 }
 
 .chill-speaker {
@@ -7199,7 +7242,7 @@ a.profile-about-row:hover {
         #221a3a;
 }
 
-.chill-scene.is-dancing .chill-speaker {
+.chill-scene.is-playing .chill-speaker {
     animation: chill-thump 0.45s ease-in-out infinite alternate;
 }
 
@@ -7390,19 +7433,19 @@ a.profile-about-row:hover {
 }
 
 /* Dancing: bob with arms up and waving; 👍 makes it faster and bouncier */
-.chill-scene.is-dancing .chill-char {
+.chill-char.is-dancing {
     animation: chill-bob 0.8s ease-in-out infinite;
 }
 
-.chill-scene.is-dancing .chill-arm.is-left {
+.chill-char.is-dancing .chill-arm.is-left {
     animation: chill-wave-left 0.4s ease-in-out infinite alternate;
 }
 
-.chill-scene.is-dancing .chill-arm.is-right {
+.chill-char.is-dancing .chill-arm.is-right {
     animation: chill-wave-right 0.4s ease-in-out infinite alternate;
 }
 
-.chill-scene.is-hyped .chill-char {
+.chill-char.is-hyped {
     animation: chill-hype 0.5s ease-in-out infinite;
 }
 
@@ -7548,10 +7591,8 @@ a.profile-about-row:hover {
     }
 }
 
+/* Dancing and walking stay on: the user starts them. Only the ambient motion stops */
 @media (prefers-reduced-motion: reduce) {
-    .chill-scene .chill-char,
-    .chill-scene .chill-arm,
-    .chill-scene .chill-legs i,
     .chill-lights i,
     .chill-speaker,
     .chill-marquee span {

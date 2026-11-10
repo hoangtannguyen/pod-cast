@@ -924,9 +924,13 @@
             <div class="chill-scene" id="chillScene">
                 <div class="chill-lights" id="chillLights"></div>
                 <div class="chill-stage">
-                    <span class="chill-speaker"></span>
-                    <div class="chill-booth" id="chillBooth"></div>
-                    <span class="chill-speaker"></span>
+                    <!-- Screen above the DJ: a muted copy of the room's video, the sound comes from the main player -->
+                    <div class="chill-screen" id="chillScreen"><div id="chillScreenPlayer"></div></div>
+                    <div class="chill-stage-row">
+                        <span class="chill-speaker"></span>
+                        <div class="chill-booth" id="chillBooth"></div>
+                        <span class="chill-speaker"></span>
+                    </div>
                     <div class="chill-marquee"><span id="chillMarquee"></span></div>
                 </div>
                 <div class="chill-floor" id="chillFloor"></div>
@@ -8948,6 +8952,7 @@
             $("#musicProgress").toggle(!failed);
             $("#musicError").toggle(failed);
             renderMusicStage(room);
+            updateChillRoom(room);
             if (failed) {
                 const reason = MUSIC_ERRORS[musicFailed.code] || `Không phát được video (lỗi ${musicFailed.code}).`;
                 $("#musicErrorText").text(`${reason} ${isHost ? "Bấm ⏭ để chuyển bài, hoặc thêm bài vào hàng đợi." : "Thêm bài vào hàng đợi để nghe tiếp nhé."}`);
@@ -9033,13 +9038,15 @@
         });
 
         /* ---------- Chill Room (2D dancefloor) ----------
-           Front end only: the cast comes from the room already loaded (or a demo cast outside a room);
-           walking, dancing and votes are local to this browser, nothing is written. */
+           Each member's character lives on the room: chill.{userId} = { x, y, dancing, vote }. Everyone already
+           listens to the room, so a move or a dance reaches the others without another listener. Only my own
+           character dances / moves when I click. Outside a room: a demo cast, nothing is written. */
 
         const CHILL_COLORS = ["#f472b6", "#60a5fa", "#34d399", "#fbbf24", "#a78bfa", "#fb923c", "#22d3ee", "#f87171"];
         const CHILL_DEMO = ["🐱 Mèo", "🐶 Cún", "🐼 Gấu", "🦊 Cáo", "🐸 Ếch", "🐰 Thỏ", "🐯 Hổ"];
         const CHILL_MAX = 16;
-        let chill = { dancing: true, vote: 0 };
+        let chill = { dancing: false, vote: 0 }; // my character
+        let chillCastKey = ""; // who is drawn: the floor is rebuilt only when people join / leave
 
         function chillColorOf(key) {
             let hash = 0;
@@ -9049,7 +9056,7 @@
 
         // A cartoon character: name tag, round head (avatar photo or emoji), body with arms, legs
         function chillCharOf({ key, name, $face, isMe }) {
-            return $("<div>", { class: `chill-char${isMe ? " is-me" : ""}` })
+            return $("<div>", { class: `chill-char${isMe ? " is-me" : ""}`, "data-id": key })
                 .css({ "--c": chillColorOf(key), "animation-delay": `${(Math.random() * 0.5).toFixed(2)}s` })
                 .append(
                     $("<span>", { class: "chill-name", text: name }),
@@ -9064,42 +9071,56 @@
             $char.css({ left: `${x}%`, top: `${y}%`, "--depth": (0.75 + y / 400).toFixed(2), "z-index": Math.round(y) + 1 });
         }
 
-        function renderChillRoom() {
-            const room = myMusicRoom();
+        // Walks there: legs move and the body turns toward where it goes
+        function moveChillChar($char, x, y) {
+            $char.toggleClass("is-facing-left", x < parseFloat($char[0].style.left)).addClass("is-walking");
+            placeChillChar($char, x, y);
+            clearTimeout($char.data("walkTimer"));
+            $char.data("walkTimer", setTimeout(() => $char.removeClass("is-walking"), 800));
+        }
+
+        function chillCastOf(room) {
             const me = currentAuthor();
             const myId = userIdOf(me);
-            let host;
-            let cast;
             if (room) {
-                host = { key: room.hostId, name: `DJ ${nameOf(authorOfId(room.hostId))}`, $face: fillAvatar($("<span>", { class: "avatar" }), authorOfId(room.hostId)) };
-                cast = (room.memberIds || []).filter((id) => id !== room.hostId).slice(0, CHILL_MAX).map((id) => ({
-                    key: id, name: nameOf(authorOfId(id)), isMe: id === myId,
-                    $face: fillAvatar($("<span>", { class: "avatar" }), authorOfId(id)),
-                }));
-                chill.dancing = !!room.playing;
-            } else {
-                // Not in a room: a demo cast, with me (if I have a name) on the floor too
-                host = { key: "dj", name: "DJ VibeGram", $face: $("<span>", { class: "chill-emoji", text: "🎧" }) };
-                cast = CHILL_DEMO.map((label) => {
-                    const [emoji, name] = label.split(" ");
-                    return { key: name, name: name, $face: $("<span>", { class: "chill-emoji", text: emoji }) };
-                });
-                if (me) cast.unshift({ key: myId || me, name: nameOf(me), isMe: true, $face: fillAvatar($("<span>", { class: "avatar" }), me) });
+                const castOf = (id) => ({ key: id, name: nameOf(authorOfId(id)), isMe: id === myId, $face: fillAvatar($("<span>", { class: "avatar" }), authorOfId(id)) });
+                const host = castOf(room.hostId);
+                host.name = `DJ ${host.name}`;
+                return { host, cast: (room.memberIds || []).filter((id) => id !== room.hostId).slice(0, CHILL_MAX).map(castOf) };
             }
+            // Not in a room: a demo cast, with me (if I have a name) on the floor too
+            const cast = CHILL_DEMO.map((label) => {
+                const [emoji, name] = label.split(" ");
+                return { key: name, name: name, $face: $("<span>", { class: "chill-emoji", text: emoji }) };
+            });
+            if (me) cast.unshift({ key: myId || me, name: nameOf(me), isMe: true, $face: fillAvatar($("<span>", { class: "avatar" }), me) });
+            return { host: { key: "dj", name: "DJ VibeGram", $face: $("<span>", { class: "chill-emoji", text: "🎧" }) }, cast };
+        }
 
-            $("#chillSub").text(room ? `${room.name} · ${(room.memberIds || []).length} đang nghe` : "Phòng mẫu · vào phòng nhạc để gặp bạn bè");
+        function chillCastKeyOf(room) {
+            return JSON.stringify([room?.id || "", currentAuthor(), room ? room.hostId : "", room ? room.memberIds || [] : []]);
+        }
+
+        function renderChillRoom() {
+            const room = myMusicRoom();
+            const myId = userIdOf(currentAuthor());
+            const { host, cast } = chillCastOf(room);
+            chillCastKey = chillCastKeyOf(room);
+            const saved = room?.chill?.[myId];
+            chill = { dancing: !!saved?.dancing, vote: saved?.vote || 0 };
+
             $("#chillBooth").empty().append(chillCharOf(host).addClass("is-dj"));
 
-            // Rows of up to 6, front rows first; a little jitter so the crowd doesn't look like a grid
+            // Saved spot, else rows of up to 6, front rows first, with a little jitter so it doesn't look like a grid
             const $floor = $("#chillFloor").empty();
             cast.forEach((c, i) => {
+                const spot = room?.chill?.[c.key];
                 const row = Math.floor(i / 6);
                 const inRow = Math.min(6, cast.length - row * 6);
-                const col = i % 6;
-                const x = ((col + 1) / (inRow + 1)) * 100 + (Math.random() * 6 - 3);
-                const y = 80 - row * 26 + (Math.random() * 6 - 3);
+                const x = typeof spot?.x === "number" ? spot.x : ((i % 6 + 1) / (inRow + 1)) * 100 + (Math.random() * 6 - 3);
+                const y = typeof spot?.y === "number" ? spot.y : Math.max(18, 80 - row * 26 + (Math.random() * 6 - 3));
                 const $char = chillCharOf(c);
-                placeChillChar($char, x, Math.max(18, y));
+                placeChillChar($char, x, y);
                 $floor.append($char);
             });
             if (!cast.length) $floor.append($("<p>", { class: "chill-empty", text: "Sàn còn trống, rủ bạn bè vào quẩy nhé 🕺" }));
@@ -9107,13 +9128,41 @@
             if (!$("#chillLights").children().length) {
                 $("#chillLights").append(Array.from({ length: 14 }, (_, i) => $("<i>").css("animation-delay", `${(i % 4) * 0.4}s`)));
             }
+            updateChillRoom(room);
+        }
+
+        // Applies everyone's dance and spot. Mine comes from `chill` (already shown when I clicked)
+        function applyChillStates(room) {
+            const myId = userIdOf(currentAuthor());
+            $("#chillScene .chill-char[data-id]").each(function () {
+                const $char = $(this);
+                const id = $char.attr("data-id");
+                const isMe = $char.hasClass("is-me");
+                const state = isMe ? chill : room?.chill?.[id] || {};
+                $char.toggleClass("is-dancing", !!state.dancing).toggleClass("is-hyped", !!state.dancing && state.vote > 0);
+                if (isMe || id === myId || !$char.parent().is("#chillFloor") || typeof state.x !== "number") return;
+                if (Math.abs(parseFloat(this.style.left) - state.x) > 0.5 || Math.abs(parseFloat(this.style.top) - state.y) > 0.5) {
+                    moveChillChar($char, state.x, state.y);
+                }
+            });
+        }
+
+        // Every room update ends here (updateMusicControls); only what changed is touched
+        function updateChillRoom(room) {
+            if (!$("#chillModal").is(":visible") && !$("#chillModal").is(":animated")) return;
+            if (chillCastKeyOf(room) !== chillCastKey) {
+                renderChillRoom();
+                return;
+            }
+            $("#chillSub").text(room ? `${room.name} · ${(room.memberIds || []).length} đang nghe` : "Phòng mẫu · vào phòng nhạc để gặp bạn bè");
+            $("#chillScene").toggleClass("is-playing", room ? !!room.playing : true);
             const title = musicPlayerReady && room ? musicPlayer.getVideoData()?.title : "";
             $("#chillMarquee").text(title ? `♪ ${title} ♪` : "♪ VibeGram Chill Room ♪");
+            applyChillStates(room);
             renderChillVibe();
         }
 
         function renderChillVibe() {
-            $("#chillScene").toggleClass("is-dancing", chill.dancing).toggleClass("is-hyped", chill.dancing && chill.vote > 0);
             $("#chillNeedle").css("transform", `rotate(${chill.vote * 60 + (chill.dancing ? 15 : -15)}deg)`);
             $("[data-chill-vibe]").each(function () {
                 $(this).toggleClass("is-active", Number($(this).attr("data-chill-vibe")) === chill.vote);
@@ -9121,37 +9170,117 @@
             $("#chillDance").html(chill.dancing ? "⏸ Nghỉ" : "💃 Nhảy");
         }
 
+        // Shows my change at once, then writes it to the room for the others
+        function saveMyChill() {
+            applyChillStates(myMusicRoom());
+            renderChillVibe();
+            const room = myMusicRoom();
+            const myId = userIdOf(currentAuthor());
+            if (!room || !myId) return;
+            const data = { dancing: chill.dancing, vote: chill.vote };
+            const me = $("#chillFloor .chill-char.is-me")[0];
+            if (me) {
+                data.x = Math.round(parseFloat(me.style.left) * 10) / 10;
+                data.y = Math.round(parseFloat(me.style.top) * 10) / 10;
+            }
+            updateDoc(doc(db, "musicRooms", room.id), { [`chill.${myId}`]: data }).catch((err) => {
+                console.error(err);
+                showToast(errorMessage(err));
+            });
+        }
+
+        /* Screen above the DJ: a second, muted YouTube player following the room's song and position
+           (moving the main player here would reload its iframe). Removed when the Chill Room closes. */
+
+        const CHILL_SCREEN_DRIFT = 2; // seconds off before the screen is put back in sync
+        let chillPlayer = null;
+        let chillPlayerReady = false;
+        let chillScreenTimer = null;
+
+        async function openChillScreen() {
+            const room = myMusicRoom();
+            const $screen = $("#chillScreen").toggleClass("is-idle", !room?.videoId);
+            if (!room?.videoId) return;
+            $screen.css("background-image", `url(${youtubeThumb(room.videoId)})`); // until the video shows
+            await loadYouTubeApi();
+            if (chillPlayer || !$("#chillModal").is(":visible")) return;
+            chillPlayer = new YT.Player("chillScreenPlayer", {
+                width: "100%",
+                height: "100%",
+                videoId: room.videoId,
+                playerVars: { controls: 0, disablekb: 1, playsinline: 1, rel: 0, mute: 1, start: Math.floor(musicPositionOf(room)) },
+                events: {
+                    onReady: (e) => {
+                        chillPlayerReady = true;
+                        e.target.mute();
+                        syncChillScreen();
+                    },
+                },
+            });
+            chillScreenTimer = setInterval(syncChillScreen, 3000);
+        }
+
+        function syncChillScreen() {
+            // The modal closes from several places (×, backdrop, Escape): notice it here
+            if (!$("#chillModal").is(":visible")) {
+                closeChillScreen();
+                return;
+            }
+            const room = myMusicRoom();
+            if (!chillPlayerReady || !room?.videoId) return;
+            const position = musicPositionOf(room);
+            if (chillPlayer.getVideoData()?.video_id !== room.videoId) {
+                $("#chillScreen").css("background-image", `url(${youtubeThumb(room.videoId)})`);
+                if (room.playing) chillPlayer.loadVideoById(room.videoId, position);
+                else chillPlayer.cueVideoById(room.videoId, position);
+                return;
+            }
+            const state = chillPlayer.getPlayerState();
+            if (Math.abs(chillPlayer.getCurrentTime() - position) > CHILL_SCREEN_DRIFT && state !== YT.PlayerState.ENDED) {
+                chillPlayer.seekTo(position, true);
+            }
+            if (room.playing && ![YT.PlayerState.PLAYING, YT.PlayerState.BUFFERING].includes(state)) chillPlayer.playVideo();
+            if (!room.playing && state === YT.PlayerState.PLAYING) chillPlayer.pauseVideo();
+        }
+
+        function closeChillScreen() {
+            clearInterval(chillScreenTimer);
+            chillScreenTimer = null;
+            if (chillPlayer) chillPlayer.destroy();
+            chillPlayer = null;
+            chillPlayerReady = false;
+            // destroy() takes the player's element away: put a fresh one back for next time
+            $("#chillScreen").empty().append($("<div>", { id: "chillScreenPlayer" }));
+        }
+
         $("#chillOpen").on("click", function () {
-            chill = { dancing: true, vote: 0 };
-            renderChillRoom();
             $("#chillModal").fadeIn(150);
+            renderChillRoom();
+            openChillScreen().catch((err) => console.error(err));
         });
 
-        // Click the floor: my character walks there (legs move while walking)
+        // Click the floor: my character walks there
         $("#chillFloor").on("click", function (e) {
             const $me = $(this).find(".chill-char.is-me");
             if (!$me.length) return;
             const box = this.getBoundingClientRect();
             const x = Math.min(95, Math.max(5, ((e.clientX - box.left) / box.width) * 100));
             const y = Math.min(95, Math.max(15, ((e.clientY - box.top) / box.height) * 100));
-            $me.toggleClass("is-facing-left", x < parseFloat($me[0].style.left)).addClass("is-walking");
-            placeChillChar($me, x, y);
-            clearTimeout($me.data("walkTimer"));
-            $me.data("walkTimer", setTimeout(() => $me.removeClass("is-walking"), 800));
+            moveChillChar($me, x, y);
+            saveMyChill();
         });
 
-        // Tapping my current vote again takes it back
+        // 👍 makes me dance harder, 👎 stops my dance; tapping my current vote again takes it back
         $("[data-chill-vibe]").on("click", function () {
             const v = Number($(this).attr("data-chill-vibe"));
             chill.vote = chill.vote === v ? 0 : v;
-            if (v < 0 && chill.vote) chill.dancing = false;
-            if (v > 0 && chill.vote) chill.dancing = true;
-            renderChillVibe();
+            if (chill.vote) chill.dancing = v > 0;
+            saveMyChill();
         });
 
         $("#chillDance").on("click", function () {
             chill.dancing = !chill.dancing;
-            renderChillVibe();
+            saveMyChill();
         });
 
         function setMusicState(room, fields) {
