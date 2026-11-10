@@ -9067,7 +9067,8 @@
                     $("<span>", { class: "chill-face" }).append($face),
                     $("<span>", { class: "chill-body" }).append($("<i>", { class: "chill-arm is-left" }), $("<i>", { class: "chill-arm is-right" })),
                     $("<span>", { class: "chill-legs" }).append($("<i>"), $("<i>")),
-                    $("<span>", { class: "chill-prop", "aria-hidden": "true" })
+                    $("<span>", { class: "chill-prop", "aria-hidden": "true" }),
+                    $("<span>", { class: "chill-cup", "aria-hidden": "true" })
                 );
         }
 
@@ -9076,12 +9077,48 @@
             $char.css({ left: `${x}%`, top: `${y}%`, "--depth": (0.75 + y / 400).toFixed(2), "z-index": Math.round(y) + 1 });
         }
 
-        // Walks there: legs move and the body turns toward where it goes
+        // Walks there: legs move and the body turns toward where it goes; stands up first, sits down on arrival
         function moveChillChar($char, x, y) {
             $char.toggleClass("is-facing-left", x < parseFloat($char[0].style.left)).addClass("is-walking");
+            setChillSeat($char, null);
             placeChillChar($char, x, y);
             clearTimeout($char.data("walkTimer"));
-            $char.data("walkTimer", setTimeout(() => $char.removeClass("is-walking"), 800));
+            $char.data("walkTimer", setTimeout(() => {
+                $char.removeClass("is-walking");
+                setChillSeat($char, chillSeatAt(x, y));
+            }, 800));
+        }
+
+        /* Seats (percent of the floor, same box as the furniture): standing on one = sitting there. Nothing extra is
+           saved, every client works it out from x / y. Seats by a table get a steaming drink in front */
+        const CHILL_SEATS = [
+            { x: 77, y: 51, cup: "🧋" }, // orange beanbag, by the right table
+            { x: 92, y: 58, cup: "☕" }, // orange beanbag, by the right table
+            { x: 74, y: 90, cup: "" }, // purple beanbag, no table: just lounging
+            { x: 9, y: 46, cup: "☕" }, // couch, by the left table
+            { x: 17, y: 46, cup: "🧋" },
+            { x: 29, y: 52, cup: "🧋" }, // sofa ring around the center table
+            { x: 71, y: 52, cup: "☕" },
+            { x: 50, y: 25, cup: "🧋" },
+        ];
+        const CHILL_SEAT_REACH = { x: 6, y: 9 }; // a click this close to a seat goes to the seat
+
+        function chillSeatAt(x, y) {
+            return CHILL_SEATS.find((s) => Math.abs(s.x - x) < 0.6 && Math.abs(s.y - y) < 0.6) || null;
+        }
+
+        function chillSeatNear(x, y) {
+            return CHILL_SEATS.find((s) => Math.abs(s.x - x) <= CHILL_SEAT_REACH.x && Math.abs(s.y - y) <= CHILL_SEAT_REACH.y) || null;
+        }
+
+        function setChillSeat($char, seat) {
+            $char.toggleClass("is-seated", !!seat).toggleClass("has-cup", !!seat?.cup);
+            $char.find(".chill-cup").text(seat?.cup || "");
+        }
+
+        // Someone else is sitting (or walking to sit) there
+        function chillSeatTaken(seat, $me) {
+            return $("#chillFloor .chill-char").toArray().some((el) => el !== $me[0] && chillSeatAt(parseFloat(el.style.left), parseFloat(el.style.top)) === seat);
         }
 
         function chillCastOf(room) {
@@ -9133,6 +9170,7 @@
                 const y = typeof spot?.y === "number" ? spot.y : Math.max(18, 82 - row * rowStep + (Math.random() * 6 - 3));
                 const $char = chillCharOf(c);
                 placeChillChar($char, x, y);
+                setChillSeat($char, chillSeatAt(x, y));
                 $floor.append($char);
             });
             if (!cast.length) $floor.append($("<p>", { class: "chill-empty", text: "Sàn còn trống, rủ bạn bè vào quẩy nhé 🕺" }));
@@ -9527,8 +9565,15 @@
             const $me = $(this).find(".chill-char.is-me");
             if (!$me.length) return;
             const box = this.getBoundingClientRect();
-            const x = Math.min(95, Math.max(5, ((e.clientX - box.left) / box.width) * 100));
-            const y = Math.min(95, Math.max(15, ((e.clientY - box.top) / box.height) * 100));
+            let x = Math.min(95, Math.max(5, ((e.clientX - box.left) / box.width) * 100));
+            let y = Math.min(95, Math.max(15, ((e.clientY - box.top) / box.height) * 100));
+            // Near a seat: go sit on it, unless someone is already there
+            const seat = chillSeatNear(x, y);
+            if (seat && chillSeatTaken(seat, $me)) {
+                showToast("Chỗ này có người ngồi rồi 🙂");
+                return;
+            }
+            if (seat) ({ x, y } = seat);
             moveChillChar($me, x, y);
             saveMyChill();
         });
