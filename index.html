@@ -973,6 +973,7 @@
                     <button type="button" data-chill-act="heart">❤️ Thả tim</button>
                     <button type="button" data-chill-act="five">✋ Đập tay</button>
                     <button type="button" data-chill-act="cheers">🥂 Cụng ly</button>
+                    <button type="button" data-chill-act="beer">🍺 Mời bia</button>
                 </div>
             </div>
             <div class="chill-emotes">
@@ -9044,7 +9045,10 @@
         // Emotes in place (chill.{userId}.emote): the prop shown next to the character
         const CHILL_EMOTES = { meditate: "✨", drink: "🧋", sleep: "💤", clap: "👏", firework: "🎆" };
         // One character to another (chill.{userId}.act = { t, to, at }): played once by everyone in the room
-        const CHILL_ACTS = { heart: "❤️", five: "✋", cheers: "🥂" };
+        const CHILL_ACTS = { heart: "❤️", five: "✋", cheers: "🥂", beer: "🍺" };
+        // Told to the one who receives it: "{name} …"
+        const CHILL_ACT_TEXT = { heart: "thả tim bạn ❤️", five: "đập tay với bạn ✋", cheers: "cụng ly với bạn 🥂", beer: "mời bạn một ly bia 🍺" };
+        const CHILL_GIFT_MS = 8000; // how long the offered beer stays in the receiver's hand
         const CHILL_THEMES = ["lounge", "lofi", "rain", "rooftop", "beach"]; // room.chillTheme, set by the host
         const CHILL_NEAR = { x: 12, y: 14 }; // closer than this (percent of the floor) counts as standing together
         let chill = { dancing: false, vote: 0, emote: "", act: null }; // my character
@@ -9128,7 +9132,10 @@
                 const castOf = (id) => ({ key: id, name: nameOf(authorOfId(id)), isMe: id === myId, $face: fillAvatar($("<span>", { class: "avatar" }), authorOfId(id)) });
                 const host = castOf(room.hostId);
                 host.name = `DJ ${host.name}`;
-                return { host, cast: (room.memberIds || []).filter((id) => id !== room.hostId).slice(0, CHILL_MAX).map(castOf) };
+                const cast = (room.memberIds || []).filter((id) => id !== room.hostId).slice(0, CHILL_MAX).map(castOf);
+                // The host stepped down from the booth: on the floor with everyone, the booth stays empty
+                if (chillHostOnFloor(room)) return { host: null, cast: [host, ...cast] };
+                return { host, cast };
             }
             // Not in a room: a demo cast, with me (if I have a name) on the floor too
             const cast = CHILL_DEMO.map((label) => {
@@ -9139,8 +9146,14 @@
             return { host: { key: "dj", name: "DJ VibeGram", $face: $("<span>", { class: "chill-emoji", text: "🎧" }) }, cast };
         }
 
+        // chill.{hostId} with a spot and booth not set: the host walks around the floor like the others
+        function chillHostOnFloor(room) {
+            const saved = room?.chill?.[room.hostId];
+            return typeof saved?.x === "number" && !saved.booth;
+        }
+
         function chillCastKeyOf(room) {
-            return JSON.stringify([room?.id || "", currentAuthor(), room ? room.hostId : "", room ? room.memberIds || [] : []]);
+            return JSON.stringify([room?.id || "", currentAuthor(), room ? room.hostId : "", room ? room.memberIds || [] : [], chillHostOnFloor(room)]);
         }
 
         function renderChillRoom() {
@@ -9149,13 +9162,15 @@
             const { host, cast } = chillCastOf(room);
             chillCastKey = chillCastKeyOf(room);
             const saved = room?.chill?.[myId];
-            chill = { dancing: !!saved?.dancing, vote: saved?.vote || 0, emote: saved?.emote || "", act: saved?.act || null };
+            chill = { dancing: !!saved?.dancing, vote: saved?.vote || 0, emote: saved?.emote || "", act: saved?.act || null, booth: !!saved?.booth };
             // Acts made before I came in are not played again
             chillSeenActs = {};
             Object.entries(room?.chill || {}).forEach(([id, state]) => (chillSeenActs[id] = state?.act?.at));
             $("#chillActions").prop("hidden", true);
 
-            $("#chillBooth").empty().append(chillCharOf(host).addClass("is-dj"));
+            $("#chillBooth").empty().append(host
+                ? chillCharOf(host).addClass("is-dj")
+                : $("<span>", { class: "chill-booth-empty", text: "🎧", title: room?.hostId === myId ? "Về lại quầy DJ" : "DJ đang xuống sàn" }));
 
             // Saved spot, else rows (4 per row on phones, 6 wider), front rows first, spread over the floor's depth,
             // with a little jitter so it doesn't look like a grid
@@ -9196,6 +9211,7 @@
                 if (!isMe && state.act?.at && state.act.at !== chillSeenActs[id]) {
                     chillSeenActs[id] = state.act.at;
                     playChillAct(id, state.act.to, state.act.t);
+                    if (state.act.to === myId && CHILL_ACT_TEXT[state.act.t]) showToast(`${nameOf(authorOfId(id))} ${CHILL_ACT_TEXT[state.act.t]}`);
                 }
                 if (isMe || id === myId || !$char.parent().is("#chillFloor") || typeof state.x !== "number") return;
                 if (Math.abs(parseFloat(this.style.left) - state.x) > 0.5 || Math.abs(parseFloat(this.style.top) - state.y) > 0.5) {
@@ -9422,6 +9438,13 @@
                 setTimeout(() => $fx.remove(), 1800);
             }
             spawnChillParticles($to, type === "heart" ? "heart" : "firework");
+            // An offered beer stays in the receiver's hand for a while
+            if (type === "beer") {
+                $to.find(".chill-gift").remove();
+                const $gift = $("<span>", { class: "chill-gift", text: "🍺", "aria-hidden": "true" }).appendTo($to);
+                clearTimeout($to.data("giftTimer"));
+                $to.data("giftTimer", setTimeout(() => $gift.fadeOut(300, () => $gift.remove()), CHILL_GIFT_MS));
+            }
         }
 
         function renderChillVibe() {
@@ -9436,7 +9459,8 @@
         }
 
         // Shows my change at once, then writes it to the room for the others
-        function saveMyChill() {
+        // `spot`: where I go when I'm not drawn on the floor yet (the host stepping down from the booth)
+        function saveMyChill(spot) {
             applyChillStates(myMusicRoom());
             renderChillVibe();
             const room = myMusicRoom();
@@ -9444,8 +9468,12 @@
             if (!room || !myId) return;
             const data = { dancing: chill.dancing, vote: chill.vote, emote: chill.emote };
             if (chill.act) data.act = chill.act;
+            if (chill.booth) data.booth = true;
             const me = $("#chillFloor .chill-char.is-me")[0];
-            if (me) {
+            if (spot) {
+                data.x = Math.round(spot.x * 10) / 10;
+                data.y = Math.round(spot.y * 10) / 10;
+            } else if (me) {
                 data.x = Math.round(parseFloat(me.style.left) * 10) / 10;
                 data.y = Math.round(parseFloat(me.style.top) * 10) / 10;
             }
@@ -9563,7 +9591,8 @@
         $("#chillFloor").on("click", function (e) {
             $("#chillActions").prop("hidden", true);
             const $me = $(this).find(".chill-char.is-me");
-            if (!$me.length) return;
+            const fromBooth = !$me.length && $("#chillBooth .chill-char.is-me").length > 0; // the host stepping down
+            if (!$me.length && !fromBooth) return;
             const box = this.getBoundingClientRect();
             let x = Math.min(95, Math.max(5, ((e.clientX - box.left) / box.width) * 100));
             let y = Math.min(95, Math.max(15, ((e.clientY - box.top) / box.height) * 100));
@@ -9574,7 +9603,21 @@
                 return;
             }
             if (seat) ({ x, y } = seat);
+            if (fromBooth) {
+                // Written to the room; its update redraws me on the floor at that spot
+                chill.booth = false;
+                saveMyChill({ x, y });
+                return;
+            }
             moveChillChar($me, x, y);
+            saveMyChill();
+        });
+
+        // Host on the floor: clicking the empty booth goes back behind the decks
+        $("#chillBooth").on("click", ".chill-booth-empty", function () {
+            const room = myMusicRoom();
+            if (!room || room.hostId !== userIdOf(currentAuthor())) return;
+            chill.booth = true;
             saveMyChill();
         });
 
