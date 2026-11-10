@@ -1068,10 +1068,10 @@
     <div class="modal" id="musicRoomModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="musicRoomTitle">
         <form class="modal-card music-room-card" id="musicRoomForm">
             <h2 class="modal-title" id="musicRoomTitle">Tạo Chill Room 🎧</h2>
-            <p class="modal-desc">Chọn một bài để mở phòng, bạn bè vào sẽ nghe cùng bạn.</p>
+            <p class="modal-desc">Đặt tên là mở được phòng. Bài hát chọn luôn hoặc thêm sau cũng được, bạn bè vào sẽ nghe cùng bạn.</p>
 
             <div class="music-step">
-                <label class="music-step-label" for="musicSearchQuery"><span>1</span> Chọn bài hát</label>
+                <label class="music-step-label" for="musicSearchQuery"><span>1</span> Chọn bài hát <small class="music-optional">(không bắt buộc)</small></label>
                 <!-- The chosen song; #musicRoomUrl below stays the value the form submits -->
                 <div class="music-picked" id="musicPicked" style="display:none">
                     <span class="music-cover" id="musicPickedCover"></span>
@@ -1098,7 +1098,7 @@
 
             <div class="music-step">
                 <label class="music-step-label" for="musicRoomName"><span>2</span> Đặt tên phòng</label>
-                <input type="text" id="musicRoomName" class="modal-input" maxlength="40" placeholder="Tự điền theo tên bài, sửa tuỳ thích" autocomplete="off">
+                <input type="text" id="musicRoomName" class="modal-input" maxlength="40" placeholder="Tên phòng (chọn bài thì tự điền theo tên bài)" autocomplete="off">
             </div>
             <p class="modal-error" id="musicRoomError" style="display:none"></p>
             <div class="modal-actions">
@@ -8716,8 +8716,11 @@
             return match ? match[1] : "";
         }
 
+        // A room created without a song has no video: a plain purple picture stands in for the thumbnail
+        const MUSIC_EMPTY_THUMB = `data:image/svg+xml,${encodeURIComponent("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 9\"><rect width=\"16\" height=\"9\" fill=\"#6d28d9\"/></svg>")}`;
+
         function youtubeThumb(videoId) {
-            return `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+            return videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : MUSIC_EMPTY_THUMB;
         }
 
         // In two rooms at once (a join from another tab or device, or one made before the room list caught up),
@@ -8903,6 +8906,12 @@
                 return;
             }
             if (!musicPlayerReady) return;
+            // No song yet: nothing to load, the controls say how to add one
+            if (!room.videoId) {
+                if (musicPlayer.getVideoData()?.video_id) musicPlayer.stopVideo();
+                updateMusicControls();
+                return;
+            }
             // A refused video stays refused: don't reload it on every sync, wait for another song
             if (room.videoId === musicFailed.videoId) {
                 updateMusicControls();
@@ -8962,6 +8971,14 @@
             if (!room) return;
             renderMusicQueue(room);
             const isHost = isMusicHost(room);
+            if (!room.videoId) {
+                $("#musicToggle, #musicSkip, #musicProgress, #musicError").hide();
+                $("#musicTitle").text("Chưa có bài nào · tìm bài ở ô bên dưới để phát nhé 🎶");
+                renderMusicStage(room);
+                updateChillRoom(room);
+                updateMusicMini();
+                return;
+            }
             const failed = room.videoId === musicFailed.videoId;
             const blocked = !failed && musicBlocked(room);
             let icon = "fa-volume-high";
@@ -9228,6 +9245,8 @@
         let chillScreenTimer = null;
 
         async function openChillScreen() {
+            // The timer runs while the Chill Room is open, even with no song yet: it starts the screen once one is added
+            if (!chillScreenTimer) chillScreenTimer = setInterval(syncChillScreen, 3000);
             const room = myMusicRoom();
             const $screen = $("#chillScreen").toggleClass("is-idle", !room?.videoId);
             if (!room?.videoId) return;
@@ -9247,7 +9266,6 @@
                     },
                 },
             });
-            chillScreenTimer = setInterval(syncChillScreen, 3000);
         }
 
         function syncChillScreen() {
@@ -9257,6 +9275,10 @@
                 return;
             }
             const room = myMusicRoom();
+            if (!chillPlayer && room?.videoId) {
+                openChillScreen().catch((err) => console.error(err));
+                return;
+            }
             if (!chillPlayerReady || !room?.videoId) return;
             const position = musicPositionOf(room);
             if (chillPlayer.getVideoData()?.video_id !== room.videoId) {
@@ -9449,6 +9471,15 @@
             if (!room || !myId) return;
             if (musicQueueOf(room).length >= MUSIC_QUEUE_MAX) return showToast(`Hàng đợi tối đa ${MUSIC_QUEUE_MAX} bài.`);
             try {
+                // A room created without a song: the first one added plays right away instead of waiting in the queue
+                if (!room.videoId) {
+                    // Started inside the click so the browser lets the sound play; the room sync takes over after
+                    if (musicPlayerReady) musicPlayer.loadVideoById(videoId, 0);
+                    await updateDoc(doc(db, "musicRooms", room.id), { videoId: videoId, playing: true, position: 0, updatedAt: serverNow() });
+                    $("#musicSongUrl").val("").trigger("input");
+                    showToast("Đang phát bài đầu tiên 🎶");
+                    return;
+                }
                 const item = { key: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, videoId: videoId, title: (title || "").slice(0, 100), addedBy: myId };
                 await updateDoc(doc(db, "musicRooms", room.id), { queue: arrayUnion(item) });
                 $("#musicSongUrl").val("").trigger("input");
@@ -9882,7 +9913,8 @@
             const videoId = youtubeIdOf($.trim($("#musicRoomUrl").val()));
             const fail = (message) => $("#musicRoomError").text(message).show();
             if (!me) return;
-            if (!videoId) return fail($.trim($("#musicRoomUrl").val()) ? "Link YouTube không hợp lệ." : "Chọn một bài hát trước nhé.");
+            // No song is fine (it can be queued later); only a typed link that is not a YouTube video is refused
+            if (!videoId && $.trim($("#musicRoomUrl").val())) return fail("Link YouTube không hợp lệ.");
             if (!name) return fail("Nhập tên phòng.");
             if (!myId) return fail("Chưa tạo được phòng, thử tải lại trang.");
 
@@ -9893,10 +9925,10 @@
                     name: name,
                     host: me,
                     hostId: myId,
-                    videoId: videoId,
+                    videoId: videoId, // "" = no song yet
                     memberIds: [myId],
                     queue: [],
-                    playing: true,
+                    playing: !!videoId,
                     position: 0,
                     updatedAt: serverNow(),
                     createdAt: Date.now()

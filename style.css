@@ -5944,6 +5944,12 @@ a.profile-about-row:hover {
     font-weight: 600;
 }
 
+.music-optional {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--muted);
+}
+
 .music-step-label span {
     display: grid;
     place-items: center;
