@@ -46,7 +46,7 @@
                     <i class="fa-regular fa-id-card"></i>
                 </button>
                 <!-- Below 1120px only: wide screens show the music rooms in the right column -->
-                <button type="button" class="admin-btn admin-btn-icon" id="btnMusic" data-tip="Phòng nghe nhạc" aria-label="Phòng nghe nhạc">
+                <button type="button" class="admin-btn admin-btn-icon" id="btnMusic" data-tip="Chill Room" aria-label="Chill Room">
                     <i class="fa-solid fa-headphones"></i>
                 </button>
                 <button type="button" class="admin-btn admin-btn-icon" id="btnTheme" data-tip="Chế độ tối" aria-label="Chế độ tối" aria-pressed="false">
@@ -123,7 +123,7 @@
                     <div class="admin-menu more-menu" id="moreMenu" role="menu" style="display:none">
                         <button type="button" class="admin-menu-item" data-proxy="#btnMusic" role="menuitem">
                             <i class="fa-solid fa-headphones"></i>
-                            <span>Phòng nghe nhạc</span>
+                            <span>Chill Room</span>
                         </button>
                         <button type="button" class="admin-menu-item" data-proxy="#btnTheme" role="menuitem">
                             <i class="fa-regular fa-moon" id="moreThemeIcon"></i>
@@ -335,11 +335,11 @@
 
     <!-- Right column (wide screens only): music rooms -->
     <!-- Smaller screens: opens as a bottom sheet from the header / "more" menu -->
-    <aside class="side-right" id="sideRight" aria-label="Phòng nghe nhạc">
+    <aside class="side-right" id="sideRight" aria-label="Chill Room">
         <!-- Music rooms: create / join / leave (playback comes in the next step) -->
         <section class="music-widget card" aria-labelledby="musicWidgetTitle">
             <div class="pass-widget-head">
-                <h3 class="pass-widget-title" id="musicWidgetTitle"><i class="fa-solid fa-headphones music-accent"></i> Phòng nghe nhạc</h3>
+                <h3 class="pass-widget-title" id="musicWidgetTitle"><i class="fa-solid fa-headphones music-accent"></i> Chill Room</h3>
                 <button type="button" class="icon-btn chill-open" id="chillOpen" aria-label="Chill Room" title="Chill Room 2D">🕺</button>
                 <button type="button" class="link-btn" id="musicCreateBtn">+ Tạo phòng</button>
                 <button type="button" class="icon-btn side-right-close" id="sideRightClose" aria-label="Đóng"><i class="fa-solid fa-xmark"></i></button>
@@ -408,7 +408,7 @@
         </section>
 
         <section class="music-widget card" id="musicSuggestWidget" aria-labelledby="musicSuggestTitle" style="display:none">
-            <h3 class="pass-widget-title" id="musicSuggestTitle">✨ Gợi ý phòng nhạc</h3>
+            <h3 class="pass-widget-title" id="musicSuggestTitle">✨ Gợi ý Chill Room</h3>
             <ul class="music-rooms" id="musicRoomList"></ul>
         </section>
     </aside>
@@ -421,7 +421,7 @@
 
     <!-- Music mini player: below 1120px, while in a room and the sheet is closed, so the song stays in reach -->
     <div class="music-mini" id="musicMini" style="display:none">
-        <button type="button" class="music-mini-open" id="musicMiniOpen" aria-label="Mở phòng nghe nhạc">
+        <button type="button" class="music-mini-open" id="musicMiniOpen" aria-label="Mở Chill Room">
             <span class="music-cover" id="musicMiniCover"></span>
             <span class="music-mini-text">
                 <strong id="musicMiniTitle"></strong>
@@ -913,7 +913,7 @@
     </div>
 
     <!-- Activity analytics (admin only) -->
-    <!-- Chill Room: 2D dancefloor view of the music room. Front end only for now: movement and votes stay in this browser -->
+    <!-- Chill Room: a 2D night lounge for the music room. Characters move / dance / chat in sync (chill.{userId} on the room) -->
     <div class="modal chill-modal" id="chillModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="chillTitle">
         <div class="chill-room">
             <div class="chill-head">
@@ -922,9 +922,31 @@
                 <button type="button" class="icon-btn chill-close modal-close" aria-label="Đóng"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="chill-scene" id="chillScene">
+                <!-- Wall: night city window with string lights, pendant bulbs, plants (decoration only) -->
+                <div class="chill-window" aria-hidden="true"></div>
                 <div class="chill-lights" id="chillLights"></div>
+                <div class="chill-pendants" aria-hidden="true"><i></i><i></i><i></i></div>
+                <span class="chill-deco is-plant-wall" aria-hidden="true">🪴</span>
+                <span class="chill-deco is-shelf" aria-hidden="true">📚</span>
+                <!-- Floor furniture, under the characters: rug with a sunken sofa ring, couch, beanbags, glowing tables -->
+                <div class="chill-lounge" aria-hidden="true">
+                    <span class="chill-rug"></span>
+                    <span class="chill-ring"></span>
+                    <span class="chill-table is-center"><i></i></span>
+                    <span class="chill-couch"></span>
+                    <span class="chill-table is-left"><i></i></span>
+                    <span class="chill-rug is-pink"></span>
+                    <span class="chill-beanbag is-a"></span>
+                    <span class="chill-beanbag is-b"></span>
+                    <span class="chill-beanbag is-c"></span>
+                    <span class="chill-table is-right"><i></i></span>
+                    <span class="chill-deco is-gamepad">🎮</span>
+                    <span class="chill-deco is-candle-a">🕯️</span>
+                    <span class="chill-deco is-candle-b">🕯️</span>
+                    <span class="chill-deco is-plant-floor">🪴</span>
+                </div>
                 <div class="chill-stage">
-                    <!-- Screen above the DJ: a muted copy of the room's video, the sound comes from the main player -->
+                    <!-- Wall TV: a muted copy of the room's video, the sound comes from the main player. DJ corner beside it -->
                     <div class="chill-screen" id="chillScreen"><div id="chillScreenPlayer"></div></div>
                     <div class="chill-stage-row">
                         <span class="chill-speaker"></span>
@@ -1045,7 +1067,7 @@
 
     <div class="modal" id="musicRoomModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="musicRoomTitle">
         <form class="modal-card music-room-card" id="musicRoomForm">
-            <h2 class="modal-title" id="musicRoomTitle">Tạo phòng nghe nhạc 🎧</h2>
+            <h2 class="modal-title" id="musicRoomTitle">Tạo Chill Room 🎧</h2>
             <p class="modal-desc">Chọn một bài để mở phòng, bạn bè vào sẽ nghe cùng bạn.</p>
 
             <div class="music-step">
@@ -7116,7 +7138,7 @@
             { icon: "🛍️", label: "Pass đồ", questions: ["Đang có món đồ nào được pass?", "Món đồ pass nào rẻ nhất?", "Có ai pass quần áo không?"] },
             { icon: "☕", label: "Ăn uống", questions: ["Có quán cà phê nào chill được mọi người review?", "Quán nhậu nào hay được rủ đi?", "Chỗ nào hợp tụ tập đông người?"] },
             { icon: "🍻", label: "Ghép kèo", questions: ["Tối nay rảnh quá, có ai đi chill không?", "Có ai đi nhậu không?", "Cuối tuần ai rảnh đi cà phê?"] },
-            { icon: "🎧", label: "Phòng nhạc", questions: ["Đang có phòng nghe nhạc nào?", "Phòng nhạc nào đông người nghe nhất?", "Bạn bè mình đang nghe nhạc ở phòng nào?"] },
+            { icon: "🎧", label: "Chill Room", questions: ["Đang có Chill Room nào?", "Chill Room nào đông người nghe nhất?", "Bạn bè mình đang nghe nhạc ở Chill Room nào?"] },
             { icon: "🙋", label: "Của tôi", questions: ["Tôi đang tham gia những sự kiện nào?", "Bài của tôi được bao nhiêu lượt thích, bài nào nhiều nhất?", "Tôi đã thích những bài nào?"] }
         ];
         const AI_KIND_EMOJI = { "Sinh nhật": "🎂", "Tiệc tùng": "🥳", "Họp mặt": "🤝", "Liên hoan": "🍻", "Dã ngoại": "🏕️" };
@@ -7309,7 +7331,7 @@
             const myId = userIdOf(currentAuthor());
             const rooms = (myId ? visibleMusicRooms(myId) : []).sort((a, b) => (b.memberIds || []).length - (a.memberIds || []).length);
             return [
-                { from: "Thống kê", time: "", text: `Có ${rooms.length} phòng nghe nhạc đang mở mà người hỏi xem được.` },
+                { from: "Thống kê", time: "", text: `Có ${rooms.length} Chill Room (phòng nghe nhạc) đang mở mà người hỏi xem được.` },
                 ...rooms.map((room) => {
                     const members = room.memberIds || [];
                     const names = members.slice(0, 8).map((id) => authorOfId(id)).filter(Boolean).map(nameOf).join(", ");
@@ -7319,7 +7341,7 @@
                         id: room.id,
                         from: nameOf(room.host),
                         time: "",
-                        text: `Phòng nghe nhạc: ${room.name}, chủ phòng ${nameOf(room.host)}, ${members.length} người đang nghe${names ? ` (${names})` : ""}, ${room.playing ? "đang phát" : "đang tạm dừng"}, hàng đợi ${(room.queue || []).length} bài${titles ? `: ${titles}` : ""}.${here}`
+                        text: `Chill Room: ${room.name}, chủ phòng ${nameOf(room.host)}, ${members.length} người đang nghe${names ? ` (${names})` : ""}, ${room.playing ? "đang phát" : "đang tạm dừng"}, hàng đợi ${(room.queue || []).length} bài${titles ? `: ${titles}` : ""}.${here}`
                     };
                 })
             ];
@@ -9161,7 +9183,7 @@
                 renderChillRoom();
                 return;
             }
-            $("#chillSub").text(room ? `${room.name} · ${(room.memberIds || []).length} đang nghe` : "Phòng mẫu · vào phòng nhạc để gặp bạn bè");
+            $("#chillSub").text(room ? `${room.name} · ${(room.memberIds || []).length} đang nghe` : "Phòng mẫu · vào một Chill Room để gặp bạn bè");
             $("#chillChatForm").toggle(!!room);
             $("#chillScene").toggleClass("is-playing", room ? !!room.playing : true);
             const title = musicPlayerReady && room ? musicPlayer.getVideoData()?.title : "";
