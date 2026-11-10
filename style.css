@@ -9219,26 +9219,3 @@ a.profile-about-row:hover {
 .chill-scene[data-chill-theme="rooftop"] .chill-lights {
     left: 3%;
 }
-
-/* Dancing and walking stay on: the user starts them. Only the ambient motion stops */
-@media (prefers-reduced-motion: reduce) {
-    .chill-lights i,
-    .chill-table i,
-    .chill-speaker,
-    .chill-nextup span,
-    .chill-marquee span,
-    .chill-ambience,
-    .chill-ambience::after,
-    .chill-drops {
-        animation: none !important;
-    }
-
-    /* Not scrolling: the text starts inside the strip and is cut with … */
-    .chill-nextup span,
-    .chill-marquee span {
-        display: block;
-        padding-left: 6px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-}
