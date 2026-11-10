@@ -340,7 +340,7 @@
         <section class="music-widget card" aria-labelledby="musicWidgetTitle">
             <div class="pass-widget-head">
                 <h3 class="pass-widget-title" id="musicWidgetTitle"><i class="fa-solid fa-headphones music-accent"></i> Chill Room</h3>
-                <button type="button" class="icon-btn chill-open" id="chillOpen" aria-label="Chill Room" title="Chill Room 2D">🕺</button>
+                <button type="button" class="chill-open" id="chillOpen" title="Vào phòng 2D: nhảy, emote, chat cùng mọi người">🕺 Phòng 2D</button>
                 <button type="button" class="link-btn" id="musicCreateBtn">+ Tạo phòng</button>
                 <button type="button" class="icon-btn side-right-close" id="sideRightClose" aria-label="Đóng"><i class="fa-solid fa-xmark"></i></button>
             </div>
@@ -368,17 +368,6 @@
                     <span id="musicErrorText"></span>
                     <a id="musicErrorLink" target="_blank" rel="noopener noreferrer">Mở trên YouTube <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
                 </p>
-                <!-- Dancefloor: the host at the DJ booth, members on the floor (dancing while the room plays), vibe meter -->
-                <div class="music-stage" id="musicStage">
-                    <div class="music-booth" id="musicBooth"></div>
-                    <div class="music-crowd" id="musicCrowd"></div>
-                    <div class="music-vibe">
-                        <button type="button" class="music-vibe-btn" data-vibe="-1" aria-label="Chán" title="Chán">👎</button>
-                        <div class="music-meter" aria-hidden="true"><span class="music-needle" id="musicNeedle"></span></div>
-                        <button type="button" class="music-vibe-btn" data-vibe="1" aria-label="Đỉnh" title="Đỉnh">👍</button>
-                    </div>
-                    <p class="music-vibe-label" id="musicVibeLabel"></p>
-                </div>
                 <div class="music-reactions" id="musicReactions" aria-label="Thả biểu cảm">
                     <button type="button" data-emoji="❤️" aria-label="Thả tim">❤️</button>
                     <button type="button" data-emoji="🔥" aria-label="Cháy">🔥</button>
@@ -8998,10 +8987,10 @@
             if (!room) return;
             renderMusicQueue(room);
             const isHost = isMusicHost(room);
+            $("#musicPlayerWrap").toggleClass("is-empty", !room.videoId);
             if (!room.videoId) {
                 $("#musicToggle, #musicSkip, #musicProgress, #musicError").hide();
                 $("#musicTitle").text("Chưa có bài nào · tìm bài ở ô bên dưới để phát nhé 🎶");
-                renderMusicStage(room);
                 updateChillRoom(room);
                 updateMusicMini();
                 return;
@@ -9021,7 +9010,6 @@
             $("#musicSeek").prop("disabled", !isHost);
             $("#musicProgress").toggle(!failed);
             $("#musicError").toggle(failed);
-            renderMusicStage(room);
             updateChillRoom(room);
             if (failed) {
                 const reason = MUSIC_ERRORS[musicFailed.code] || `Không phát được video (lỗi ${musicFailed.code}).`;
@@ -9035,77 +9023,6 @@
             $("#musicTitle").text(title ? `Đang phát: ${title}` : room.playing ? "Đang tải bài hát..." : "Đang tạm dừng");
             updateMusicMini();
         }
-
-        /* Dancefloor: each member has one vote per song, vibes.{userId} = { v: 1 | -1 | 0, videoId } */
-
-        const MUSIC_CROWD_MAX = 12;
-        let musicStageKey = ""; // skips re-rendering (and restarting the dance) when nothing changed
-
-        function musicVibesOf(room, myId) {
-            let up = 0;
-            let down = 0;
-            let mine = 0;
-            Object.entries(room.vibes || {}).forEach(([id, vote]) => {
-                if (vote?.videoId !== room.videoId || !(room.memberIds || []).includes(id)) return;
-                if (vote.v > 0) up++;
-                else if (vote.v < 0) down++;
-                if (id === myId) mine = vote.v;
-            });
-            return { up, down, mine };
-        }
-
-        function renderMusicStage(room) {
-            const myId = userIdOf(currentAuthor());
-            const crowd = (room.memberIds || []).filter((id) => id !== room.hostId);
-            const key = JSON.stringify([myId, room.hostId, crowd, room.playing, room.videoId, room.vibes || {}]);
-            if (key === musicStageKey) return;
-            musicStageKey = key;
-
-            const voteOf = (id) => (room.vibes?.[id]?.videoId === room.videoId ? room.vibes[id].v : 0);
-            const host = authorOfId(room.hostId);
-            $("#musicStage").toggleClass("is-playing", !!room.playing);
-            $("#musicBooth").empty().append(
-                $("<span>", { class: "music-dj" }).append(
-                    fillAvatar($("<span>", { class: "avatar" }), host),
-                    $("<span>", { class: "music-dj-badge", text: "🎧" })
-                ),
-                $("<span>", { class: "music-dj-name", text: `${nameOf(host)}` })
-            );
-            $("#musicCrowd").empty().append(crowd.length
-                ? [
-                    ...crowd.slice(0, MUSIC_CROWD_MAX).map((id, i) => {
-                        const name = authorOfId(id);
-                        const vote = voteOf(id);
-                        return $("<span>", { class: `music-dancer${vote > 0 ? " is-hyped" : vote < 0 ? " is-meh" : ""}`, title: nameOf(name) })
-                            .css("animation-delay", `${(i % 5) * 0.13}s`)
-                            .append(fillAvatar($("<span>", { class: "avatar" }), name));
-                    }),
-                    crowd.length > MUSIC_CROWD_MAX ? $("<span>", { class: "music-more", text: `+${crowd.length - MUSIC_CROWD_MAX}` }) : null,
-                ]
-                : $("<span>", { class: "music-crowd-empty", text: "Sàn còn trống, rủ bạn bè vào quẩy nhé 🕺" }));
-
-            // Needle from -80° (all 👎) to 80° (all 👍)
-            const { up, down, mine } = musicVibesOf(room, myId);
-            const score = up + down ? (up - down) / (up + down) : 0;
-            $("#musicNeedle").css("transform", `rotate(${Math.round(score * 80)}deg)`);
-            $("#musicStage [data-vibe]").each(function () {
-                $(this).toggleClass("is-active", Number($(this).attr("data-vibe")) === mine);
-            });
-            $("#musicVibeLabel").text(up + down ? `👍 ${up} · 👎 ${down}` : "Bài này vibe sao? Chấm điểm nhé!");
-        }
-
-        // Tapping my current vote again takes it back
-        $("#musicStage").on("click", "[data-vibe]", function () {
-            const room = myMusicRoom();
-            const myId = userIdOf(currentAuthor());
-            if (!room || !myId) return;
-            const v = Number($(this).attr("data-vibe"));
-            const next = musicVibesOf(room, myId).mine === v ? 0 : v;
-            updateDoc(doc(db, "musicRooms", room.id), { [`vibes.${myId}`]: { v: next, videoId: room.videoId } }).catch((err) => {
-                console.error(err);
-                showToast(errorMessage(err));
-            });
-        });
 
         /* ---------- Chill Room (2D dancefloor) ----------
            Each member's character lives on the room: chill.{userId} = { x, y, dancing, vote, emote, act }. Everyone already
