@@ -5441,6 +5441,39 @@ a.profile-about-row:hover {
     line-height: 1.4;
 }
 
+/* Video can't play: the black player is folded away, the error becomes a card in its place */
+.music-player-wrap.is-failed .music-screen {
+    height: 0;
+    overflow: hidden;
+}
+
+.music-player-wrap.is-failed .music-error {
+    display: flex !important; /* shown with jQuery .toggle(), inline style */
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    margin: 10px 0 0;
+    padding: 18px 14px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #3b0764, #831843);
+    color: #fce7f3;
+    text-align: center;
+}
+
+.music-player-wrap.is-failed .music-error::before {
+    content: "📺";
+    font-size: 26px;
+}
+
+.music-player-wrap.is-failed .music-error a {
+    padding: 5px 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+    font-weight: 600;
+    text-decoration: none;
+}
+
 .music-error a {
     display: inline-flex;
     align-items: center;
@@ -7827,15 +7860,136 @@ a.profile-about-row:hover {
     transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+/* Nhảy / Chat / Thoát: one size; Nhảy stands out by color and glow, not by size */
+.chill-dance,
+.chill-chat-toggle,
+.chill-exit {
+    box-sizing: border-box;
+    min-width: 104px;
+    height: 38px;
+    padding: 0 14px;
+    font-size: 14px;
+}
+
 .chill-dance {
     align-self: center;
-    padding: 8px 14px;
-    border: 0;
+    border: 1px solid transparent;
     border-radius: 999px;
-    background: linear-gradient(135deg, #7c3aed, #a855f7);
+    background: linear-gradient(135deg, #db2777, #a855f7 55%, #6366f1);
+    color: #fff;
+    font-weight: 700;
+    box-shadow: 0 0 0 2px rgba(244, 114, 182, 0.25), 0 4px 16px rgba(219, 39, 119, 0.45);
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.chill-dance:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0 0 3px rgba(244, 114, 182, 0.35), 0 6px 20px rgba(219, 39, 119, 0.55);
+}
+
+/* Dancing: the button pulses with the floor */
+.chill-dance.is-on {
+    animation: chill-dance-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes chill-dance-pulse {
+    50% { box-shadow: 0 0 0 5px rgba(244, 114, 182, 0.15), 0 4px 22px rgba(219, 39, 119, 0.7); }
+}
+
+.chill-chat-toggle {
+    align-self: center;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 999px;
+    background: transparent;
     color: #fff;
     font-weight: 600;
     cursor: pointer;
+}
+
+.chill-chat-toggle:hover,
+.chill-chat-toggle.is-on {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: #a855f7;
+}
+
+/* Quick reactions at the start of the chat row */
+.chill-quick {
+    display: flex;
+    gap: 2px;
+}
+
+.chill-chat .chill-quick button {
+    width: 34px;
+    padding: 0;
+    border: 1px solid #3b2f5c;
+    background: #120c24;
+    font-size: 15px;
+    line-height: 32px;
+}
+
+.chill-chat .chill-quick button:hover {
+    border-color: #a855f7;
+}
+
+/* Online dot in the name tag: green = in the 2D room now, grey = only listening */
+.chill-name::before {
+    content: "";
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-right: 4px;
+    border-radius: 50%;
+    background: #64748b;
+    vertical-align: 1px;
+}
+
+.chill-char.is-online .chill-name::before {
+    background: #22c55e;
+    box-shadow: 0 0 5px #22c55e;
+}
+
+.chill-char:not(.is-online) .chill-face {
+    filter: grayscale(0.6) brightness(0.85);
+}
+
+/* The room's video can't play: a card on the TV instead of a black frame */
+.chill-screen.is-error {
+    background: linear-gradient(135deg, #3b0764, #831843);
+}
+
+.chill-screen.is-error iframe {
+    visibility: hidden;
+}
+
+.chill-screen-error {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 6px 10px;
+    color: #fce7f3;
+    font-size: 10px;
+    line-height: 1.35;
+    text-align: center;
+}
+
+.chill-screen-error strong {
+    font-size: 12px;
+}
+
+.chill-screen-error a {
+    margin-top: 2px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+    font-weight: 600;
+    text-decoration: none;
 }
 
 .chill-tip {
@@ -7903,12 +8057,19 @@ a.profile-about-row:hover {
     }
 
     .chill-dance,
+    .chill-chat-toggle,
     .chill-exit {
         flex: 1;
-        max-width: 160px;
+        min-width: 0;
+        max-width: 140px;
+        height: 36px;
         order: 3;
-        padding: 7px 12px;
+        padding: 0 10px;
         font-size: 13px;
+    }
+
+    .chill-quick button:nth-child(n + 3) {
+        display: none; /* ❤️ 😂 only: leave room for typing */
     }
 
     .chill-vote {
@@ -8294,11 +8455,13 @@ a.profile-about-row:hover {
 }
 
 /* Sips now and then */
-.chill-char[data-emote="drink"] .chill-arm.is-right {
+.chill-char[data-emote="drink"] .chill-arm.is-right,
+.chill-char[data-emote="beer"] .chill-arm.is-right {
     animation: chill-sip 2.4s ease-in-out infinite;
 }
 
-.chill-char[data-emote="drink"] .chill-prop {
+.chill-char[data-emote="drink"] .chill-prop,
+.chill-char[data-emote="beer"] .chill-prop {
     bottom: 22px;
     animation: chill-sip-cup 2.4s ease-in-out infinite;
 }

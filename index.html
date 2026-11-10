@@ -979,6 +979,7 @@
             <div class="chill-emotes">
                 <button type="button" data-chill-emote="meditate">🧘<span> Thiền</span></button>
                 <button type="button" data-chill-emote="drink">🧋<span> Trà sữa</span></button>
+                <button type="button" data-chill-emote="beer">🍺<span> Uống bia</span></button>
                 <button type="button" data-chill-emote="sleep">😴<span> Ngủ gật</span></button>
                 <button type="button" data-chill-emote="clap">👏<span> Vỗ tay</span></button>
                 <button type="button" data-chill-emote="firework">🎆<span> Pháo hoa</span></button>
@@ -991,10 +992,17 @@
                 </div>
                 <button type="button" class="chill-vote is-up" data-chill-vibe="1" aria-label="Đỉnh">👍</button>
                 <button type="button" class="chill-dance" id="chillDance"></button>
+                <button type="button" class="chill-chat-toggle" id="chillChatToggle" aria-controls="chillChatForm" aria-expanded="false">💬 Chat</button>
                 <button type="button" class="chill-exit modal-close">✕ Thoát</button>
             </div>
             <!-- Same chat as the music room; a new message pops up above the sender's head -->
             <form class="chill-chat" id="chillChatForm">
+                <span class="chill-quick" aria-label="Thả biểu cảm">
+                    <button type="button" data-chill-react="❤️" aria-label="Thả tim">❤️</button>
+                    <button type="button" data-chill-react="😂" aria-label="Haha">😂</button>
+                    <button type="button" data-chill-react="🔥" aria-label="Cháy">🔥</button>
+                    <button type="button" data-chill-react="👏" aria-label="Vỗ tay">👏</button>
+                </span>
                 <input type="text" id="chillChatInput" maxlength="200" placeholder="Nhắn gì đó với cả phòng..." autocomplete="off">
                 <button type="submit">Gửi</button>
             </form>
@@ -8997,7 +9005,7 @@
             if (!room) return;
             renderMusicQueue(room);
             const isHost = isMusicHost(room);
-            $("#musicPlayerWrap").toggleClass("is-empty", !room.videoId);
+            $("#musicPlayerWrap").toggleClass("is-empty", !room.videoId).toggleClass("is-failed", !!room.videoId && room.videoId === musicFailed.videoId);
             if (!room.videoId) {
                 $("#musicToggle, #musicSkip, #musicProgress, #musicError").hide();
                 $("#musicTitle").text("Chưa có bài nào · tìm bài ở ô bên dưới để phát nhé 🎶");
@@ -9043,7 +9051,7 @@
         const CHILL_DEMO = ["🐱 Mèo", "🐶 Cún", "🐼 Gấu", "🦊 Cáo", "🐸 Ếch", "🐰 Thỏ", "🐯 Hổ"];
         const CHILL_MAX = 16;
         // Emotes in place (chill.{userId}.emote): the prop shown next to the character
-        const CHILL_EMOTES = { meditate: "✨", drink: "🧋", sleep: "💤", clap: "👏", firework: "🎆" };
+        const CHILL_EMOTES = { meditate: "✨", drink: "🧋", beer: "🍺", sleep: "💤", clap: "👏", firework: "🎆" };
         // One character to another (chill.{userId}.act = { t, to, at }): played once by everyone in the room
         const CHILL_ACTS = { heart: "❤️", five: "✋", cheers: "🥂", beer: "🍺" };
         // Told to the one who receives it: "{name} …"
@@ -9204,6 +9212,9 @@
                 const id = $char.attr("data-id");
                 const isMe = $char.hasClass("is-me");
                 const state = isMe ? chill : room?.chill?.[id] || {};
+                // Online = has the Chill Room open now (heartbeat `at`); the others in the room are only listening
+                const online = !room || isMe || (typeof state.at === "number" && Date.now() - state.at < CHILL_ONLINE_MS);
+                $char.toggleClass("is-online", online).attr("title", online ? null : "Đang nghe nhạc, chưa vào phòng 2D");
                 const emote = CHILL_EMOTES[state.emote] ? state.emote : "";
                 const dancing = !!state.dancing && !emote;
                 $char.toggleClass("is-dancing", dancing).toggleClass("is-hyped", dancing && state.vote > 0);
@@ -9229,7 +9240,8 @@
                 return;
             }
             $("#chillSub").text(room ? `${room.name} · ${(room.memberIds || []).length} đang nghe` : "Phòng mẫu · vào một Chill Room để gặp bạn bè");
-            $("#chillChatForm").toggle(!!room);
+            renderChillChat(room);
+            renderChillScreenError(room);
             $("#chillScene").toggleClass("is-playing", room ? !!room.playing : true);
             const title = musicPlayerReady && room ? musicPlayer.getVideoData()?.title : "";
             $("#chillMarquee").text(title ? `♪ ${title} ♪` : "♪ VibeGram Chill Room ♪");
@@ -9239,6 +9251,40 @@
             applyChillTheme(room);
             applyChillStates(room);
             renderChillVibe();
+        }
+
+        // Chat row: folded into the 💬 button by default, opened / closed by each viewer
+        function renderChillChat(room) {
+            const open = chillPref("chat");
+            $("#chillChatToggle").toggle(!!room).toggleClass("is-on", open).attr("aria-expanded", String(open));
+            $("#chillChatForm").toggle(!!room && open);
+        }
+
+        // The room's video can't play (musicFailed, from the main player): a card on the TV instead of a black frame
+        function renderChillScreenError(room) {
+            const failed = !!room?.videoId && room.videoId === musicFailed.videoId;
+            const $screen = $("#chillScreen").toggleClass("is-error", failed);
+            $screen.find(".chill-screen-error").remove();
+            if (!failed) return;
+            $screen.append($("<div>", { class: "chill-screen-error" }).append(
+                $("<strong>", { text: "📺 Video này không phát được ở đây" }),
+                $("<span>", { text: MUSIC_ERRORS[musicFailed.code] || `Lỗi YouTube ${musicFailed.code}.` }),
+                $("<a>", { href: `https://www.youtube.com/watch?v=${room.videoId}`, target: "_blank", rel: "noopener noreferrer", text: "Mở trên YouTube ↗" })
+            ));
+        }
+
+        // A reaction from the room (❤️ 🔥 😂 ...) pops above the sender's head
+        function showChillReaction(fromId, emoji) {
+            if (!$("#chillModal").is(":visible")) return;
+            const $char = $("#chillScene .chill-char").filter((_, el) => el.getAttribute("data-id") === fromId);
+            const face = $char.find(".chill-face")[0];
+            if (!face) return;
+            const scene = $("#chillScene")[0].getBoundingClientRect();
+            const box = face.getBoundingClientRect();
+            const $fx = $("<span>", { class: "chill-fx is-heart", text: emoji, "aria-hidden": "true" })
+                .css({ left: box.left - scene.left + box.width / 2, top: box.top - scene.top })
+                .appendTo("#chillScene");
+            setTimeout(() => $fx.remove(), 1800);
         }
 
         function applyChillTheme(room) {
@@ -9390,18 +9436,28 @@
         }
 
         // While the room is open: fireworks emotes burst again and again. Stops itself when the room closes
+        // Also the online heartbeat: my `at` is refreshed every CHILL_HEARTBEAT_TICKS ticks, and the others' dots are
+        // re-checked so someone who closed the tab turns offline
         const CHILL_FX_MS = 1200;
+        const CHILL_HEARTBEAT_TICKS = 50; // ≈ 1 minute
+        const CHILL_ONLINE_MS = 90000;
         let chillFxTimer = null;
+        let chillFxTicks = 0;
 
         function startChillFx() {
             if (chillFxTimer) return;
+            chillFxTicks = 0;
             chillFxTimer = setInterval(() => {
                 if (!$("#chillModal").is(":visible")) {
                     clearInterval(chillFxTimer);
                     chillFxTimer = null;
                     stopChillRain();
+                    saveMyChill(undefined, true);
                     return;
                 }
+                chillFxTicks++;
+                if (chillFxTicks % CHILL_HEARTBEAT_TICKS === 0) saveMyChill();
+                else if (chillFxTicks % 10 === 0) applyChillStates(myMusicRoom());
                 $('#chillScene .chill-char[data-emote="firework"]').each(function () {
                     spawnChillParticles($(this), "firework");
                 });
@@ -9452,21 +9508,22 @@
             $("[data-chill-vibe]").each(function () {
                 $(this).toggleClass("is-active", Number($(this).attr("data-chill-vibe")) === chill.vote);
             });
-            $("#chillDance").html(chill.dancing ? "⏸ Nghỉ" : "💃 Nhảy");
+            $("#chillDance").html(chill.dancing ? "⏸ Nghỉ" : "💃 Nhảy").toggleClass("is-on", chill.dancing);
             $("[data-chill-emote]").each(function () {
                 $(this).toggleClass("is-active", $(this).attr("data-chill-emote") === chill.emote);
             });
         }
 
         // Shows my change at once, then writes it to the room for the others
-        // `spot`: where I go when I'm not drawn on the floor yet (the host stepping down from the booth)
-        function saveMyChill(spot) {
+        // `spot`: where I go when I'm not drawn on the floor yet (the host stepping down from the booth).
+        // `away`: I closed the Chill Room, the others see me offline at once
+        function saveMyChill(spot, away = false) {
             applyChillStates(myMusicRoom());
             renderChillVibe();
             const room = myMusicRoom();
             const myId = userIdOf(currentAuthor());
             if (!room || !myId) return;
-            const data = { dancing: chill.dancing, vote: chill.vote, emote: chill.emote };
+            const data = { dancing: chill.dancing, vote: chill.vote, emote: chill.emote, at: away ? 0 : Date.now() };
             if (chill.act) data.act = chill.act;
             if (chill.booth) data.booth = true;
             const me = $("#chillFloor .chill-char.is-me")[0];
@@ -9557,6 +9614,23 @@
             renderChillRoom();
             openChillScreen().catch((err) => console.error(err));
             startChillFx();
+            saveMyChill(); // tells the room I'm here (online)
+        });
+
+        $("#chillChatToggle").on("click", function () {
+            const open = chillPref("chat", !chillPref("chat"));
+            renderChillChat(myMusicRoom());
+            if (open) $("#chillChatInput").trigger("focus");
+        });
+
+        $("#chillChatForm").on("click", "[data-chill-react]", function () {
+            const now = Date.now();
+            if (now - lastReactionAt < MUSIC_REACTION_GAP) return;
+            lastReactionAt = now;
+            sendMusicChat("reaction", $(this).attr("data-chill-react")).catch((err) => {
+                console.error(err);
+                showToast(errorMessage(err));
+            });
         });
 
         // 🌧️ opens the small rain panel: on / off and a volume of its own
@@ -9943,6 +10017,7 @@
                             const msg = change.doc.data();
                             if (change.type === "added" && msg.type === "reaction" && !change.doc.metadata.hasPendingWrites) floatReaction(msg.text);
                             if (change.type === "added" && msg.type === "text") showChillBubble(msg.fromId, msg.text);
+                            if (change.type === "added" && msg.type === "reaction") showChillReaction(msg.fromId, msg.text);
                         });
                     }
                     isFirstSnapshot = false;
