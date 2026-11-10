@@ -7611,7 +7611,7 @@ a.profile-about-row:hover {
 }
 
 .chill-booth .chill-char {
-    position: static;
+    position: relative; /* in the booth's flow, but still holds the emote prop */
     translate: none;
     scale: calc(1.1 * var(--chill-size, 1));
 }
@@ -8058,12 +8058,458 @@ a.profile-about-row:hover {
     }
 }
 
+/* Room theme picker in the header (disabled for everyone but the host) */
+.chill-theme {
+    max-width: 44%;
+    padding: 5px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 999px;
+    background: #1f1838;
+    color: #fff;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.chill-theme:disabled {
+    opacity: 0.7;
+    cursor: default;
+}
+
+/* Others can be clicked for the heart / high-five / cheers menu */
+.chill-floor .chill-char:not(.is-me),
+.chill-booth .chill-char:not(.is-me) {
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+.chill-actions {
+    position: absolute;
+    z-index: 300;
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    border-radius: 999px;
+    background: rgba(17, 12, 34, 0.92);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+    translate: -50% calc(-100% - 6px);
+    white-space: nowrap;
+}
+
+.chill-actions[hidden] {
+    display: none;
+}
+
+.chill-actions button {
+    padding: 6px 10px;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.chill-actions button:hover {
+    background: rgba(168, 85, 247, 0.45);
+}
+
+/* Effect over the receiver: hearts float up, a high-five / cheers pops */
+.chill-fx {
+    position: absolute;
+    z-index: 250;
+    font-size: 24px;
+    line-height: 1;
+    translate: -50% -100%;
+    pointer-events: none;
+    opacity: 0;
+    animation: chill-fx-up 1.5s ease-out forwards;
+}
+
+.chill-fx.is-five,
+.chill-fx.is-cheers {
+    font-size: 30px;
+    animation-name: chill-fx-pop;
+}
+
+@keyframes chill-fx-up {
+    0% { opacity: 0; transform: translateY(0) scale(0.6); }
+    20% { opacity: 1; transform: translateY(-8px) scale(1.1); }
+    100% { opacity: 0; transform: translateY(-50px) scale(1); }
+}
+
+@keyframes chill-fx-pop {
+    0% { opacity: 0; transform: scale(0.3) rotate(-20deg); }
+    30% { opacity: 1; transform: scale(1.4) rotate(10deg); }
+    60% { transform: scale(1) rotate(0); }
+    100% { opacity: 0; transform: translateY(-20px) scale(1); }
+}
+
+.chill-char.is-acting {
+    animation: chill-hop 0.45s ease-in-out 2 !important;
+}
+
+@keyframes chill-hop {
+    50% { transform: translateY(-9px); }
+}
+
+/* Emotes: a prop beside the character plus a pose */
+.chill-prop {
+    position: absolute;
+    right: -14px;
+    bottom: 14px;
+    font-size: 15px;
+    line-height: 1;
+}
+
+.chill-prop:empty {
+    display: none;
+}
+
+.chill-char[data-emote="meditate"] {
+    animation: chill-float 2.4s ease-in-out infinite;
+}
+
+.chill-char[data-emote="meditate"] .chill-legs {
+    transform: scaleY(0.35);
+    transform-origin: 50% 0;
+}
+
+.chill-char[data-emote="meditate"] .chill-arm.is-left {
+    transform: rotate(60deg);
+}
+
+.chill-char[data-emote="meditate"] .chill-arm.is-right {
+    transform: rotate(-60deg);
+}
+
+.chill-char[data-emote="meditate"] .chill-prop {
+    right: auto;
+    left: 50%;
+    bottom: auto;
+    top: 6px;
+    translate: -50% 0;
+    animation: chill-twinkle 1.6s ease-in-out infinite;
+}
+
+@keyframes chill-float {
+    50% { transform: translateY(-6px); }
+}
+
+@keyframes chill-twinkle {
+    50% { opacity: 0.35; }
+}
+
+/* Sips now and then */
+.chill-char[data-emote="drink"] .chill-arm.is-right {
+    animation: chill-sip 2.4s ease-in-out infinite;
+}
+
+.chill-char[data-emote="drink"] .chill-prop {
+    bottom: 22px;
+    animation: chill-sip-cup 2.4s ease-in-out infinite;
+}
+
+@keyframes chill-sip {
+    0%, 55%, 100% { transform: rotate(-18deg); }
+    70%, 85% { transform: rotate(-140deg); }
+}
+
+@keyframes chill-sip-cup {
+    0%, 55%, 100% { transform: translate(0, 0); }
+    70%, 85% { transform: translate(-8px, -14px) rotate(-20deg); }
+}
+
+/* Dozes off: head drops to one side, Zzz floats up */
+.chill-char[data-emote="sleep"] .chill-face {
+    transform: rotate(18deg) translateY(3px);
+}
+
+.chill-char[data-emote="sleep"] .chill-prop {
+    bottom: auto;
+    top: 4px;
+    animation: chill-zzz 2s ease-in-out infinite;
+}
+
+@keyframes chill-zzz {
+    0% { opacity: 0; transform: translate(0, 6px) scale(0.7); }
+    40% { opacity: 1; }
+    100% { opacity: 0; transform: translate(8px, -16px) scale(1.1); }
+}
+
+.chill-char[data-emote="clap"] .chill-arm.is-left {
+    animation: chill-clap-left 0.3s ease-in-out infinite alternate;
+}
+
+.chill-char[data-emote="clap"] .chill-arm.is-right {
+    animation: chill-clap-right 0.3s ease-in-out infinite alternate;
+}
+
+.chill-char[data-emote="clap"] .chill-prop {
+    bottom: auto;
+    top: 2px;
+    animation: chill-twinkle 0.6s ease-in-out infinite;
+}
+
+@keyframes chill-clap-left {
+    from { transform: rotate(-40deg); }
+    to { transform: rotate(-75deg); }
+}
+
+@keyframes chill-clap-right {
+    from { transform: rotate(40deg); }
+    to { transform: rotate(75deg); }
+}
+
+/* Arms up, fireworks bursting above the head */
+.chill-char[data-emote="firework"] .chill-arm.is-left {
+    transform: rotate(150deg);
+}
+
+.chill-char[data-emote="firework"] .chill-arm.is-right {
+    transform: rotate(-150deg);
+}
+
+.chill-char[data-emote="firework"] .chill-prop {
+    right: auto;
+    left: 50%;
+    bottom: auto;
+    top: -26px;
+    font-size: 22px;
+    translate: -50% 0;
+    animation: chill-burst 1.2s ease-out infinite;
+}
+
+@keyframes chill-burst {
+    0% { opacity: 0; transform: scale(0.2) translateY(14px); }
+    40% { opacity: 1; transform: scale(1.3); }
+    100% { opacity: 0; transform: scale(1.6) translateY(-6px); }
+}
+
+/* Emote row between the room and the bottom bar */
+.chill-emotes {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 12px 0;
+    overflow-x: auto;
+    background: #1a1233;
+    scrollbar-width: none;
+}
+
+.chill-emotes button {
+    flex: none;
+    padding: 5px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.chill-emotes button:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.chill-emotes button.is-active {
+    border-color: #fde68a;
+    background: rgba(253, 230, 138, 0.18);
+}
+
+@media (max-width: 600px) {
+    .chill-emotes {
+        justify-content: flex-start;
+    }
+
+    .chill-emotes button {
+        font-size: 16px;
+        padding: 4px 9px;
+    }
+
+    .chill-emotes button span {
+        display: none;
+    }
+
+    .chill-theme {
+        max-width: 40%;
+        font-size: 11px;
+    }
+}
+
+/* ---------- Room themes (data-chill-theme on the scene); "lounge" is the default above ---------- */
+.chill-ambience {
+    position: absolute;
+    inset: 0 0 50%;
+    display: none;
+    pointer-events: none;
+}
+
+/* Lo-fi bedroom: warm wood walls, amber lamp glow, dusk in the window */
+.chill-scene[data-chill-theme="lofi"] {
+    background:
+        radial-gradient(ellipse at 22% 30%, rgba(251, 191, 36, 0.22), transparent 45%),
+        radial-gradient(ellipse at 50% 78%, rgba(251, 146, 60, 0.18), transparent 60%),
+        repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.08) 0 2px, transparent 2px 60px) top / 100% 50% no-repeat,
+        linear-gradient(180deg, #3a2418 0%, #5a3826 100%) top / 100% 50% no-repeat,
+        repeating-linear-gradient(172deg, #7a5233 0 34px, #6a4529 34px 36px) bottom / 100% 50% no-repeat;
+}
+
+.chill-scene[data-chill-theme="lofi"]::before {
+    background: #fbbf24;
+    box-shadow: 0 0 14px 3px rgba(251, 191, 36, 0.6);
+}
+
+.chill-scene[data-chill-theme="lofi"] .chill-window {
+    border-color: #4a2e1f;
+    background: linear-gradient(180deg, #312e81 0%, #be185d 60%, #fb923c 100%);
+}
+
+.chill-scene[data-chill-theme="lofi"] .chill-window::after {
+    background: #4a2e1f;
+}
+
+/* Rainy café: teal-green walls, tiled floor, rain streaks across the wall */
+.chill-scene[data-chill-theme="rain"] {
+    background:
+        radial-gradient(ellipse at 50% 78%, rgba(253, 186, 116, 0.18), transparent 60%),
+        linear-gradient(180deg, #16302e 0%, #22413d 100%) top / 100% 50% no-repeat,
+        repeating-conic-gradient(#4a3a30 0 25%, #3d2f27 0 50%) 0 0 / 48px 48px;
+}
+
+.chill-scene[data-chill-theme="rain"]::before {
+    background: #fdba74;
+    box-shadow: 0 0 14px 3px rgba(253, 186, 116, 0.55);
+}
+
+.chill-scene[data-chill-theme="rain"] .chill-window {
+    border-color: #1f2e2c;
+    background: linear-gradient(180deg, #334155 0%, #475569 100%);
+}
+
+.chill-scene[data-chill-theme="rain"] .chill-window::after {
+    background: #1f2e2c;
+}
+
+.chill-scene[data-chill-theme="rain"] .chill-ambience {
+    display: block;
+    background-image:
+        radial-gradient(1px 10px at 10px 12px, rgba(186, 230, 253, 0.55), transparent),
+        radial-gradient(1px 8px at 34px 44px, rgba(186, 230, 253, 0.45), transparent),
+        radial-gradient(1px 12px at 22px 70px, rgba(186, 230, 253, 0.5), transparent);
+    background-size: 46px 90px;
+    animation: chill-rain 0.6s linear infinite;
+}
+
+@keyframes chill-rain {
+    to { background-position: -8px 90px; }
+}
+
+/* Rooftop: open night sky with stars and a moon, concrete floor, warm string lights */
+.chill-scene[data-chill-theme="rooftop"] {
+    background:
+        radial-gradient(ellipse at 50% 78%, rgba(251, 191, 36, 0.14), transparent 60%),
+        linear-gradient(180deg, #020617 0%, #1e1b4b 80%, #4c1d95 100%) top / 100% 50% no-repeat,
+        repeating-linear-gradient(0deg, #3b4252 0 40px, #323846 40px 42px) bottom / 100% 50% no-repeat;
+}
+
+.chill-scene[data-chill-theme="rooftop"]::before {
+    background: #64748b;
+    box-shadow: none;
+}
+
+.chill-scene[data-chill-theme="rooftop"] .chill-ambience {
+    display: block;
+    background-image:
+        radial-gradient(1.5px 1.5px at 12px 18px, #fff, transparent),
+        radial-gradient(1px 1px at 60px 40px, #e0e7ff, transparent),
+        radial-gradient(1.5px 1.5px at 96px 12px, #fef9c3, transparent),
+        radial-gradient(1px 1px at 130px 62px, #fff, transparent);
+    background-size: 150px 80px;
+    animation: chill-twinkle 3s ease-in-out infinite;
+}
+
+.chill-scene[data-chill-theme="rooftop"] .chill-ambience::after {
+    content: "";
+    position: absolute;
+    top: 14%;
+    right: 8%;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #fefce8, #fde68a);
+    box-shadow: 0 0 30px 8px rgba(254, 240, 138, 0.35);
+}
+
+/* Sunset beach: sky gradient, sun sinking behind the sea, sand floor */
+.chill-scene[data-chill-theme="beach"] {
+    background:
+        linear-gradient(180deg, #4c1d95 0%, #db2777 45%, #fb923c 80%, #fde68a 100%) top / 100% 50% no-repeat,
+        radial-gradient(ellipse at 50% 80%, #f3d29b, #d9ad6c 70%) bottom / 100% 50% no-repeat;
+}
+
+.chill-scene[data-chill-theme="beach"]::before {
+    background: #e0f2fe;
+    box-shadow: 0 0 10px 2px rgba(224, 242, 254, 0.7);
+}
+
+.chill-scene[data-chill-theme="beach"] .chill-ambience {
+    display: block;
+}
+
+.chill-scene[data-chill-theme="beach"] .chill-ambience::before {
+    content: "";
+    position: absolute;
+    right: 18%;
+    bottom: 8%;
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #fff7d6, #fbbf24 70%);
+    box-shadow: 0 0 40px 12px rgba(251, 191, 36, 0.5);
+}
+
+.chill-scene[data-chill-theme="beach"] .chill-ambience::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 20%;
+    background:
+        repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.25) 0 2px, transparent 2px 9px),
+        linear-gradient(180deg, #0e7490, #22d3ee);
+    animation: chill-waves 3s ease-in-out infinite alternate;
+}
+
+@keyframes chill-waves {
+    to { background-position: 0 6px, 0 0; }
+}
+
+/* Open air (rooftop / beach): no window or wall decorations, string lights run the whole width */
+.chill-scene[data-chill-theme="rooftop"] .chill-window,
+.chill-scene[data-chill-theme="rooftop"] .chill-pendants,
+.chill-scene[data-chill-theme="rooftop"] .chill-deco.is-shelf,
+.chill-scene[data-chill-theme="rooftop"] .chill-deco.is-plant-wall,
+.chill-scene[data-chill-theme="beach"] .chill-window,
+.chill-scene[data-chill-theme="beach"] .chill-pendants,
+.chill-scene[data-chill-theme="beach"] .chill-deco.is-shelf,
+.chill-scene[data-chill-theme="beach"] .chill-deco.is-plant-wall,
+.chill-scene[data-chill-theme="beach"] .chill-lights {
+    display: none;
+}
+
+.chill-scene[data-chill-theme="rooftop"] .chill-lights {
+    left: 3%;
+}
+
 /* Dancing and walking stay on: the user starts them. Only the ambient motion stops */
 @media (prefers-reduced-motion: reduce) {
     .chill-lights i,
     .chill-table i,
     .chill-speaker,
-    .chill-marquee span {
+    .chill-marquee span,
+    .chill-ambience,
+    .chill-ambience::after {
         animation: none !important;
     }
 }
