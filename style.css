@@ -8845,6 +8845,193 @@ a.profile-about-row:hover {
     to { background-position: 0 6px, 0 0; }
 }
 
+/* Bar / pub: brick wall, neon sign, a back shelf of bottles where the window was, dark wood floor */
+.chill-scene[data-chill-theme="pub"] {
+    background:
+        radial-gradient(ellipse at 50% 78%, rgba(244, 63, 94, 0.18), transparent 60%),
+        repeating-linear-gradient(0deg, transparent 0 18px, rgba(0, 0, 0, 0.35) 18px 20px) top / 100% 50% no-repeat,
+        repeating-linear-gradient(90deg, transparent 0 38px, rgba(0, 0, 0, 0.25) 38px 40px) top / 100% 50% no-repeat,
+        linear-gradient(180deg, #3b1717 0%, #5a2320 100%) top / 100% 50% no-repeat,
+        repeating-linear-gradient(172deg, #2b1d14 0 30px, #22170f 30px 32px) bottom / 100% 50% no-repeat;
+}
+
+.chill-scene[data-chill-theme="pub"]::before {
+    background: #f43f5e;
+    box-shadow: 0 0 14px 3px rgba(244, 63, 94, 0.7);
+}
+
+.chill-scene[data-chill-theme="pub"] .chill-ambience {
+    display: block;
+}
+
+/* Back bar: wooden shelves full of bottles */
+.chill-scene[data-chill-theme="pub"] .chill-ambience::before {
+    content: "🍾 🥃 🍷 🍸 🍶\A🍺 🥂 🍹 🍾 🥃";
+    position: absolute;
+    top: 12%;
+    right: 3%;
+    width: 30%;
+    height: 58%;
+    padding-top: 3%;
+    border: 5px solid #3b2414;
+    border-radius: 6px;
+    background:
+        repeating-linear-gradient(180deg, transparent 0 calc(50% - 4px), #6b4423 calc(50% - 4px) 50%),
+        #1c1010;
+    font-size: 17px;
+    line-height: 2.2;
+    text-align: center;
+    white-space: pre;
+    overflow: hidden;
+}
+
+/* Sign board under the shelf / shopfront / menu */
+.chill-scene[data-chill-theme="pub"] .chill-ambience::after,
+.chill-scene[data-chill-theme="nhau"] .chill-ambience::after,
+.chill-scene[data-chill-theme="food"] .chill-ambience::after {
+    position: absolute;
+    right: 3%;
+    bottom: 7%;
+    box-sizing: border-box;
+    width: 30%;
+    overflow: hidden;
+    padding: 4px 10px;
+    text-align: center;
+    text-overflow: ellipsis;
+    border-radius: 8px;
+    font: 800 15px/1.2 system-ui, sans-serif;
+    letter-spacing: 1px;
+    white-space: nowrap;
+}
+
+.chill-scene[data-chill-theme="pub"] .chill-ambience::after {
+    content: "🍸 PUB";
+    border: 2px solid #f9a8d4;
+    color: #fce7f3;
+    text-shadow: 0 0 6px #ec4899, 0 0 14px #ec4899;
+    box-shadow: 0 0 12px rgba(236, 72, 153, 0.6), inset 0 0 10px rgba(236, 72, 153, 0.4);
+    animation: chill-twinkle 2.6s ease-in-out infinite;
+}
+
+/* Street-side nhậu: night street, shop sign with lanterns, red plastic stools, concrete pavement */
+.chill-scene[data-chill-theme="nhau"] {
+    background:
+        radial-gradient(ellipse at 50% 70%, rgba(251, 191, 36, 0.2), transparent 60%),
+        linear-gradient(180deg, #0f172a 0%, #1e293b 100%) top / 100% 50% no-repeat,
+        repeating-conic-gradient(#4b5563 0 25%, #424a57 0 50%) 0 0 / 56px 56px;
+}
+
+.chill-scene[data-chill-theme="nhau"]::before {
+    background: #9ca3af;
+    box-shadow: none;
+}
+
+.chill-scene[data-chill-theme="nhau"] .chill-ambience {
+    display: block;
+}
+
+/* Shopfront: lit sign board with red lanterns */
+.chill-scene[data-chill-theme="nhau"] .chill-ambience::before {
+    content: "🏮 🏮 🏮 🏮";
+    position: absolute;
+    top: 12%;
+    right: 3%;
+    width: 30%;
+    height: 58%;
+    padding-top: 4px;
+    border-radius: 6px 6px 0 0;
+    background:
+        linear-gradient(180deg, transparent 0 34%, #f59e0b 34% 38%, transparent 38%),
+        linear-gradient(180deg, #78350f, #451a03);
+    font-size: 18px;
+    text-align: center;
+    box-shadow: 0 0 30px rgba(245, 158, 11, 0.35);
+}
+
+.chill-scene[data-chill-theme="nhau"] .chill-ambience::after {
+    content: "🍻 QUÁN NHẬU · BIA HƠI";
+    background: #facc15;
+    color: #b91c1c;
+    box-shadow: 0 0 14px rgba(250, 204, 21, 0.55);
+}
+
+.chill-scene[data-chill-theme="nhau"] .chill-beanbag {
+    border-radius: 30% 30% 18% 18%;
+    background: radial-gradient(circle at 40% 30%, #f87171, #dc2626 70%, #7f1d1d);
+}
+
+.chill-scene[data-chill-theme="nhau"] .chill-beanbag.is-c {
+    background: radial-gradient(circle at 40% 30%, #60a5fa, #2563eb 70%, #1e3a8a);
+}
+
+/* Restaurant: warm wood walls, chalkboard menu, checkered floor */
+.chill-scene[data-chill-theme="food"] {
+    background:
+        radial-gradient(ellipse at 50% 75%, rgba(253, 186, 116, 0.2), transparent 60%),
+        repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.12) 0 2px, transparent 2px 46px) top / 100% 50% no-repeat,
+        linear-gradient(180deg, #7c2d12 0%, #9a3412 100%) top / 100% 50% no-repeat,
+        repeating-conic-gradient(#7f1d1d 0 25%, #d6c3a5 0 50%) 0 0 / 44px 44px;
+}
+
+.chill-scene[data-chill-theme="food"]::before {
+    background: #fdba74;
+    box-shadow: 0 0 12px 2px rgba(253, 186, 116, 0.6);
+}
+
+.chill-scene[data-chill-theme="food"] .chill-ambience {
+    display: block;
+}
+
+.chill-scene[data-chill-theme="food"] .chill-ambience::before {
+    content: "MENU\A🍜 Phở bò\A🍲 Lẩu thái\A🍗 Gà nướng\A🥟 Há cảo";
+    position: absolute;
+    top: 12%;
+    right: 3%;
+    width: 30%;
+    height: 58%;
+    padding: 6px 10px;
+    border: 5px solid #5b3a22;
+    border-radius: 6px;
+    background: #1f3b2d;
+    color: #f8fafc;
+    font: 600 12px/1.55 "Comic Sans MS", "Segoe Print", cursive, sans-serif;
+    white-space: pre;
+    overflow: hidden;
+}
+
+.chill-scene[data-chill-theme="food"] .chill-ambience::after {
+    content: "🍜 QUÁN ĂN";
+    background: #fef3c7;
+    color: #9a3412;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+/* The shelf / shopfront / menu take the window's place */
+.chill-scene[data-chill-theme="pub"] .chill-window,
+.chill-scene[data-chill-theme="pub"] .chill-deco.is-shelf,
+.chill-scene[data-chill-theme="pub"] .chill-deco.is-plant-wall,
+.chill-scene[data-chill-theme="nhau"] .chill-window,
+.chill-scene[data-chill-theme="nhau"] .chill-pendants,
+.chill-scene[data-chill-theme="nhau"] .chill-deco.is-shelf,
+.chill-scene[data-chill-theme="nhau"] .chill-deco.is-plant-wall,
+.chill-scene[data-chill-theme="food"] .chill-window,
+.chill-scene[data-chill-theme="food"] .chill-deco.is-shelf,
+.chill-scene[data-chill-theme="food"] .chill-deco.is-plant-wall {
+    display: none;
+}
+
+/* Narrow screens: the stage takes the middle of the wall, only the colors and the floor stay */
+@media (max-width: 900px) {
+    .chill-scene[data-chill-theme="pub"] .chill-ambience::before,
+    .chill-scene[data-chill-theme="pub"] .chill-ambience::after,
+    .chill-scene[data-chill-theme="nhau"] .chill-ambience::before,
+    .chill-scene[data-chill-theme="nhau"] .chill-ambience::after,
+    .chill-scene[data-chill-theme="food"] .chill-ambience::before,
+    .chill-scene[data-chill-theme="food"] .chill-ambience::after {
+        display: none;
+    }
+}
+
 /* Open air (rooftop / beach): no window or wall decorations, string lights run the whole width */
 .chill-scene[data-chill-theme="rooftop"] .chill-window,
 .chill-scene[data-chill-theme="rooftop"] .chill-pendants,

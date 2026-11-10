@@ -915,6 +915,9 @@
                     <option value="rain">☔ Quán cafe mưa</option>
                     <option value="rooftop">🌌 Sân thượng ngắm sao</option>
                     <option value="beach">🌅 Biển hoàng hôn</option>
+                    <option value="pub">🍸 Quán bar / pub</option>
+                    <option value="nhau">🍻 Quán nhậu vỉa hè</option>
+                    <option value="food">🍜 Quán ăn</option>
                 </select>
                 <!-- Per viewer: rain sound (rain theme only) and party lights -->
                 <span class="chill-rain-wrap" id="chillRainWrap" hidden>
@@ -9057,7 +9060,7 @@
         // Told to the one who receives it: "{name} …"
         const CHILL_ACT_TEXT = { heart: "thả tim bạn ❤️", five: "đập tay với bạn ✋", cheers: "cụng ly với bạn 🥂", beer: "mời bạn một ly bia 🍺" };
         const CHILL_GIFT_MS = 8000; // how long the offered beer stays in the receiver's hand
-        const CHILL_THEMES = ["lounge", "lofi", "rain", "rooftop", "beach"]; // room.chillTheme, set by the host
+        const CHILL_THEMES = ["lounge", "lofi", "rain", "rooftop", "beach", "pub", "nhau", "food"]; // room.chillTheme, set by the host
         const CHILL_NEAR = { x: 12, y: 14 }; // closer than this (percent of the floor) counts as standing together
         let chill = { dancing: false, vote: 0, emote: "", act: null }; // my character
         let chillCastKey = ""; // who is drawn: the floor is rebuilt only when people join / leave
