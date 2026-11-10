@@ -8075,6 +8075,140 @@ a.profile-about-row:hover {
     cursor: default;
 }
 
+/* 🌧️ / 🪩 switches in the header */
+.chill-toggle {
+    flex: none;
+    width: 32px;
+    height: 32px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    background: transparent;
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.55;
+}
+
+.chill-toggle[hidden] {
+    display: none;
+}
+
+.chill-toggle.is-on {
+    border-color: #fde68a;
+    background: rgba(253, 230, 138, 0.15);
+    opacity: 1;
+}
+
+/* Raindrops sliding down the window glass (rain theme) */
+.chill-drops {
+    position: absolute;
+    inset: 0;
+    display: none;
+    background-image:
+        radial-gradient(2px 3px at 12px 8px, rgba(224, 242, 254, 0.8), transparent),
+        radial-gradient(1.5px 2.5px at 40px 30px, rgba(224, 242, 254, 0.7), transparent),
+        radial-gradient(2px 3px at 26px 52px, rgba(224, 242, 254, 0.75), transparent),
+        radial-gradient(1px 8px at 52px 14px, rgba(224, 242, 254, 0.5), transparent);
+    background-size: 60px 64px;
+    animation: chill-drops 4s linear infinite;
+}
+
+.chill-scene[data-chill-theme="rain"] .chill-drops {
+    display: block;
+}
+
+@keyframes chill-drops {
+    to { background-position: 0 64px; }
+}
+
+/* Party mode: the room dims, two colored beams sweep, LEDs and bulbs cycle colors */
+.chill-dim {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    background: rgba(5, 2, 15, 0.45);
+    opacity: 0;
+    transition: opacity 1.2s ease;
+    pointer-events: none;
+}
+
+.chill-scene.is-party .chill-dim {
+    opacity: 1;
+}
+
+.chill-dim i {
+    position: absolute;
+    top: -10%;
+    left: 30%;
+    width: 30%;
+    height: 130%;
+    background: linear-gradient(180deg, rgba(236, 72, 153, 0.45), transparent 80%);
+    clip-path: polygon(45% 0, 55% 0, 100% 100%, 0 100%);
+    transform-origin: 50% 0;
+    mix-blend-mode: screen;
+    animation: chill-beam 4s ease-in-out infinite alternate;
+    animation-play-state: paused;
+}
+
+.chill-dim i:last-child {
+    left: 55%;
+    background: linear-gradient(180deg, rgba(56, 189, 248, 0.45), transparent 80%);
+    animation-delay: -2s;
+}
+
+.chill-scene.is-party .chill-dim i {
+    animation-play-state: running;
+}
+
+@keyframes chill-beam {
+    from { transform: rotate(-28deg); }
+    to { transform: rotate(28deg); }
+}
+
+.chill-scene.is-party::before,
+.chill-scene.is-party .chill-lights i,
+.chill-scene.is-party .chill-pendants i::after,
+.chill-scene.is-party .chill-table i,
+.chill-scene.is-party .chill-ring {
+    animation: chill-hue 3s linear infinite;
+}
+
+@keyframes chill-hue {
+    from { filter: hue-rotate(0deg) brightness(1.2); }
+    to { filter: hue-rotate(360deg) brightness(1.2); }
+}
+
+/* Particles from a character: hearts drift up, fireworks burst out; both fade */
+.chill-particle {
+    position: absolute;
+    z-index: 240;
+    width: 6px;
+    height: 6px;
+    margin: -3px 0 0 -3px;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 6px currentColor;
+    pointer-events: none;
+    opacity: 0;
+    animation: chill-particle 1.4s ease-out forwards;
+}
+
+.chill-particle.is-heart {
+    width: auto;
+    height: auto;
+    background: none;
+    box-shadow: none;
+    font-size: 13px;
+    line-height: 1;
+    text-shadow: 0 0 6px currentColor;
+}
+
+@keyframes chill-particle {
+    0% { opacity: 0; transform: translate(0, 0) scale(0.4); }
+    15% { opacity: 1; }
+    100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(1); }
+}
+
 /* Others can be clicked for the heart / high-five / cheers menu */
 .chill-floor .chill-char:not(.is-me),
 .chill-booth .chill-char:not(.is-me) {
@@ -8509,7 +8643,8 @@ a.profile-about-row:hover {
     .chill-speaker,
     .chill-marquee span,
     .chill-ambience,
-    .chill-ambience::after {
+    .chill-ambience::after,
+    .chill-drops {
         animation: none !important;
     }
 }

@@ -927,12 +927,17 @@
                     <option value="rooftop">🌌 Sân thượng ngắm sao</option>
                     <option value="beach">🌅 Biển hoàng hôn</option>
                 </select>
+                <!-- Per viewer: rain sound (rain theme only) and party lights -->
+                <button type="button" class="chill-toggle" id="chillRain" aria-pressed="false" title="Tiếng mưa" hidden>🌧️</button>
+                <button type="button" class="chill-toggle" id="chillParty" aria-pressed="false" title="Party mode: đèn theo nhạc">🪩</button>
                 <button type="button" class="icon-btn chill-close modal-close" aria-label="Đóng"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="chill-scene" id="chillScene" data-chill-theme="lounge">
                 <!-- Wall: night city window with string lights, pendant bulbs, plants (decoration only) -->
-                <div class="chill-window" aria-hidden="true"></div>
+                <div class="chill-window" aria-hidden="true"><span class="chill-drops"></span></div>
                 <div class="chill-ambience" aria-hidden="true"></div>
+                <!-- Party mode: the room dims, beams sweep, the LEDs change color -->
+                <div class="chill-dim" aria-hidden="true"><i></i><i></i></div>
                 <div class="chill-lights" id="chillLights"></div>
                 <div class="chill-pendants" aria-hidden="true"><i></i><i></i><i></i></div>
                 <span class="chill-deco is-plant-wall" aria-hidden="true">🪴</span>
@@ -9233,6 +9238,7 @@
                     moveChillChar($char, state.x, state.y);
                 }
             });
+            updateChillParty();
         }
 
         // Every room update ends here (updateMusicControls); only what changed is touched
@@ -9257,6 +9263,131 @@
             const isHost = !room || room.hostId === userIdOf(currentAuthor());
             $("#chillScene").attr("data-chill-theme", theme);
             $("#chillTheme").val(theme).prop("disabled", !isHost).attr("title", isHost ? "Đổi chủ đề phòng" : "Chỉ chủ phòng đổi được chủ đề");
+            $("#chillRain").prop("hidden", theme !== "rain");
+            if (theme === "rain" && chillPref("rain")) startChillRain();
+            else stopChillRain();
+        }
+
+        // Per-viewer switches, remembered in this browser only (storage blocked: kept until the page reloads)
+        const chillPrefs = {};
+
+        function chillPref(key, value) {
+            if (value === undefined) {
+                if (!(key in chillPrefs)) {
+                    try {
+                        chillPrefs[key] = localStorage.getItem(`chill.${key}`) === "1";
+                    } catch (err) {
+                        chillPrefs[key] = false;
+                    }
+                }
+                return chillPrefs[key];
+            }
+            chillPrefs[key] = !!value;
+            try {
+                localStorage.setItem(`chill.${key}`, value ? "1" : "0");
+            } catch (err) {
+                // not remembered after a reload
+            }
+            return chillPrefs[key];
+        }
+
+        /* Rain sound: filtered white noise from the Web Audio API (no audio file), quiet under the song.
+           Browsers only start audio after a click, so the first start comes from the 🌧️ button */
+        const CHILL_RAIN_VOLUME = 0.05;
+        let chillRainAudio = null; // { ctx, gain }
+
+        function startChillRain() {
+            $("#chillRain").attr("aria-pressed", "true").addClass("is-on");
+            if (chillRainAudio) {
+                chillRainAudio.ctx.resume().catch(() => {});
+                return;
+            }
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) return;
+            const ctx = new AudioCtx();
+            const buffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+            const noise = ctx.createBufferSource();
+            noise.buffer = buffer;
+            noise.loop = true;
+            const highpass = ctx.createBiquadFilter();
+            highpass.type = "highpass";
+            highpass.frequency.value = 400;
+            const lowpass = ctx.createBiquadFilter();
+            lowpass.type = "lowpass";
+            lowpass.frequency.value = 2200;
+            const gain = ctx.createGain();
+            gain.gain.value = CHILL_RAIN_VOLUME;
+            noise.connect(highpass).connect(lowpass).connect(gain).connect(ctx.destination);
+            noise.start();
+            chillRainAudio = { ctx, gain };
+        }
+
+        function stopChillRain() {
+            $("#chillRain").attr("aria-pressed", "false").removeClass("is-on");
+            if (!chillRainAudio) return;
+            chillRainAudio.ctx.close().catch(() => {});
+            chillRainAudio = null;
+        }
+
+        // Party lights: switched on by hand, or by the crowd when at least half of the floor is dancing
+        function updateChillParty() {
+            const $floorChars = $("#chillFloor .chill-char");
+            const dancing = $floorChars.filter(".is-dancing").length;
+            const crowd = $floorChars.length >= 2 && dancing * 2 >= $floorChars.length;
+            $("#chillScene").toggleClass("is-party", chillPref("party") || crowd);
+            $("#chillParty").attr("aria-pressed", String(chillPref("party"))).toggleClass("is-on", chillPref("party"));
+        }
+
+        /* Particles: small dots / hearts drifting up from a character and fading. Capped so a busy room stays light */
+        const CHILL_PARTICLE_MAX = 120;
+        const CHILL_PARTICLE_COLORS = ["#f472b6", "#fde68a", "#60a5fa", "#a78bfa", "#34d399", "#fb923c"];
+
+        function spawnChillParticles($char, kind) {
+            const face = $char.find(".chill-face")[0];
+            if (!face || !$("#chillModal").is(":visible")) return;
+            const room = CHILL_PARTICLE_MAX - $("#chillScene .chill-particle").length;
+            const count = Math.min(room, kind === "heart" ? 8 : 14);
+            if (count <= 0) return;
+            const scene = $("#chillScene")[0].getBoundingClientRect();
+            const box = face.getBoundingClientRect();
+            const x = box.left - scene.left + box.width / 2;
+            const y = kind === "firework" ? box.top - scene.top - 18 : box.top - scene.top + box.height / 2;
+            for (let i = 0; i < count; i++) {
+                const angle = kind === "firework" ? (i / count) * Math.PI * 2 : -Math.PI / 2 + (Math.random() - 0.5) * 1.4;
+                const dist = kind === "firework" ? 30 + Math.random() * 25 : 40 + Math.random() * 40;
+                const $p = $("<span>", { class: `chill-particle is-${kind}`, text: kind === "heart" ? "♥" : "", "aria-hidden": "true" })
+                    .css({
+                        left: x,
+                        top: y,
+                        color: CHILL_PARTICLE_COLORS[i % CHILL_PARTICLE_COLORS.length],
+                        "--dx": `${Math.cos(angle) * dist}px`,
+                        "--dy": `${Math.sin(angle) * dist - (kind === "heart" ? 20 : 0)}px`,
+                        "animation-delay": `${(Math.random() * 0.25).toFixed(2)}s`,
+                    })
+                    .appendTo("#chillScene");
+                setTimeout(() => $p.remove(), 1700);
+            }
+        }
+
+        // While the room is open: fireworks emotes burst again and again. Stops itself when the room closes
+        const CHILL_FX_MS = 1200;
+        let chillFxTimer = null;
+
+        function startChillFx() {
+            if (chillFxTimer) return;
+            chillFxTimer = setInterval(() => {
+                if (!$("#chillModal").is(":visible")) {
+                    clearInterval(chillFxTimer);
+                    chillFxTimer = null;
+                    stopChillRain();
+                    return;
+                }
+                $('#chillScene .chill-char[data-emote="firework"]').each(function () {
+                    spawnChillParticles($(this), "firework");
+                });
+            }, CHILL_FX_MS);
         }
 
         // A short effect over the character who receives it; both characters hop and face each other
@@ -9288,6 +9419,7 @@
                     .appendTo("#chillScene");
                 setTimeout(() => $fx.remove(), 1800);
             }
+            spawnChillParticles($to, type === "heart" ? "heart" : "firework");
         }
 
         function renderChillVibe() {
@@ -9394,6 +9526,17 @@
             $("#chillModal").fadeIn(150);
             renderChillRoom();
             openChillScreen().catch((err) => console.error(err));
+            startChillFx();
+        });
+
+        $("#chillRain").on("click", function () {
+            if (chillPref("rain", !chillRainAudio)) startChillRain();
+            else stopChillRain();
+        });
+
+        $("#chillParty").on("click", function () {
+            chillPref("party", !chillPref("party"));
+            updateChillParty();
         });
 
         // Click the floor: my character walks there
