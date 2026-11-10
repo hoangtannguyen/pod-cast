@@ -977,6 +977,15 @@
                     <button type="button" data-chill-act="five">✋ Đập tay</button>
                     <button type="button" data-chill-act="cheers">🥂 Cụng ly</button>
                     <button type="button" data-chill-act="beer">🍺 Mời bia</button>
+                    <button type="button" data-chill-act="hugAsk">🫂 Ôm</button>
+                    <button type="button" data-chill-act="poke">👉 Chọc</button>
+                    <button type="button" data-chill-act="duoAsk">💃 Nhảy đôi</button>
+                </div>
+                <!-- An invite for me (hug / duo dance): accept or decline -->
+                <div class="chill-invite" id="chillInvite" role="alertdialog" aria-labelledby="chillInviteText" hidden>
+                    <span id="chillInviteText"></span>
+                    <button type="button" id="chillInviteYes"></button>
+                    <button type="button" id="chillInviteNo">Thôi</button>
                 </div>
             </div>
             <div class="chill-emotes">
@@ -9056,9 +9065,25 @@
         // Emotes in place (chill.{userId}.emote): the prop shown next to the character
         const CHILL_EMOTES = { meditate: "✨", drink: "🧋", beer: "🍺", sleep: "💤", clap: "👏", firework: "🎆" };
         // One character to another (chill.{userId}.act = { t, to, at }): played once by everyone in the room
-        const CHILL_ACTS = { heart: "❤️", five: "✋", cheers: "🥂", beer: "🍺" };
-        // Told to the one who receives it: "{name} …"
-        const CHILL_ACT_TEXT = { heart: "thả tim bạn ❤️", five: "đập tay với bạn ✋", cheers: "cụng ly với bạn 🥂", beer: "mời bạn một ly bia 🍺" };
+        const CHILL_ACTS = {
+            heart: "❤️", five: "✋", cheers: "🥂", beer: "🍺", poke: "👉",
+            hugAsk: "💌", duoAsk: "💌", hug: "🫂", duo: "💃", decline: "😅",
+        };
+        // Told to the one who receives it: "{name} …" (invites show a card instead)
+        const CHILL_ACT_TEXT = {
+            heart: "thả tim bạn ❤️", five: "đập tay với bạn ✋", cheers: "cụng ly với bạn 🥂", beer: "mời bạn một ly bia 🍺",
+            poke: "chọc bạn 👉", hug: "ôm bạn 🫂", duo: "nhảy đôi với bạn 💃", decline: "từ chối lời mời rồi 😅",
+        };
+        // Invites: the card's text and button, and the act sent back when accepted
+        const CHILL_ASKS = {
+            hugAsk: { text: "muốn ôm bạn 🫂", yes: "🫂 Ôm", then: "hug" },
+            duoAsk: { text: "mời bạn nhảy đôi 💃", yes: "💃 Nhảy", then: "duo" },
+        };
+        const CHILL_PAIR_GAP = { hug: 4.5, duo: 8 }; // how close (percent of the floor) the pair stands
+        const CHILL_POKE_FACES = ["😳", "💢"];
+        const CHILL_HUG_MS = 4000;
+        const CHILL_DUO_MS = 16000;
+        const CHILL_INVITE_MS = 20000;
         const CHILL_GIFT_MS = 8000; // how long the offered beer stays in the receiver's hand
         const CHILL_THEMES = ["lounge", "lofi", "rain", "rooftop", "beach", "pub", "nhau", "food"]; // room.chillTheme, set by the host
         const CHILL_NEAR = { x: 12, y: 14 }; // closer than this (percent of the floor) counts as standing together
@@ -9095,6 +9120,7 @@
         // Walks there: legs move and the body turns toward where it goes; stands up first, sits down on arrival
         function moveChillChar($char, x, y) {
             $char.toggleClass("is-facing-left", x < parseFloat($char[0].style.left)).addClass("is-walking");
+            $char.removeClass("is-hugging is-duo"); // walking away ends a hug / duo dance
             setChillSeat($char, null);
             placeChillChar($char, x, y);
             clearTimeout($char.data("walkTimer"));
@@ -9224,8 +9250,13 @@
                 $char.attr("data-emote", emote || null).find(".chill-prop").text(CHILL_EMOTES[emote] || "");
                 if (!isMe && state.act?.at && state.act.at !== chillSeenActs[id]) {
                     chillSeenActs[id] = state.act.at;
-                    playChillAct(id, state.act.to, state.act.t);
-                    if (state.act.to === myId && CHILL_ACT_TEXT[state.act.t]) showToast(`${nameOf(authorOfId(id))} ${CHILL_ACT_TEXT[state.act.t]}`);
+                    // Came with a move (walked up to them first): play it once they arrive
+                    const walking = $char.parent().is("#chillFloor") && typeof state.x === "number"
+                        && (Math.abs(parseFloat(this.style.left) - state.x) > 0.5 || Math.abs(parseFloat(this.style.top) - state.y) > 0.5);
+                    const act = state.act;
+                    setTimeout(() => playChillAct(id, act.to, act.t, act.at), walking ? 850 : 0);
+                    if (state.act.to === myId && CHILL_ASKS[state.act.t]) showChillInvite(id, state.act.t);
+                    else if (state.act.to === myId && CHILL_ACT_TEXT[state.act.t]) showToast(`${nameOf(authorOfId(id))} ${CHILL_ACT_TEXT[state.act.t]}`);
                 }
                 if (isMe || id === myId || !$char.parent().is("#chillFloor") || typeof state.x !== "number") return;
                 if (Math.abs(parseFloat(this.style.left) - state.x) > 0.5 || Math.abs(parseFloat(this.style.top) - state.y) > 0.5) {
@@ -9467,9 +9498,20 @@
             }, CHILL_FX_MS);
         }
 
+        // Adds a class for `ms` (restarting its animation if it is already on), e.g. a hug or a startle
+        function restartChillClass($char, cls, ms) {
+            if (!$char.length) return;
+            $char.removeClass(cls);
+            void $char[0].offsetWidth;
+            $char.addClass(cls);
+            clearTimeout($char.data(`${cls}Timer`));
+            $char.data(`${cls}Timer`, setTimeout(() => $char.removeClass(cls), ms));
+        }
+
         // A short effect over the character who receives it; both characters hop and face each other
-        function playChillAct(fromId, toId, type) {
-            const icon = CHILL_ACTS[type];
+        function playChillAct(fromId, toId, type, at = 0) {
+            // Poke: 😳 or 💢, picked from `at` so everyone sees the same face
+            const icon = type === "poke" ? CHILL_POKE_FACES[at % CHILL_POKE_FACES.length] : CHILL_ACTS[type];
             const byId = (id) => $("#chillScene .chill-char").filter((_, el) => el.getAttribute("data-id") === id);
             const $from = byId(fromId);
             const $to = byId(toId);
@@ -9496,7 +9538,12 @@
                     .appendTo("#chillScene");
                 setTimeout(() => $fx.remove(), 1800);
             }
-            spawnChillParticles($to, type === "heart" ? "heart" : "firework");
+            if (type === "poke") restartChillClass($to, "is-startled", 700);
+            // Accepted hug / duo dance: both play it together, side by side
+            if (type === "hug") [$from, $to].forEach(($char) => restartChillClass($char, "is-hugging", CHILL_HUG_MS));
+            if (type === "duo") [$from, $to].forEach(($char) => restartChillClass($char, "is-duo", CHILL_DUO_MS));
+            if (type === "decline" || CHILL_ASKS[type]) return; // just the icon, no burst
+            spawnChillParticles($to, type === "heart" || type === "hug" ? "heart" : "firework");
             // An offered beer stays in the receiver's hand for a while
             if (type === "beer") {
                 $to.find(".chill-gift").remove();
@@ -9732,34 +9779,58 @@
                 .prop("hidden", false);
         });
 
-        // Too far apart: my character first walks up next to them, then acts
-        $("[data-chill-act]").on("click", function (e) {
-            e.stopPropagation();
-            const $menu = $("#chillActions").prop("hidden", true);
-            const toId = $menu.data("to");
+        // Too far apart: my character first walks up next to them, then acts. A hug / duo dance goes right
+        // up beside them (CHILL_PAIR_GAP); an invite is sent from where I stand
+        function sendChillAct(toId, type) {
             const myId = userIdOf(currentAuthor());
             if (!myId) {
                 showToast("Đăng nhập để tương tác với mọi người nhé");
                 return;
             }
-            const type = $(this).attr("data-chill-act");
             const $me = $("#chillFloor .chill-char.is-me");
             const $to = $("#chillFloor .chill-char").filter((_, el) => el.getAttribute("data-id") === toId);
             let delay = 0;
-            if ($me.length && $to.length) {
+            if ($me.length && $to.length && !CHILL_ASKS[type] && type !== "decline") {
                 const me = { x: parseFloat($me[0].style.left), y: parseFloat($me[0].style.top) };
                 const to = { x: parseFloat($to[0].style.left), y: parseFloat($to[0].style.top) };
-                if (Math.abs(me.x - to.x) > CHILL_NEAR.x || Math.abs(me.y - to.y) > CHILL_NEAR.y) {
-                    const side = me.x < to.x ? -7 : 7;
+                const gap = CHILL_PAIR_GAP[type];
+                const far = Math.abs(me.x - to.x) > CHILL_NEAR.x || Math.abs(me.y - to.y) > CHILL_NEAR.y;
+                const side = me.x < to.x ? -(gap || 7) : gap || 7;
+                if (far || (gap && (Math.abs(Math.abs(me.x - to.x) - gap) > 0.5 || Math.abs(me.y - to.y) > 0.5))) {
                     moveChillChar($me, Math.min(95, Math.max(5, to.x + side)), to.y);
                     delay = 800;
                 }
             }
             setTimeout(() => {
                 chill.act = { t: type, to: toId, at: Date.now() };
-                playChillAct(myId, toId, type);
+                playChillAct(myId, toId, type, chill.act.at);
                 saveMyChill();
             }, delay);
+        }
+
+        $("[data-chill-act]").on("click", function (e) {
+            e.stopPropagation();
+            const $menu = $("#chillActions").prop("hidden", true);
+            sendChillAct($menu.data("to"), $(this).attr("data-chill-act"));
+        });
+
+        // Someone invited me (hug / duo dance): a small card, I accept or decline
+        function showChillInvite(fromId, type) {
+            const ask = CHILL_ASKS[type];
+            if (!ask) return;
+            $("#chillInviteText").text(`${nameOf(authorOfId(fromId))} ${ask.text}`);
+            $("#chillInviteYes").text(ask.yes);
+            const $card = $("#chillInvite").data({ from: fromId, type: ask.then }).prop("hidden", false);
+            clearTimeout($card.data("timer"));
+            $card.data("timer", setTimeout(() => $card.prop("hidden", true), CHILL_INVITE_MS));
+        }
+
+        $("#chillInvite").on("click", "button", function (e) {
+            e.stopPropagation();
+            const $card = $("#chillInvite").prop("hidden", true);
+            clearTimeout($card.data("timer"));
+            const fromId = $card.data("from");
+            sendChillAct(fromId, $(this).is("#chillInviteYes") ? $card.data("type") : "decline");
         });
 
         // Host only (the select is disabled for the others); outside a room it only changes my view
