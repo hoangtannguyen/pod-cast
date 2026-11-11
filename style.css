@@ -10412,6 +10412,14 @@ a.profile-about-row:hover {
 
 #chillModal .chill-settings-menu .chill-theme {
     grid-column: 1 / -1;
+    color-scheme: dark;
+    color: #f8fafc;
+    background-color: #1a1233;
+}
+
+#chillModal .chill-settings-menu .chill-theme option {
+    background-color: #1a1233;
+    color: #f8fafc;
 }
 
 #chillModal .chill-settings-menu .chill-toggle {
