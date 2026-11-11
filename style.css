@@ -9641,6 +9641,96 @@ a.profile-about-row:hover {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
 }
 
+/* Gaming room: dark panels, RGB wall glow, monitor wall and a neon gaming sign */
+.chill-scene[data-chill-theme="game"] {
+    background:
+        radial-gradient(ellipse at 76% 34%, rgba(34, 211, 238, 0.18), transparent 34%),
+        radial-gradient(ellipse at 22% 36%, rgba(217, 70, 239, 0.18), transparent 38%),
+        linear-gradient(90deg, transparent 0 8%, rgba(148, 163, 184, 0.08) 8% 8.5%, transparent 8.5% 91%, rgba(148, 163, 184, 0.08) 91% 91.5%, transparent 91.5%) top / 100% 50% no-repeat,
+        linear-gradient(180deg, #101827 0%, #1e293b 100%) top / 100% 50% no-repeat,
+        repeating-linear-gradient(90deg, #111827 0 48px, #1f2937 48px 50px) bottom / 100% 50% no-repeat;
+}
+
+.chill-scene[data-chill-theme="game"]::before {
+    background: linear-gradient(90deg, #d946ef, #22d3ee);
+    box-shadow: 0 0 16px 4px rgba(34, 211, 238, 0.55);
+}
+
+.chill-scene[data-chill-theme="game"] .chill-ambience {
+    display: block;
+}
+
+.chill-scene[data-chill-theme="game"] .chill-ambience::before {
+    content: "🎮  PLAYER 1\A🟢 ONLINE\A\A🖥️  GAME ON\A🔊  PARTY UP";
+    position: absolute;
+    top: 10%;
+    right: 3%;
+    box-sizing: border-box;
+    width: 30%;
+    height: 60%;
+    padding: 5% 3%;
+    border: 5px solid #334155;
+    border-radius: 8px;
+    background:
+        linear-gradient(145deg, rgba(34, 211, 238, 0.18), rgba(217, 70, 239, 0.2)),
+        repeating-linear-gradient(0deg, transparent 0 18px, rgba(148, 163, 184, 0.1) 18px 19px),
+        #0b1020;
+    box-shadow: 0 0 14px rgba(34, 211, 238, 0.3), inset 0 0 18px rgba(217, 70, 239, 0.14);
+    color: #dbeafe;
+    font: 700 12px/1.5 ui-monospace, monospace;
+    white-space: pre;
+    overflow: hidden;
+}
+
+.chill-scene[data-chill-theme="game"] .chill-ambience::after {
+    content: "🎮 GAME ZONE";
+    position: absolute;
+    right: 3%;
+    bottom: 7%;
+    box-sizing: border-box;
+    width: 30%;
+    overflow: hidden;
+    padding: 4px 8px;
+    border: 2px solid #22d3ee;
+    border-radius: 8px;
+    background: rgba(8, 15, 30, 0.88);
+    color: #cffafe;
+    font: 800 14px/1.2 system-ui, sans-serif;
+    letter-spacing: 1px;
+    text-align: center;
+    text-overflow: ellipsis;
+    text-shadow: 0 0 6px #22d3ee, 0 0 14px #d946ef;
+    white-space: nowrap;
+    box-shadow: 0 0 12px rgba(34, 211, 238, 0.55), inset 0 0 10px rgba(217, 70, 239, 0.22);
+    animation: chill-twinkle 2.6s ease-in-out infinite;
+}
+
+.chill-scene[data-chill-theme="game"] .chill-ring {
+    border-color: #155e75;
+    border-top-color: #0891b2;
+    box-shadow: 0 0 22px rgba(34, 211, 238, 0.45), inset 0 0 18px rgba(217, 70, 239, 0.3);
+}
+
+.chill-scene[data-chill-theme="game"] .chill-table {
+    background: radial-gradient(circle at 50% 40%, #334155, #111827);
+    box-shadow: 0 5px 0 #080d17, 0 0 12px rgba(34, 211, 238, 0.2);
+}
+
+.chill-scene[data-chill-theme="game"] .chill-table i {
+    background: radial-gradient(circle at 40% 35%, #cffafe, #22d3ee 60%, #a21caf);
+    box-shadow: 0 0 16px 6px rgba(34, 211, 238, 0.45);
+}
+
+.chill-scene[data-chill-theme="game"] .chill-couch {
+    background: linear-gradient(180deg, #334155 0 46%, #1e293b 46%);
+    box-shadow: 0 6px 0 #0f172a, 0 0 12px rgba(217, 70, 239, 0.28);
+}
+
+.chill-scene[data-chill-theme="game"] .chill-deco.is-gamepad {
+    font-size: 30px;
+    filter: drop-shadow(0 0 8px rgba(34, 211, 238, 0.8));
+}
+
 /* The shelf / shopfront / menu take the window's place */
 .chill-scene[data-chill-theme="pub"] .chill-window,
 .chill-scene[data-chill-theme="pub"] .chill-deco.is-shelf,
@@ -9651,7 +9741,11 @@ a.profile-about-row:hover {
 .chill-scene[data-chill-theme="nhau"] .chill-deco.is-plant-wall,
 .chill-scene[data-chill-theme="food"] .chill-window,
 .chill-scene[data-chill-theme="food"] .chill-deco.is-shelf,
-.chill-scene[data-chill-theme="food"] .chill-deco.is-plant-wall {
+.chill-scene[data-chill-theme="food"] .chill-deco.is-plant-wall,
+.chill-scene[data-chill-theme="game"] .chill-window,
+.chill-scene[data-chill-theme="game"] .chill-pendants,
+.chill-scene[data-chill-theme="game"] .chill-deco.is-shelf,
+.chill-scene[data-chill-theme="game"] .chill-deco.is-plant-wall {
     display: none;
 }
 
@@ -9662,7 +9756,9 @@ a.profile-about-row:hover {
     .chill-scene[data-chill-theme="nhau"] .chill-ambience::before,
     .chill-scene[data-chill-theme="nhau"] .chill-ambience::after,
     .chill-scene[data-chill-theme="food"] .chill-ambience::before,
-    .chill-scene[data-chill-theme="food"] .chill-ambience::after {
+    .chill-scene[data-chill-theme="food"] .chill-ambience::after,
+    .chill-scene[data-chill-theme="game"] .chill-ambience::before,
+    .chill-scene[data-chill-theme="game"] .chill-ambience::after {
         display: none;
     }
 }
