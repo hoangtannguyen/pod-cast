@@ -909,27 +909,33 @@
             <div class="chill-head">
                 <strong id="chillTitle">🕺 Chill Room</strong>
                 <span class="chill-sub" id="chillSub"></span>
-                <!-- Room theme (chillTheme on the room): only the host changes it, everyone sees it -->
-                <select class="chill-theme" id="chillTheme" aria-label="Chủ đề phòng">
-                    <option value="lounge">🌃 Lounge đêm</option>
-                    <option value="lofi">🛏️ Phòng ngủ lo-fi</option>
-                    <option value="rain">☔ Quán cafe mưa</option>
-                    <option value="rooftop">🌌 Sân thượng ngắm sao</option>
-                    <option value="beach">🌅 Biển hoàng hôn</option>
-                    <option value="pub">🍸 Quán bar / pub</option>
-                    <option value="nhau">🍻 Quán nhậu vỉa hè</option>
-                    <option value="food">🍜 Quán ăn</option>
-                </select>
-                <!-- Per viewer: rain sound (rain theme only) and party lights -->
-                <span class="chill-rain-wrap" id="chillRainWrap" hidden>
-                    <button type="button" class="chill-toggle" id="chillRain" aria-pressed="false" aria-expanded="false" aria-controls="chillRainPop" title="Tiếng mưa">🌧️</button>
-                    <!-- Rain sound on / off and its own volume, separate from the song -->
-                    <span class="chill-rain-pop" id="chillRainPop" hidden>
-                        <button type="button" class="chill-rain-switch" id="chillRainSwitch">Bật tiếng mưa</button>
-                        <label class="chill-rain-vol">🔈 <input type="range" id="chillRainVol" min="0" max="100" step="1" aria-label="Âm lượng tiếng mưa"> 🔊</label>
-                    </span>
-                </span>
-                <button type="button" class="chill-toggle" id="chillParty" aria-pressed="false" title="Party mode: đèn theo nhạc">🪩</button>
+                <details class="chill-settings">
+                    <summary aria-label="Cài đặt Chill Room" title="Cài đặt">⚙️</summary>
+                    <div class="chill-settings-menu">
+                        <!-- Room theme (chillTheme on the room): only the host changes it, everyone sees it -->
+                        <label class="chill-settings-label" for="chillTheme">Chủ đề phòng</label>
+                        <select class="chill-theme" id="chillTheme" aria-label="Chủ đề phòng">
+                            <option value="lounge">🌃 Lounge đêm</option>
+                            <option value="lofi">🛏️ Phòng ngủ lo-fi</option>
+                            <option value="rain">☔ Quán cafe mưa</option>
+                            <option value="rooftop">🌌 Sân thượng ngắm sao</option>
+                            <option value="beach">🌅 Biển hoàng hôn</option>
+                            <option value="pub">🍸 Quán bar / pub</option>
+                            <option value="nhau">🍻 Quán nhậu vỉa hè</option>
+                            <option value="food">🍜 Quán ăn</option>
+                        </select>
+                        <!-- Per viewer: rain sound (rain theme only) and party lights -->
+                        <span class="chill-rain-wrap" id="chillRainWrap" hidden>
+                            <button type="button" class="chill-toggle" id="chillRain" aria-pressed="false" aria-expanded="false" aria-controls="chillRainPop" title="Tiếng mưa">🌧️ Tiếng mưa</button>
+                            <span class="chill-rain-pop" id="chillRainPop" hidden>
+                                <button type="button" class="chill-rain-switch" id="chillRainSwitch">Bật tiếng mưa</button>
+                                <label class="chill-rain-vol">🔈 <input type="range" id="chillRainVol" min="0" max="100" step="1" aria-label="Âm lượng tiếng mưa"> 🔊</label>
+                            </span>
+                        </span>
+                        <button type="button" class="chill-toggle" id="chillParty" aria-pressed="false" title="Party mode: đèn theo nhạc">🪩 Party mode</button>
+                        <button type="button" class="chill-skin-btn" id="chillSkinBtn" aria-controls="chillSkinPop" aria-expanded="false" title="Chọn nhân vật">🎭 Nhân vật</button>
+                    </div>
+                </details>
                 <button type="button" class="icon-btn chill-close modal-close" aria-label="Đóng"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="chill-scene" id="chillScene" data-chill-theme="lounge">
@@ -1048,15 +1054,14 @@
                     <button type="button" id="chillInviteNo">Thôi</button>
                 </div>
             </div>
+            <div class="chill-toolbar">
             <div class="chill-emotes">
-                <button type="button" data-chill-emote="meditate" class="is-heal" title="Ngồi trên ghế rồi thiền: hồi 5 HP mỗi 2 giây">🧘<span> Thiền</span><b>+5 HP</b></button>
-                <button type="button" data-chill-emote="drink">🧋<span> Trà sữa</span></button>
-                <button type="button" data-chill-emote="beer">🍺<span> Uống bia</span></button>
-                <button type="button" data-chill-emote="sleep">😴<span> Ngủ gật</span></button>
-                <button type="button" data-chill-emote="clap">👏<span> Vỗ tay</span></button>
-                <button type="button" data-chill-emote="firework">🎆<span> Pháo hoa</span></button>
-                <button type="button" class="chill-skin-btn" id="chillSkinBtn" aria-controls="chillSkinPop" aria-expanded="false">🎭<span> Nhân vật</span></button>
-                <button type="button" class="chill-game-btn" id="chillGameBtn" aria-controls="chillGamePop" aria-expanded="false">🎮<span> Mini game</span></button>
+                <button type="button" data-chill-emote="meditate" class="is-heal" aria-label="Thiền, hồi 5 HP mỗi 2 giây khi ngồi ghế" title="Ngồi trên ghế rồi thiền: hồi 5 HP mỗi 2 giây"><span class="chill-emote-icon">🧘</span><span> Thiền</span><b>+5 HP</b></button>
+                <button type="button" data-chill-emote="drink" aria-label="Uống trà sữa" title="Uống trà sữa">🧋<span> Trà sữa</span></button>
+                <button type="button" data-chill-emote="beer" aria-label="Uống bia" title="Uống bia">🍺<span> Uống bia</span></button>
+                <button type="button" data-chill-emote="sleep" aria-label="Ngủ gật" title="Ngủ gật">😴<span> Ngủ gật</span></button>
+                <button type="button" data-chill-emote="clap" aria-label="Vỗ tay" title="Vỗ tay">👏<span> Vỗ tay</span></button>
+                <button type="button" data-chill-emote="firework" aria-label="Bắn pháo hoa" title="Pháo hoa">🎆<span> Pháo hoa</span></button>
             </div>
             <div class="chill-bar">
                 <button type="button" class="chill-vote is-down" data-chill-vibe="-1" aria-label="Chán">👎</button>
@@ -1065,9 +1070,16 @@
                     <small>Chán</small><small>Đỉnh!</small>
                 </div>
                 <button type="button" class="chill-vote is-up" data-chill-vibe="1" aria-label="Đỉnh">👍</button>
-                <button type="button" class="chill-dance" id="chillDance"></button>
-                <button type="button" class="chill-chat-toggle" id="chillChatToggle" aria-controls="chillChatForm" aria-expanded="false">💬 Chat</button>
-                <button type="button" class="chill-exit modal-close">✕ Thoát</button>
+                <div class="chill-self-hp" role="meter" aria-label="Máu của bạn" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
+                    <span class="chill-self-hp-label">❤️ HP</span>
+                    <span class="chill-self-hp-track"><i id="chillSelfHpFill"></i></span>
+                    <strong id="chillSelfHpText">100</strong>
+                </div>
+                <button type="button" class="chill-dance" id="chillDance" aria-label="Bật hoặc tắt nhảy"></button>
+                <button type="button" class="chill-chat-toggle" id="chillChatToggle" aria-label="Mở hoặc đóng chat" aria-controls="chillChatForm" aria-expanded="false">💬 Chat</button>
+                <button type="button" class="chill-game-btn" id="chillGameBtn" aria-label="Mở mini game" aria-controls="chillGamePop" aria-expanded="false" title="Mini game">🎮<span> Mini game</span></button>
+                <button type="button" class="chill-exit modal-close" aria-label="Thoát" title="Thoát">✕</button>
+            </div>
             </div>
             <!-- Same chat as the music room; a new message pops up above the sender's head -->
             <form class="chill-chat" id="chillChatForm">
@@ -9745,6 +9757,11 @@
             $char.data("hp", hp);
             $char.find(".chill-hp").attr("title", `${hp}/${CHILL_HP_MAX} HP`).toggleClass("is-low", hp <= 30)
                 .find("i").css("width", `${(hp / CHILL_HP_MAX) * 100}%`);
+            if (isMe) {
+                $("#chillSelfHpFill").css("width", `${(hp / CHILL_HP_MAX) * 100}%`);
+                $("#chillSelfHpText").text(hp);
+                $(".chill-self-hp").attr("aria-valuenow", hp).toggleClass("is-low", hp <= 30);
+            }
             if (typeof before === "number" && before !== hp) showChillFloat($char, hp > before ? `+${hp - before}` : String(hp - before), hp > before ? "is-heal" : "is-hurt");
             if (typeof before === "number" && hp < before && hp > 0) reactChillHurt($char, hp);
             const was = { ko: $char.hasClass("is-ko"), nap: $char.hasClass("is-napping"), tipsy: $char.hasClass("is-tipsy") };

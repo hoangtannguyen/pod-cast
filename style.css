@@ -9775,6 +9775,175 @@ a.profile-about-row:hover {
     }
 }
 
+/* Chill controls: clear dock-like rows, keeping every existing action available */
+.chill-emotes {
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 18px 4px;
+}
+
+.chill-emotes button {
+    min-height: 38px;
+    padding: 6px 12px;
+    border-color: rgba(196, 181, 253, 0.22);
+    background: rgba(255, 255, 255, 0.07);
+    font-size: 13px;
+    white-space: nowrap;
+    transition: background 0.15s, border-color 0.15s, transform 0.15s;
+}
+
+.chill-emotes button:hover,
+.chill-emotes button:focus-visible {
+    border-color: rgba(192, 132, 252, 0.75);
+    background: rgba(168, 85, 247, 0.2);
+}
+
+.chill-bar {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin: 4px 18px 0;
+    padding: 10px 14px;
+    border: 1px solid rgba(168, 85, 247, 0.32);
+    border-radius: 20px;
+    background: linear-gradient(135deg, rgba(20, 12, 42, 0.98), rgba(31, 19, 58, 0.98));
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.25), inset 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.chill-vote {
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
+    border-width: 2px;
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+.chill-meter {
+    flex: 0 1 120px;
+}
+
+.chill-dance,
+.chill-chat-toggle,
+.chill-exit {
+    min-width: 104px;
+    height: 40px;
+    padding: 0 14px;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+
+.chill-chat-toggle {
+    border: 1px solid rgba(196, 181, 253, 0.38);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.chill-exit {
+    border-color: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.035);
+}
+
+.chill-chat {
+    gap: 8px;
+    padding: 8px 18px 4px;
+}
+
+.chill-chat input {
+    min-height: 40px;
+}
+
+.chill-chat .chill-quick button {
+    width: 38px;
+    height: 38px;
+    line-height: 36px;
+    border-radius: 50%;
+}
+
+@media (max-width: 600px) {
+    .chill-emotes {
+        justify-content: flex-start;
+        gap: 6px;
+        padding: 7px 10px 2px;
+    }
+
+    .chill-emotes button {
+        min-height: 36px;
+        padding: 5px 9px;
+    }
+
+    .chill-bar {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 7px;
+        margin: 5px 10px 0;
+        padding: 8px;
+        border-radius: 16px;
+    }
+
+    .chill-vote {
+        width: 38px;
+        height: 38px;
+        flex-basis: 38px;
+    }
+
+    .chill-meter {
+        width: min(100%, 96px);
+        flex-basis: auto;
+        height: 40px;
+    }
+
+    .chill-dance,
+    .chill-chat-toggle,
+    .chill-exit {
+        min-width: 0;
+        height: 38px;
+        padding: 0 4px;
+        font-size: 12px;
+    }
+
+    .chill-chat {
+        padding: 7px 10px 4px;
+    }
+
+    .chill-chat .chill-quick button {
+        width: 30px;
+        height: 34px;
+        line-height: 32px;
+    }
+}
+
+@media (max-width: 360px) {
+    .chill-bar {
+        gap: 5px;
+        margin-right: 7px;
+        margin-left: 7px;
+        padding: 7px 6px;
+    }
+
+    .chill-dance,
+    .chill-chat-toggle,
+    .chill-exit {
+        font-size: 11px;
+    }
+
+    .chill-chat .chill-quick button {
+        width: 27px;
+    }
+
+    .chill-chat {
+        gap: 4px;
+        padding-right: 7px;
+        padding-left: 7px;
+    }
+}
+
+@media (min-width: 601px) {
+    .chill-emotes {
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(196, 181, 253, 0.35) transparent;
+    }
+}
+
 /* Poked, by HP left: "!" (90–70), wincing (60–40), dizzy with spinning eyes (30–10) */
 .chill-fx.is-alert {
     color: #facc15;
@@ -10158,4 +10327,848 @@ a.profile-about-row:hover {
 @keyframes chill-announce {
     from { opacity: 0; transform: translateY(-16px) scale(0.85); }
     to { opacity: 1; transform: none; }
+}
+
+/* Compact neon toolbar; controls keep their existing IDs and event handlers */
+#chillModal .chill-head {
+    position: relative;
+    z-index: 20;
+    min-height: 48px;
+    gap: 8px;
+}
+
+#chillModal .chill-settings {
+    position: relative;
+    flex: 0 0 auto;
+    margin-left: auto;
+}
+
+#chillModal .chill-settings > summary {
+    display: grid;
+    width: 36px;
+    height: 36px;
+    place-items: center;
+    border: 1px solid rgba(192, 132, 252, 0.42);
+    border-radius: 12px;
+    background: rgba(168, 85, 247, 0.12);
+    font-size: 17px;
+    cursor: pointer;
+    list-style: none;
+}
+
+#chillModal .chill-settings > summary::-webkit-details-marker {
+    display: none;
+}
+
+#chillModal .chill-settings[open] > summary,
+#chillModal .chill-settings > summary:hover,
+#chillModal .chill-settings > summary:focus-visible {
+    border-color: #c084fc;
+    background: rgba(168, 85, 247, 0.28);
+    box-shadow: 0 0 14px rgba(168, 85, 247, 0.22);
+}
+
+#chillModal .chill-settings-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 50;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    width: min(300px, calc(100vw - 24px));
+    padding: 12px;
+    border: 1px solid rgba(168, 85, 247, 0.48);
+    border-radius: 16px;
+    background: rgba(18, 12, 36, 0.98);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.48), 0 0 20px rgba(139, 92, 246, 0.16);
+}
+
+#chillModal .chill-settings-label {
+    grid-column: 1 / -1;
+    color: #c4b5fd;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+#chillModal .chill-settings-menu .chill-theme,
+#chillModal .chill-settings-menu .chill-toggle,
+#chillModal .chill-settings-menu .chill-skin-btn {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    min-height: 36px;
+    padding: 7px 10px;
+    border: 1px solid rgba(196, 181, 253, 0.22);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff;
+    font-size: 12px;
+    text-align: left;
+}
+
+#chillModal .chill-settings-menu .chill-theme {
+    grid-column: 1 / -1;
+}
+
+#chillModal .chill-settings-menu .chill-toggle {
+    height: auto;
+    opacity: 1;
+}
+
+#chillModal .chill-settings-menu .chill-toggle.is-on,
+#chillModal .chill-settings-menu .chill-skin-btn.is-active {
+    border-color: #c084fc;
+    background: rgba(168, 85, 247, 0.2);
+}
+
+#chillModal .chill-settings-menu .chill-rain-wrap {
+    display: contents;
+}
+
+#chillModal .chill-settings-menu .chill-rain-wrap[hidden] {
+    display: none;
+}
+
+#chillModal .chill-settings-menu .chill-rain-pop {
+    position: static;
+    grid-column: 1 / -1;
+    width: 100%;
+    margin-top: 2px;
+}
+
+#chillModal .chill-toolbar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    max-width: 100%;
+    padding: 7px 12px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    background: linear-gradient(90deg, #160f2d, #21143b 50%, #160f2d);
+    scrollbar-width: none;
+}
+
+#chillModal .chill-toolbar::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+}
+
+#chillModal .chill-emotes,
+#chillModal .chill-bar {
+    display: contents;
+}
+
+#chillModal .chill-emotes button,
+#chillModal .chill-vote,
+#chillModal .chill-dance,
+#chillModal .chill-chat-toggle,
+#chillModal .chill-game-btn,
+#chillModal .chill-exit {
+    flex: 0 0 auto;
+    width: 38px;
+    min-width: 38px;
+    height: 38px;
+    margin: 0;
+    padding: 0;
+    border: 1px solid rgba(196, 181, 253, 0.22);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.07);
+    color: #fff;
+    font-size: 17px;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+}
+
+#chillModal .chill-emotes button:hover,
+#chillModal .chill-chat-toggle:hover,
+#chillModal .chill-game-btn:hover,
+#chillModal .chill-exit:hover {
+    border-color: #c084fc;
+    background: rgba(168, 85, 247, 0.22);
+}
+
+#chillModal .chill-toolbar button:focus-visible,
+#chillModal .chill-settings > summary:focus-visible,
+#chillModal .chill-settings-menu button:focus-visible,
+#chillModal .chill-settings-menu select:focus-visible {
+    outline: 2px solid #e9d5ff;
+    outline-offset: 2px;
+}
+
+#chillModal .chill-emotes button.is-active,
+#chillModal .chill-chat-toggle.is-on,
+#chillModal .chill-game-btn.is-active {
+    border-color: #c084fc;
+    background: rgba(168, 85, 247, 0.26);
+    box-shadow: 0 0 12px rgba(168, 85, 247, 0.2);
+}
+
+#chillModal .chill-emotes button.is-heal {
+    border-color: rgba(34, 197, 94, 0.6);
+}
+
+#chillModal .chill-emotes button span,
+#chillModal .chill-emotes button b,
+#chillModal #chillGameBtn span {
+    display: none;
+}
+
+#chillModal .chill-emotes button.is-heal {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    width: 44px;
+    min-width: 44px;
+    line-height: 1;
+}
+
+#chillModal .chill-emotes button.is-heal .chill-emote-icon {
+    display: block;
+    font-size: 15px;
+}
+
+#chillModal .chill-emotes button.is-heal b {
+    display: block;
+    padding: 1px 3px;
+    border-radius: 999px;
+    background: #16a34a;
+    color: #fff;
+    font-size: 8px;
+    line-height: 1.1;
+    white-space: nowrap;
+}
+
+#chillModal .chill-emotes button.is-heal.is-active {
+    border-color: #86efac;
+    background: linear-gradient(145deg, rgba(22, 163, 74, 0.48), rgba(21, 128, 61, 0.3));
+    box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.28), 0 0 16px rgba(34, 197, 94, 0.42), inset 0 0 10px rgba(134, 239, 172, 0.16);
+}
+
+#chillModal .chill-emotes button.is-heal.is-active b {
+    background: #22c55e;
+    box-shadow: 0 0 8px rgba(74, 222, 128, 0.6);
+}
+
+#chillModal .chill-meter {
+    flex: 0 0 88px;
+    width: 88px;
+    height: 38px;
+    overflow: visible;
+    font-size: 8px;
+}
+
+#chillModal .chill-meter::before {
+    inset: 0 0 -38px;
+}
+
+#chillModal .chill-needle {
+    height: 31px;
+    width: 3px;
+    left: calc(50% - 1.5px);
+}
+
+#chillModal .chill-meter small {
+    position: absolute;
+    bottom: 0;
+    z-index: 1;
+    padding: 1px 3px;
+    border-radius: 4px;
+    background: rgba(18, 12, 36, 0.88);
+    color: #e9d5ff;
+    font-size: 8px;
+    line-height: 1.1;
+    text-shadow: 0 1px 3px #120c24;
+    white-space: nowrap;
+}
+
+#chillModal .chill-meter small:first-of-type {
+    left: 0;
+}
+
+#chillModal .chill-meter small:last-of-type {
+    right: 0;
+}
+
+#chillModal .chill-self-hp {
+    flex: 1 1 110px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 100px;
+    max-width: 180px;
+    height: 38px;
+    padding: 0 9px;
+    border: 1px solid rgba(168, 85, 247, 0.38);
+    border-radius: 12px;
+    background: rgba(10, 7, 24, 0.7);
+    color: #fda4af;
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+#chillModal .chill-self-hp-label {
+    flex: 0 0 auto;
+    font-weight: 700;
+}
+
+#chillModal .chill-self-hp-track {
+    flex: 1 1 auto;
+    min-width: 16px;
+    height: 9px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.14);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+#chillModal .chill-self-hp-track i {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #f43f5e, #fb7185);
+    box-shadow: 0 0 10px rgba(244, 63, 94, 0.5);
+    transition: width 0.35s ease, background 0.2s ease;
+}
+
+#chillModal .chill-self-hp.is-low .chill-self-hp-track i {
+    background: linear-gradient(90deg, #ef4444, #f97316);
+}
+
+#chillModal .chill-self-hp strong {
+    flex: 0 0 auto;
+    min-width: 20px;
+    color: #fff;
+    font-size: 11px;
+    text-align: right;
+}
+
+#chillModal #chillDance {
+    width: 38px;
+    min-width: 38px;
+    border-color: rgba(244, 114, 182, 0.56);
+    background: linear-gradient(135deg, #db2777, #8b5cf6);
+    font-size: 0;
+    box-shadow: 0 0 10px rgba(219, 39, 119, 0.28);
+}
+
+#chillModal #chillDance::before {
+    content: "💃";
+    font-size: 17px;
+}
+
+#chillModal #chillDance.is-on::before {
+    content: "⏸";
+}
+
+#chillModal #chillChatToggle,
+#chillModal #chillGameBtn,
+#chillModal .chill-exit {
+    font-size: 0;
+}
+
+#chillModal #chillChatToggle::before {
+    content: "💬";
+    font-size: 17px;
+}
+
+#chillModal #chillGameBtn::before {
+    content: "🎮";
+    font-size: 17px;
+}
+
+#chillModal .chill-exit::before {
+    content: "↪";
+    font-size: 20px;
+}
+
+#chillModal .chill-chat {
+    flex: 0 0 auto;
+    gap: 7px;
+    padding: 7px 12px max(5px, env(safe-area-inset-bottom));
+    background: #160f2d;
+}
+
+#chillModal .chill-chat input {
+    min-height: 36px;
+    border-color: rgba(196, 181, 253, 0.22);
+}
+
+#chillModal .chill-chat button[type="submit"] {
+    min-width: 48px;
+    min-height: 36px;
+    padding: 0 12px;
+    border: 1px solid rgba(192, 132, 252, 0.52);
+}
+
+@media (max-width: 600px) {
+    #chillModal .chill-head {
+        min-height: 44px;
+        flex-wrap: nowrap;
+        padding: calc(5px + env(safe-area-inset-top)) 9px 5px;
+    }
+
+    #chillModal #chillTitle {
+        font-size: 14px;
+    }
+
+    #chillModal .chill-settings > summary {
+        width: 34px;
+        height: 34px;
+    }
+
+    #chillModal .chill-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+        padding: 5px 8px;
+        overflow: visible;
+    }
+
+    #chillModal .chill-toolbar .chill-emotes {
+        display: flex;
+        flex: 0 0 auto;
+        align-items: center;
+        gap: 5px;
+        width: 100%;
+        min-width: 0;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        scrollbar-width: none;
+    }
+
+    #chillModal .chill-toolbar .chill-emotes::-webkit-scrollbar {
+        display: none;
+    }
+
+    #chillModal .chill-toolbar .chill-bar {
+        display: flex;
+        flex: 0 0 auto;
+        align-items: center;
+        justify-content: space-between;
+        gap: 3px;
+        width: 100%;
+        min-width: 0;
+        margin: 0;
+        padding: 0;
+        overflow: visible;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    #chillModal .chill-emotes button,
+    #chillModal .chill-vote,
+    #chillModal .chill-dance,
+    #chillModal .chill-chat-toggle,
+    #chillModal .chill-game-btn,
+    #chillModal .chill-exit {
+        width: 34px;
+        min-width: 34px;
+        height: 34px;
+        border-radius: 10px;
+    }
+
+    #chillModal .chill-toolbar .chill-bar .chill-vote {
+        flex: 0 0 28px;
+        width: 28px;
+        min-width: 28px;
+        height: 30px;
+        font-size: 15px;
+    }
+
+    #chillModal .chill-emotes button.is-heal {
+        width: 42px;
+        min-width: 42px;
+    }
+
+    #chillModal .chill-toolbar .chill-meter {
+        flex: 0 0 46px;
+        width: 46px;
+        height: 32px;
+        font-size: 7px;
+    }
+
+    #chillModal .chill-toolbar .chill-meter::before {
+        inset: 0 0 -32px;
+    }
+
+    #chillModal .chill-toolbar .chill-meter small {
+        padding: 1px;
+        font-size: 6px;
+    }
+
+    #chillModal .chill-toolbar .chill-needle {
+        height: 26px;
+    }
+
+    #chillModal .chill-toolbar .chill-self-hp {
+        flex: 1 1 64px;
+        min-width: 60px;
+        max-width: none;
+        height: 32px;
+        gap: 4px;
+        padding: 0 5px;
+        font-size: 10px;
+    }
+
+    #chillModal .chill-toolbar .chill-self-hp-label {
+        font-size: 0;
+    }
+
+    #chillModal .chill-toolbar .chill-self-hp-label::before {
+        content: "❤️";
+        font-size: 13px;
+    }
+
+    #chillModal .chill-toolbar .chill-self-hp-track {
+        min-width: 10px;
+    }
+
+    #chillModal .chill-toolbar .chill-self-hp strong {
+        min-width: 18px;
+        font-size: 10px;
+    }
+
+    #chillModal .chill-toolbar .chill-dance,
+    #chillModal .chill-toolbar .chill-chat-toggle,
+    #chillModal .chill-toolbar .chill-game-btn,
+    #chillModal .chill-toolbar .chill-exit {
+        flex: 0 0 30px;
+        width: 30px;
+        min-width: 30px;
+        height: 30px;
+        padding: 0;
+    }
+
+    #chillModal #chillDance::before,
+    #chillModal #chillChatToggle::before,
+    #chillModal #chillGameBtn::before {
+        font-size: 15px;
+    }
+
+    #chillModal .chill-exit::before {
+        font-size: 18px;
+    }
+}
+
+@media (max-width: 360px) {
+    #chillModal .chill-toolbar {
+        gap: 3px;
+        padding-right: 6px;
+        padding-left: 6px;
+    }
+
+    #chillModal .chill-toolbar .chill-bar .chill-vote {
+        flex-basis: 26px;
+        width: 26px;
+        min-width: 26px;
+        height: 28px;
+    }
+
+    #chillModal .chill-toolbar .chill-meter {
+        flex-basis: 38px;
+        width: 38px;
+    }
+
+    #chillModal .chill-toolbar .chill-self-hp {
+        flex-basis: 62px;
+        min-width: 58px;
+        gap: 3px;
+        padding: 0 3px;
+    }
+
+    #chillModal .chill-toolbar .chill-dance,
+    #chillModal .chill-toolbar .chill-chat-toggle,
+    #chillModal .chill-toolbar .chill-game-btn,
+    #chillModal .chill-toolbar .chill-exit {
+        flex-basis: 27px;
+        width: 27px;
+        min-width: 27px;
+        height: 28px;
+    }
+
+    #chillModal .chill-emotes button {
+        width: 32px;
+        min-width: 32px;
+        height: 32px;
+    }
+
+    #chillModal .chill-emotes button.is-heal {
+        width: 40px;
+        min-width: 40px;
+    }
+}
+
+#chillModal .chill-room {
+    position: relative;
+    width: min(1200px, calc(100vw - 32px));
+    height: min(800px, calc(100dvh - 32px));
+}
+
+#chillModal .chill-head {
+    flex: 0 0 auto;
+}
+
+#chillModal .chill-scene {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+#chillModal .chill-toolbar {
+    justify-content: center;
+    flex-wrap: nowrap;
+    min-height: 54px;
+    overflow: hidden;
+    border-top: 1px solid rgba(192, 132, 252, 0.3);
+    box-shadow: 0 -5px 18px rgba(11, 6, 25, 0.35);
+}
+
+#chillModal .chill-self-hp {
+    flex: 0 1 190px;
+}
+
+#chillModal .chill-chat {
+    position: absolute;
+    top: auto;
+    bottom: 66px;
+    left: 12px;
+    z-index: 25;
+    width: min(360px, calc(100% - 24px));
+    padding: 10px;
+    border: 1px solid rgba(192, 132, 252, 0.48);
+    border-radius: 16px;
+    background: rgba(18, 12, 36, 0.96);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45), 0 0 18px rgba(139, 92, 246, 0.2);
+}
+
+#chillModal .chill-tip {
+    display: none;
+}
+
+@media (min-width: 601px) and (max-width: 1000px) {
+    #chillModal .chill-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+        padding: 5px 8px;
+    }
+
+    #chillModal .chill-toolbar .chill-emotes {
+        display: flex;
+        flex: 0 0 auto;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        min-width: 0;
+        overflow: hidden;
+    }
+
+    #chillModal .chill-toolbar .chill-bar {
+        display: flex;
+        flex: 0 0 auto;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        width: 100%;
+        min-width: 0;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    #chillModal .chill-toolbar .chill-self-hp {
+        flex: 1 1 100px;
+    }
+
+    #chillModal .chill-toolbar .chill-bar .chill-vote {
+        flex-basis: 30px;
+        width: 30px;
+        min-width: 30px;
+        height: 32px;
+    }
+
+    #chillModal .chill-toolbar .chill-meter {
+        flex-basis: 46px;
+        width: 46px;
+    }
+
+    #chillModal .chill-toolbar .chill-self-hp {
+        min-width: 70px;
+    }
+
+    #chillModal .chill-toolbar .chill-dance,
+    #chillModal .chill-toolbar .chill-chat-toggle,
+    #chillModal .chill-toolbar .chill-game-btn,
+    #chillModal .chill-toolbar .chill-exit {
+        flex-basis: 32px;
+        width: 32px;
+        min-width: 32px;
+        height: 32px;
+    }
+}
+
+@media (max-width: 600px) {
+    #chillModal .chill-room {
+        width: 100%;
+        height: 100vh;
+        height: 100dvh;
+        max-height: 100vh;
+        max-height: 100dvh;
+    }
+
+    #chillModal .chill-toolbar {
+        min-height: 0;
+        padding-bottom: max(5px, env(safe-area-inset-bottom));
+    }
+
+    #chillModal .chill-toolbar .chill-emotes {
+        justify-content: center;
+        overflow: hidden;
+    }
+
+    #chillModal #chillChatToggle {
+        position: absolute;
+        right: 12px;
+        bottom: calc(88px + env(safe-area-inset-bottom));
+        z-index: 22;
+        width: 42px;
+        min-width: 42px;
+        height: 42px;
+        border: 1px solid rgba(221, 193, 255, 0.72);
+        border-radius: 50%;
+        background: linear-gradient(145deg, #9333ea, #6d28d9);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.38), 0 0 16px rgba(168, 85, 247, 0.5);
+    }
+
+    #chillModal .chill-chat {
+        top: auto;
+        right: 8px;
+        bottom: calc(136px + env(safe-area-inset-bottom));
+        left: 8px;
+        width: auto;
+        padding: 8px;
+        border-radius: 14px;
+    }
+
+    #chillModal .chill-chat input {
+        min-width: 0;
+    }
+}
+
+#chillModal .chill-toolbar .chill-meter {
+    flex: 0 0 126px;
+    width: 126px;
+    height: 56px;
+    align-items: flex-end;
+    padding: 0 8px 5px;
+    border: 1px solid rgba(168, 85, 247, 0.62);
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(20, 12, 42, 0.96), rgba(11, 8, 28, 0.98));
+    box-shadow: inset 0 0 12px rgba(139, 92, 246, 0.14), 0 0 10px rgba(139, 92, 246, 0.12);
+}
+
+#chillModal .chill-toolbar .chill-meter::before {
+    inset: 0 7px -32px;
+    border-radius: 50%;
+    background: conic-gradient(
+        from 270deg,
+        #84cc16 0deg 28deg,
+        #facc15 28deg 51deg,
+        #fb923c 51deg 76deg,
+        #ef4444 76deg 101deg,
+        #06b6d4 101deg 130deg,
+        #2563eb 130deg 180deg,
+        transparent 180deg
+    );
+    -webkit-mask: radial-gradient(circle, transparent 59%, #000 61%);
+    mask: radial-gradient(circle, transparent 59%, #000 61%);
+}
+
+#chillModal .chill-toolbar .chill-needle {
+    bottom: 5px;
+    height: 35px;
+    border-radius: 999px;
+    box-shadow: 0 0 7px rgba(255, 255, 255, 0.8);
+}
+
+#chillModal .chill-toolbar .chill-meter small {
+    bottom: 5px;
+    padding: 2px 4px;
+    border: 1px solid rgba(168, 85, 247, 0.24);
+    border-radius: 999px;
+    background: rgba(15, 10, 32, 0.94);
+    color: #f3e8ff;
+    font-size: 10px;
+    text-shadow: none;
+}
+
+@media (min-width: 601px) and (max-width: 1000px) {
+    #chillModal .chill-toolbar .chill-meter {
+        flex-basis: 76px;
+        width: 76px;
+        height: 44px;
+        padding: 0 4px 4px;
+    }
+
+    #chillModal .chill-toolbar .chill-meter::before {
+        inset: 0 5px -25px;
+    }
+
+    #chillModal .chill-toolbar .chill-needle {
+        bottom: 4px;
+        height: 27px;
+    }
+
+    #chillModal .chill-toolbar .chill-meter small {
+        bottom: 4px;
+        padding: 1px 3px;
+        font-size: 8px;
+    }
+}
+
+@media (max-width: 600px) {
+    #chillModal .chill-toolbar .chill-meter {
+        flex: 0 0 58px;
+        width: 58px;
+        height: 36px;
+        padding: 0 2px 3px;
+        border-radius: 999px;
+    }
+
+    #chillModal .chill-toolbar .chill-meter::before {
+        inset: 0 4px -20px;
+    }
+
+    #chillModal .chill-toolbar .chill-needle {
+        bottom: 3px;
+        height: 23px;
+    }
+
+    #chillModal .chill-toolbar .chill-meter small {
+        bottom: 3px;
+        padding: 1px 2px;
+        font-size: 6px;
+    }
+}
+
+@media (max-width: 360px) {
+    #chillModal .chill-toolbar .chill-meter {
+        flex-basis: 52px;
+        width: 52px;
+        height: 34px;
+    }
 }
