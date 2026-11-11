@@ -8364,12 +8364,12 @@ a.profile-about-row:hover {
     position: absolute;
     z-index: 300;
     display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 4px;
+    flex-direction: column; /* one row per group (.chill-act-group) */
+    align-items: stretch;
+    gap: 6px;
     width: max-content;
-    max-width: 270px; /* 7 actions: wraps onto a few rows */
-    padding: 4px;
+    max-width: 290px;
+    padding: 6px;
     border-radius: 16px;
     background: rgba(17, 12, 34, 0.92);
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
@@ -9491,4 +9491,87 @@ a.profile-about-row:hover {
 @keyframes chill-ko-stars {
     from { transform: translateX(-50%) rotate(0); }
     to { transform: translateX(-50%) rotate(360deg); }
+}
+
+/* Act menu in groups, colored by what it does to HP: fun (none), then heal / damage / drinks side by side */
+.chill-act-group {
+    --act: #a855f7;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 5px 5px;
+    border-left: 3px solid var(--act);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--act) 12%, transparent);
+}
+
+.chill-act-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+}
+
+.chill-act-row .chill-act-group {
+    flex-direction: column;
+    align-items: stretch;
+    flex-wrap: nowrap;
+    border-left: 0;
+    border-top: 3px solid var(--act);
+}
+
+.chill-act-group.is-heal {
+    --act: #22c55e;
+}
+
+.chill-act-group.is-hurt {
+    --act: #ef4444;
+}
+
+.chill-act-group.is-drunk {
+    --act: #f59e0b;
+}
+
+.chill-act-label {
+    flex-basis: 100%;
+    color: var(--act);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.chill-act-row .chill-act-label {
+    flex-basis: auto;
+    text-align: center;
+}
+
+/* Heal / damage / drinks: the name, the effect under it */
+.chill-act-row button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 5px 4px;
+    border: 1px solid color-mix(in srgb, var(--act) 55%, transparent);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--act) 18%, transparent);
+}
+
+.chill-act-row button:hover {
+    background: color-mix(in srgb, var(--act) 40%, transparent);
+}
+
+.chill-act-row button b {
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--act);
+    color: #fff;
+    font-size: 9px;
+    font-weight: 700;
+}
+
+/* No room above the character: the menu opens below it */
+.chill-actions.is-below {
+    translate: -50% 6px;
 }

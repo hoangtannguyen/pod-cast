@@ -974,16 +974,31 @@
                 <div class="chill-floor" id="chillFloor"></div>
                 <!-- Shown over another character when it is clicked -->
                 <div class="chill-actions" id="chillActions" hidden>
-                    <button type="button" data-chill-act="heart">❤️ Thả tim</button>
-                    <button type="button" data-chill-act="five">✋ Đập tay</button>
-                    <button type="button" data-chill-act="cheers">🥂 Cụng ly</button>
-                    <button type="button" data-chill-act="milktea">🧋 Mời trà sữa</button>
-                    <button type="button" data-chill-act="beer">🍺 Mời bia</button>
-                    <button type="button" data-chill-act="hugAsk">🫂 Ôm</button>
-                    <button type="button" data-chill-act="pat">🫳 Vỗ đầu</button>
-                    <button type="button" data-chill-act="laugh">🤣 Cười nhạo</button>
-                    <button type="button" data-chill-act="poke">👉 Chọc</button>
-                    <button type="button" data-chill-act="duoAsk">💃 Nhảy đôi</button>
+                    <!-- Grouped by what it does to HP: fun (none), heal, damage, drinks (tipsy → nap) -->
+                    <div class="chill-act-group is-fun">
+                        <span class="chill-act-label">🎉 Vui vẻ</span>
+                        <button type="button" data-chill-act="heart">❤️ Thả tim</button>
+                        <button type="button" data-chill-act="five">✋ Đập tay</button>
+                        <button type="button" data-chill-act="cheers">🥂 Cụng ly</button>
+                        <button type="button" data-chill-act="hugAsk">🫂 Ôm</button>
+                        <button type="button" data-chill-act="pat">🫳 Vỗ đầu</button>
+                        <button type="button" data-chill-act="laugh">🤣 Cười nhạo</button>
+                        <button type="button" data-chill-act="duoAsk">💃 Nhảy đôi</button>
+                    </div>
+                    <div class="chill-act-row">
+                        <div class="chill-act-group is-heal">
+                            <span class="chill-act-label">💚 Hồi máu</span>
+                            <button type="button" data-chill-act="milktea" title="Mời trà sữa: +10 HP">🧋 Trà sữa<b>+10 HP</b></button>
+                        </div>
+                        <div class="chill-act-group is-hurt">
+                            <span class="chill-act-label">💥 Trừ máu</span>
+                            <button type="button" data-chill-act="poke" title="Chọc: -10 HP">👉 Chọc<b>-10 HP</b></button>
+                        </div>
+                        <div class="chill-act-group is-drunk">
+                            <span class="chill-act-label">💤 Say/ngủ</span>
+                            <button type="button" data-chill-act="beer" title="Mời bia: 3 ly say, 5 ly ngủ gật">🍺 Mời bia<b>3 say · 5 ngủ</b></button>
+                        </div>
+                    </div>
                 </div>
                 <!-- An invite for me (hug / duo dance): accept or decline -->
                 <!-- Pick a cartoon animal as my head instead of my avatar photo (chill.{userId}.skin) -->
@@ -10024,10 +10039,15 @@
             e.stopPropagation();
             const scene = $("#chillScene")[0].getBoundingClientRect();
             const box = this.getBoundingClientRect();
-            $("#chillActions")
-                .data("to", $(this).attr("data-id"))
-                .css({ left: box.left - scene.left + box.width / 2, top: box.top - scene.top })
-                .prop("hidden", false);
+            const $menu = $("#chillActions").data("to", $(this).attr("data-id")).prop("hidden", false);
+            // Kept inside the scene: opens below the character when there is no room above, slides in from the sides
+            const width = $menu.outerWidth();
+            const above = box.top - scene.top - $menu.outerHeight() - 6 >= 0;
+            const x = box.left - scene.left + box.width / 2;
+            $menu.toggleClass("is-below", !above).css({
+                left: Math.min(scene.width - width / 2 - 4, Math.max(width / 2 + 4, x)),
+                top: above ? box.top - scene.top : box.bottom - scene.top,
+            });
         });
 
         // Too far apart: my character first walks up next to them, then acts. A hug / duo dance goes right
