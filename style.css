@@ -9940,3 +9940,38 @@ a.profile-about-row:hover {
 .chill-game-form .chill-game-actions {
     margin-top: 2px;
 }
+
+/* Announcement over the scene: game created / on / started / over; click opens the game panel */
+.chill-game-announce {
+    position: absolute;
+    top: 38px;
+    left: 50%;
+    z-index: 340;
+    width: max-content;
+    max-width: calc(100% - 24px);
+    padding: 10px 18px;
+    border: 2px solid #fde68a;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(234, 88, 12, 0.95), rgba(168, 85, 247, 0.95));
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 24px rgba(253, 230, 138, 0.45);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.4;
+    text-align: center;
+    translate: -50% 0;
+    cursor: pointer;
+}
+
+.chill-game-announce[hidden] {
+    display: none;
+}
+
+.chill-game-announce.is-in {
+    animation: chill-announce 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes chill-announce {
+    from { opacity: 0; transform: translateY(-16px) scale(0.85); }
+    to { opacity: 1; transform: none; }
+}

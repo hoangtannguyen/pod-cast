@@ -1022,6 +1022,7 @@
                 </div>
                 <!-- Mini game (room.chillGame, set by the host; each player's lives in chill.{userId}.game) -->
                 <button type="button" class="chill-game-badge" id="chillGameBadge" hidden></button>
+                <button type="button" class="chill-game-announce" id="chillGameAnnounce" role="status" hidden></button>
                 <div class="chill-skin-pop chill-game-pop" id="chillGamePop" hidden>
                     <div id="chillGameInfo"></div>
                     <form class="chill-game-form" id="chillGameForm" hidden>
@@ -9100,6 +9101,7 @@
         function updateMusicControls() {
             const room = myMusicRoom();
             if (!room) return;
+            notifyChillGame(room);
             renderMusicQueue(room);
             const isHost = isMusicHost(room);
             $("#musicPlayerWrap").toggleClass("is-empty", !room.videoId).toggleClass("is-failed", !!room.videoId && room.videoId === musicFailed.videoId);
@@ -9970,6 +9972,8 @@
             openChillScreen().catch((err) => console.error(err));
             startChillFx();
             saveMyChill(); // tells the room I'm here (online)
+            const game = chillGameOf(myMusicRoom());
+            if (game) announceChillGame(chillGameNowText(game, chillGameStatusOf(game)));
         });
 
         $("#chillChatToggle").on("click", function () {
@@ -10214,9 +10218,10 @@
            life (hits 0: a knock-out, HP down to 0, costs it), no life left = out (`out` = when). max 0 = no limit. The host's Chill Room ends it when the time is up or one is left. */
 
         const CHILL_GAME_LIMITS = { max: [2, Infinity], lives: [1, 5], hits: [1, 10], minutes: [1, 30] };
+        const CHILL_GAME_ANNOUNCE_MS = 5000;
         const CHILL_GAME_STATUS = { waiting: "⏳ Chờ bắt đầu", playing: "🔥 Đang diễn ra", ended: "🏁 Đã kết thúc" };
         let chillGameKey = ""; // what the panel shows: rebuilt only when it changes (the countdown ticks on its own)
-        let chillGameSeen = null; // `${id}:${status}:${result}` last told with a toast (null: not looked yet)
+        let chillGameSeen = null; // `${roomId}:${gameId}:${status}:${result}` last told (null: not looked yet)
         let chillGameEnding = ""; // id of the game whose end I am writing (host)
 
         function chillGameOf(room) {
@@ -10321,26 +10326,63 @@
             return ids.map((id) => nameOf(authorOfId(id))).join(", ");
         }
 
+        // What is going on now, told when one opens the 2D room or first looks at the room
+        function chillGameNowText(game, status) {
+            if (status === "playing") return `🔥 Mini game "${game.name}" đang diễn ra · còn ${chillGameClock(game)}`;
+            if (status === "waiting") return `🎮 Mini game "${game.name}" đang chờ người chơi · bấm 🎮 Mini game để tham gia`;
+            return "";
+        }
+
+        // In the 2D room: a banner over the scene for a few seconds (click: the game panel); elsewhere a toast
+        function announceChillGame(text) {
+            if (!text) return;
+            if (!$("#chillModal").is(":visible")) {
+                showToast(text);
+                return;
+            }
+            const $banner = $("#chillGameAnnounce").text(text).prop("hidden", false);
+            $banner.removeClass("is-in");
+            void $banner[0].offsetWidth; // restart its entrance
+            $banner.addClass("is-in");
+            clearTimeout($banner.data("timer"));
+            $banner.data("timer", setTimeout(() => $banner.prop("hidden", true), CHILL_GAME_ANNOUNCE_MS));
+        }
+
+        // Every room update (2D room open or not): created / started / over is told once to everyone in the room,
+        // and a game already waiting / on when I first look at the room too. Starting gives players full HP
+        function notifyChillGame(room) {
+            const game = chillGameOf(room);
+            const status = game ? chillGameStatusOf(game) : "";
+            const seen = `${room.id}:${game ? `${game.id}:${status}:${!!game.result}` : ""}`;
+            if (seen === chillGameSeen) return;
+            const first = !chillGameSeen?.startsWith(`${room.id}:`);
+            const sameGame = !first && !!game && chillGameSeen.startsWith(`${room.id}:${game.id}:`);
+            chillGameSeen = seen;
+            if (!game) return;
+            const isHost = room.hostId === userIdOf(currentAuthor());
+            if (first) {
+                announceChillGame(isHost ? "" : chillGameNowText(game, status));
+                return;
+            }
+            if (status === "waiting" && !sameGame && !isHost) announceChillGame(`🎮 Chủ phòng vừa tạo mini game "${game.name}"! Bấm 🎮 Mini game để tham gia`);
+            if (status === "playing") {
+                announceChillGame(`🔥 Mini game "${game.name}" bắt đầu! Chọc người chơi khác để loại họ`);
+                if (chill.game?.id === game.id) {
+                    Object.assign(chill, { hp: CHILL_HP_MAX, ko: 0 });
+                    saveMyVitals();
+                }
+            }
+            if (status === "ended" && game.result) {
+                announceChillGame(game.result.winners.length ? `🏁 "${game.name}" kết thúc! 🏆 ${chillGameNames(game.result.winners)}` : `🏁 "${game.name}" kết thúc`);
+            }
+        }
+
         // The 🎮 badge on the scene and the panel (status, settings, players, result, the buttons one may use)
         function renderChillGame(room) {
             const game = chillGameOf(room);
             const status = game ? chillGameStatusOf(game) : "";
             const myId = userIdOf(currentAuthor());
             const isHost = !!room && room.hostId === myId;
-
-            // Created / started / over: everyone in the room is told once
-            const seen = game ? `${game.id}:${status}:${!!game.result}` : "";
-            if (chillGameSeen !== null && seen !== chillGameSeen && game) {
-                if (status === "waiting" && !isHost && !chillGameSeen.startsWith(`${game.id}:`)) showToast(`🎮 Chủ phòng vừa tạo game "${game.name}", bấm 🎮 Mini game để tham gia`);
-                if (status === "playing") showToast(`🔥 "${game.name}" bắt đầu! Chọc người chơi khác để loại họ`);
-                // Every player begins the game with full HP
-                if (status === "playing" && chill.game?.id === game.id) {
-                    Object.assign(chill, { hp: CHILL_HP_MAX, ko: 0 });
-                    saveMyVitals();
-                }
-                if (status === "ended" && game.result) showToast(game.result.winners.length ? `🏁 Kết thúc! 🏆 ${chillGameNames(game.result.winners)}` : "🏁 Game kết thúc");
-            }
-            chillGameSeen = seen;
 
             $("#chillGameBadge").prop("hidden", !game).attr("data-status", status || null)
                 .text(game ? `🎮 ${game.name} · ${CHILL_GAME_STATUS[status]}${status === "playing" ? ` · ${chillGameClock(game)}` : ""}` : "");
@@ -10442,8 +10484,9 @@
             }
         }
 
-        $("#chillGameBtn, #chillGameBadge").on("click", function (e) {
+        $("#chillGameBtn, #chillGameBadge, #chillGameAnnounce").on("click", function (e) {
             e.stopPropagation();
+            $("#chillGameAnnounce").prop("hidden", true);
             showChillGamePop($("#chillGamePop").prop("hidden"));
         });
 
