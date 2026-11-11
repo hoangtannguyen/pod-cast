@@ -11080,6 +11080,8 @@ a.profile-about-row:hover {
 
     #chillModal .chill-chat input {
         min-width: 0;
+        font-size: 16px;
+        line-height: 1.25;
     }
 }
 
