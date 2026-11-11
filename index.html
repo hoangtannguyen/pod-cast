@@ -1028,9 +1028,9 @@
                         <strong>🎮 Thiết lập mini game</strong>
                         <label>Tên game <input type="text" id="chillGameName" maxlength="40" required placeholder="Đại chiến chọc chọc"></label>
                         <div class="chill-game-grid">
-                            <label>Người chơi tối đa <input type="number" id="chillGameMax" min="2" max="16" value="8" required></label>
+                            <label>Người chơi tối đa <input type="number" id="chillGameMax" min="2" placeholder="Không giới hạn"></label>
                             <label>Số mạng mỗi người <input type="number" id="chillGameLives" min="1" max="5" value="3" required></label>
-                            <label>Bị chọc mấy lần mất 1 mạng <input type="number" id="chillGameHits" min="1" max="10" value="3" required></label>
+                            <label>Bị chọc mấy lần mất 1 mạng <input type="number" id="chillGameHits" min="1" max="10" placeholder="Trống = hết máu" title="Để trống: hết máu (knock-out) mới mất 1 mạng"></label>
                             <label>Thời lượng (phút) <input type="number" id="chillGameMinutes" min="1" max="30" value="5" required></label>
                         </div>
                         <label>Luật chơi <textarea id="chillGameRules" maxlength="200" rows="2" placeholder="VD: chỉ chọc người đang đứng, không chọc người đang ngồi thiền"></textarea></label>
@@ -9390,8 +9390,10 @@
                     const act = state.act;
                     setTimeout(() => {
                         playChillAct(id, act.to, act.t);
-                        if (act.to === myId && act.t === "poke") takeChillGameHit(id);
-                        if (act.to === myId) takeChillAct(myId, () => chill, act.t, saveMyVitals);
+                        if (act.to !== myId) return;
+                        const wasKo = !!chill.ko;
+                        takeChillAct(myId, () => chill, act.t, saveMyVitals);
+                        if (act.t === "poke") takeChillGameHit(id, !wasKo && !!chill.ko);
                     }, walking ? 850 : 0);
                     if (state.act.to === myId && CHILL_ASKS[state.act.t]) showChillInvite(id, state.act.t);
                     else if (state.act.to === myId && CHILL_ACT_TEXT[state.act.t]) showToast(`${nameOf(authorOfId(id))} ${CHILL_ACT_TEXT[state.act.t]}`);
@@ -10209,9 +10211,9 @@
            room.chillGame = { id, name, max, lives, hits, minutes, rules, challenge, status: waiting | playing | ended,
            endsAt, result: { winners, out } }, written by the host only. Each player keeps their own part in
            chill.{userId}.game = { id, hits, lost, out }: a poke from another player counts, every `hits` pokes cost a
-           life, no life left = out (`out` = when). The host's Chill Room ends it when the time is up or one is left. */
+           life (hits 0: a knock-out, HP down to 0, costs it), no life left = out (`out` = when). max 0 = no limit. The host's Chill Room ends it when the time is up or one is left. */
 
-        const CHILL_GAME_LIMITS = { max: [2, 16], lives: [1, 5], hits: [1, 10], minutes: [1, 30] };
+        const CHILL_GAME_LIMITS = { max: [2, Infinity], lives: [1, 5], hits: [1, 10], minutes: [1, 30] };
         const CHILL_GAME_STATUS = { waiting: "⏳ Chờ bắt đầu", playing: "🔥 Đang diễn ra", ended: "🏁 Đã kết thúc" };
         let chillGameKey = ""; // what the panel shows: rebuilt only when it changes (the countdown ticks on its own)
         let chillGameSeen = null; // `${id}:${status}:${result}` last told with a toast (null: not looked yet)
@@ -10254,8 +10256,9 @@
             else $tag.text("❤️".repeat(player.lives) + "🖤".repeat(game.lives - player.lives) + (player.hits ? ` ${player.hits}/${game.hits}` : ""));
         }
 
-        // Poked by another player while the game is on (only players' pokes count)
-        function takeChillGameHit(fromId) {
+        // Poked by another player while the game is on (only players' pokes count). `knockedOut`: this poke took my
+        // last HP, which is what costs a life when the game has no poke count
+        function takeChillGameHit(fromId, knockedOut) {
             const room = myMusicRoom();
             const game = chillGameOf(room);
             if (!game || chillGameStatusOf(game) !== "playing") return;
@@ -10263,8 +10266,9 @@
             const from = chillGamePlayerOf(room, game, fromId);
             if (!me || me.out || !from || from.out) return;
             const part = chill.game;
-            part.hits = (part.hits || 0) + 1;
-            if (part.hits >= game.hits) {
+            if (game.hits) part.hits = (part.hits || 0) + 1;
+            else if (!knockedOut) return;
+            if (!game.hits || part.hits >= game.hits) {
                 part.hits = 0;
                 part.lost = (part.lost || 0) + 1;
                 if (part.lost >= game.lives) {
@@ -10329,6 +10333,11 @@
             if (chillGameSeen !== null && seen !== chillGameSeen && game) {
                 if (status === "waiting" && !isHost && !chillGameSeen.startsWith(`${game.id}:`)) showToast(`🎮 Chủ phòng vừa tạo game "${game.name}", bấm 🎮 Mini game để tham gia`);
                 if (status === "playing") showToast(`🔥 "${game.name}" bắt đầu! Chọc người chơi khác để loại họ`);
+                // Every player begins the game with full HP
+                if (status === "playing" && chill.game?.id === game.id) {
+                    Object.assign(chill, { hp: CHILL_HP_MAX, ko: 0 });
+                    saveMyVitals();
+                }
                 if (status === "ended" && game.result) showToast(game.result.winners.length ? `🏁 Kết thúc! 🏆 ${chillGameNames(game.result.winners)}` : "🏁 Game kết thúc");
             }
             chillGameSeen = seen;
@@ -10362,7 +10371,11 @@
                     $("<strong>", { text: `🎮 ${game.name}` }),
                     $("<span>", { class: `chill-game-status is-${status}`, text: CHILL_GAME_STATUS[status] })
                 ),
-                $("<p>", { class: "chill-game-meta", text: `👥 ${players.length}/${game.max} · ❤️ ${game.lives} mạng · 👉 ${game.hits} lần chọc = mất 1 mạng · ⏱ ${game.minutes} phút` }),
+                $("<p>", {
+                    class: "chill-game-meta",
+                    text: `👥 ${game.max ? `${players.length}/${game.max}` : `${players.length} người`} · ❤️ ${game.lives} mạng · `
+                        + `${game.hits ? `👉 ${game.hits} lần chọc = mất 1 mạng` : "💥 Hết máu = mất 1 mạng"} · ⏱ ${game.minutes} phút`,
+                }),
                 status === "playing" ? $("<p>", { class: "chill-game-clock" }).append("Còn lại ", $("<b>", { class: "chill-game-time", text: chillGameClock(game) })) : null,
                 game.rules ? line("📜 Luật: ", game.rules) : null,
                 game.challenge ? line("🎯 Thử thách cho người bị loại: ", game.challenge) : null
@@ -10388,7 +10401,7 @@
             }
 
             const joined = players.some((p) => p.id === myId);
-            const full = players.length >= game.max;
+            const full = !!game.max && players.length >= game.max;
             const $actions = $("<div>", { class: "chill-game-actions" });
             if (status === "waiting") {
                 $actions.append(joined ? button("leave", "🚪 Rời game") : button("join", full ? "Đã đủ người" : "✋ Tham gia", true).prop("disabled", full));
@@ -10410,9 +10423,9 @@
             $("#chillGameInfo").prop("hidden", show);
             if (!show) return;
             $("#chillGameName").val(game?.name || "");
-            $("#chillGameMax").val(game?.max || 8);
+            $("#chillGameMax").val(game?.max || "");
             $("#chillGameLives").val(game?.lives || 3);
-            $("#chillGameHits").val(game?.hits || 3);
+            $("#chillGameHits").val(game?.hits || "");
             $("#chillGameMinutes").val(game?.minutes || 5);
             $("#chillGameRules").val(game?.rules || "");
             $("#chillGameChallenge").val(game?.challenge || "");
@@ -10443,14 +10456,15 @@
             const room = myMusicRoom();
             if (!room || room.hostId !== userIdOf(currentAuthor())) return;
             const num = (sel, [min, max]) => Math.min(max, Math.max(min, Math.round(Number($(sel).val())) || min));
+            const optional = (sel, limits) => ($(sel).val().trim() ? num(sel, limits) : 0); // left empty: 0
             const old = chillGameOf(room);
             const editing = !!old && chillGameStatusOf(old) === "waiting";
             const game = {
                 id: editing ? old.id : `g${Date.now().toString(36)}`,
                 name: $("#chillGameName").val().trim().slice(0, 40) || "Mini game",
-                max: num("#chillGameMax", CHILL_GAME_LIMITS.max),
+                max: optional("#chillGameMax", CHILL_GAME_LIMITS.max),
                 lives: num("#chillGameLives", CHILL_GAME_LIMITS.lives),
-                hits: num("#chillGameHits", CHILL_GAME_LIMITS.hits),
+                hits: optional("#chillGameHits", CHILL_GAME_LIMITS.hits),
                 minutes: num("#chillGameMinutes", CHILL_GAME_LIMITS.minutes),
                 rules: $("#chillGameRules").val().trim().slice(0, 200),
                 challenge: $("#chillGameChallenge").val().trim().slice(0, 200),
@@ -10475,7 +10489,7 @@
                     showToast("Đăng nhập để tham gia game nhé");
                     return;
                 }
-                if (act === "join" && chillGamePlayers(room, game).length >= game.max) {
+                if (act === "join" && game.max && chillGamePlayers(room, game).length >= game.max) {
                     showToast("Game đã đủ người rồi");
                     return;
                 }
