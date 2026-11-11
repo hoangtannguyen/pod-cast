@@ -8033,18 +8033,61 @@ a.profile-about-row:hover {
     }
 
     .chill-room {
+        height: 100vh;
         height: 100dvh;
+        max-height: 100vh;
+        max-height: 100dvh;
         padding-bottom: env(safe-area-inset-bottom);
         border-radius: 0;
         background: #1a1233; /* the safe area under the chat matches the bar */
     }
 
     .chill-head {
-        padding-top: calc(10px + env(safe-area-inset-top));
+        flex-wrap: wrap;
+        gap: 6px 8px;
+        padding: calc(8px + env(safe-area-inset-top)) 10px 8px;
         background: #120c24;
     }
 
+    #chillTitle {
+        order: 1;
+        flex: 1 1 auto;
+        min-width: 0;
+        font-size: 15px;
+    }
+
+    .chill-close {
+        order: 2;
+        flex: 0 0 36px;
+        width: 36px;
+        height: 36px;
+    }
+
+    .chill-sub {
+        display: none;
+    }
+
+    .chill-theme {
+        order: 4;
+        flex: 1 1 0;
+        min-width: 0;
+        max-width: none;
+        height: 36px;
+    }
+
+    .chill-rain-wrap,
+    #chillParty {
+        order: 5;
+    }
+
+    .chill-toggle {
+        width: 36px;
+        height: 36px;
+    }
+
     .chill-scene {
+        flex: 1 1 0%;
+        min-height: 0;
         --chill-size: 0.82;
     }
 
@@ -8059,12 +8102,6 @@ a.profile-about-row:hover {
 
     .chill-actions {
         max-width: min(260px, calc(100vw - 20px));
-        max-height: min(42vh, 220px);
-    }
-
-    .chill-actions button {
-        font-size: 11px;
-        padding: 6px 8px;
     }
 
     .chill-screen {
@@ -8080,56 +8117,69 @@ a.profile-about-row:hover {
         font-size: 9px;
     }
 
-    /* Two rows: 👎 meter 👍, then Nhảy / Thoát side by side */
+    /* Keep all room controls on one row so the scene gets more height */
     .chill-bar {
-        flex-wrap: wrap;
-        gap: 8px 10px;
-        padding: 8px 12px 2px;
-    }
-
-    .chill-bar::before {
-        content: "";
-        flex-basis: 100%;
-        order: 2;
+        display: grid;
+        grid-template-columns: 36px minmax(64px, 80px) 36px repeat(3, minmax(0, 1fr));
+        align-items: center;
+        gap: 4px;
+        padding: 5px 8px;
     }
 
     .chill-dance,
     .chill-chat-toggle,
     .chill-exit {
-        flex: 1;
+        width: 100%;
         min-width: 0;
-        max-width: 140px;
         height: 36px;
-        order: 3;
-        padding: 0 10px;
-        font-size: 13px;
-    }
-
-    .chill-quick button:nth-child(n + 3) {
-        display: none; /* ❤️ 😂 only: leave room for typing */
+        padding: 0 3px;
+        font-size: 11px;
     }
 
     .chill-vote {
-        width: 40px;
-        height: 40px;
-        font-size: 17px;
+        width: 36px;
+        height: 36px;
+        justify-self: center;
+        font-size: 16px;
     }
 
     .chill-meter {
-        width: 96px;
-        height: 48px;
-    }
-
-    .chill-meter::before {
-        inset: 0 0 -48px;
-    }
-
-    .chill-needle {
+        justify-self: center;
+        width: 100%;
         height: 42px;
     }
 
+    .chill-meter::before {
+        inset: 0 0 -42px;
+    }
+
+    .chill-needle {
+        height: 36px;
+    }
+
     .chill-chat {
+        align-items: center;
+        gap: 4px;
         padding: 8px 12px;
+    }
+
+    .chill-chat .chill-quick {
+        flex: 0 0 auto;
+        gap: 1px;
+    }
+
+    .chill-chat .chill-quick button {
+        width: 30px;
+        height: 34px;
+        line-height: 32px;
+    }
+
+    .chill-chat input {
+        padding: 8px 10px;
+    }
+
+    .chill-chat > button[type="submit"] {
+        padding: 8px 10px;
     }
 
     .chill-tip {
@@ -8153,6 +8203,52 @@ a.profile-about-row:hover {
 
     .chill-scene {
         --chill-size: 0.75;
+    }
+
+    .chill-head {
+        gap: 4px 6px;
+        padding-bottom: 6px;
+    }
+
+    .chill-sub {
+        display: none;
+    }
+
+    .chill-theme,
+    .chill-toggle,
+    .chill-close {
+        height: 32px;
+    }
+
+    .chill-toggle,
+    .chill-close {
+        width: 32px;
+    }
+
+    .chill-emotes {
+        padding-top: 5px;
+    }
+
+    .chill-bar {
+        gap: 3px;
+        padding-top: 4px;
+        padding-bottom: 4px;
+    }
+
+    .chill-dance,
+    .chill-chat-toggle,
+    .chill-exit {
+        height: 32px;
+        font-size: 10px;
+    }
+
+    .chill-vote {
+        width: 32px;
+        height: 32px;
+    }
+
+    .chill-chat {
+        padding-top: 4px;
     }
 }
 
@@ -8379,12 +8475,12 @@ a.profile-about-row:hover {
     gap: 6px;
     width: max-content;
     max-width: min(290px, calc(100vw - 24px));
-    max-height: min(46vh, 240px);
+    max-height: min(46vh, 240px, calc(100% - 16px));
     padding: 6px;
     border-radius: 16px;
     background: rgba(17, 12, 34, 0.92);
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
-    translate: -50% calc(-100% - 6px);
+    translate: -50% 0;
     white-space: nowrap;
     overflow-y: auto;
     overscroll-behavior: contain;
@@ -9558,6 +9654,7 @@ a.profile-about-row:hover {
     flex-direction: column;
     align-items: stretch;
     flex-wrap: nowrap;
+    min-width: 0;
     border-left: 0;
     border-top: 3px solid var(--act);
 }
@@ -9593,6 +9690,9 @@ a.profile-about-row:hover {
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-width: 0;
     gap: 3px;
     padding: 5px 4px;
     border: 1px solid color-mix(in srgb, var(--act) 55%, transparent);
@@ -9615,7 +9715,64 @@ a.profile-about-row:hover {
 
 /* No room above the character: the menu opens below it */
 .chill-actions.is-below {
-    translate: -50% 6px;
+    translate: -50% 0;
+}
+
+@media (max-width: 600px) {
+    .chill-theme {
+        flex: 1 1 0;
+        min-width: 0;
+        max-width: none;
+        height: 36px;
+    }
+
+    .chill-toggle {
+        width: 36px;
+        height: 36px;
+    }
+
+    .chill-actions {
+        width: min(340px, calc(100vw - 20px));
+        max-width: calc(100vw - 20px);
+        max-height: min(220px, calc(100% - 16px));
+    }
+
+    .chill-actions button {
+        padding: 6px 8px;
+        font-size: 11px;
+    }
+
+    .chill-act-row {
+        width: 100%;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .chill-act-row button {
+        padding: 5px 2px;
+        white-space: nowrap;
+    }
+
+    .chill-act-row button b {
+        max-width: 100%;
+        padding: 1px 3px;
+        font-size: 8px;
+        white-space: nowrap;
+    }
+
+    .chill-emotes {
+        gap: 4px;
+        padding: 4px 8px 0;
+    }
+
+    .chill-emotes button {
+        padding: 3px 7px;
+    }
+}
+
+@media (max-height: 520px) {
+    .chill-actions {
+        max-height: min(200px, calc(100% - 16px));
+    }
 }
 
 /* Poked, by HP left: "!" (90–70), wincing (60–40), dizzy with spinning eyes (30–10) */
