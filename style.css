@@ -10911,6 +10911,20 @@ a.profile-about-row:hover {
     }
 }
 
+@media (max-width: 600px) {
+    #chillModal .chill-settings-menu {
+        position: fixed;
+        top: calc(env(safe-area-inset-top) + 52px);
+        right: 8px;
+        left: auto;
+        z-index: 1000;
+        width: min(300px, calc(100vw - 16px));
+        max-height: calc(100dvh - env(safe-area-inset-top) - 64px);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+}
+
 #chillModal .chill-room {
     position: relative;
     width: min(1200px, calc(100vw - 32px));
