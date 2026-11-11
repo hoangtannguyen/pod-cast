@@ -10878,7 +10878,7 @@
         }
 
         function renderChillChatFeed() {
-            const recentRoomMessages = musicChatMessages.slice(-4);
+            const recentRoomMessages = musicChatMessages.slice(-4).reverse();
             const hidden = chillPref("hideChatFeed");
             $("#chillChatFeedToggle")
                 .toggle(!!myMusicRoom())

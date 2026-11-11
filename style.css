@@ -11331,7 +11331,8 @@ a.profile-about-row:hover {
 
     #chillModal .chill-chat-feed {
         right: 8px;
-        bottom: 8px;
+        top: 8px;
+        bottom: auto;
         width: min(250px, 68%);
         max-height: 104px;
         padding: 6px 8px;
