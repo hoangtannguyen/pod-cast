@@ -8738,7 +8738,13 @@ a.profile-about-row:hover {
     bottom: 16px;
     font-size: 15px;
     line-height: 1;
-    animation: chill-pop 0.25s ease-out;
+    animation: chill-pop 0.25s ease-out, chill-gift-sip 2s ease-in-out 0.4s infinite;
+}
+
+/* Lifted to the mouth, a sip, lowered again */
+@keyframes chill-gift-sip {
+    0%, 50%, 100% { transform: none; }
+    65%, 85% { transform: translate(12px, -18px) rotate(30deg); }
 }
 
 /* Seated on a beanbag / couch / sofa ring: legs tucked, body sunk a little, arms resting, breathing slowly */
@@ -9218,4 +9224,271 @@ a.profile-about-row:hover {
 
 .chill-scene[data-chill-theme="rooftop"] .chill-lights {
     left: 3%;
+}
+
+/* HP bar under the name: green, red when low */
+.chill-hp {
+    width: 36px;
+    height: 4px;
+    margin-bottom: 3px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.55);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
+
+.chill-hp i {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #22c55e, #a3e635);
+    transition: width 0.4s ease-out;
+}
+
+.chill-hp.is-low i {
+    background: linear-gradient(90deg, #ef4444, #f97316);
+}
+
+/* Emotion bubble beside the head */
+.chill-mood {
+    position: absolute;
+    z-index: 2;
+    top: 12px;
+    left: calc(50% + 18px);
+    padding: 2px 5px;
+    border-radius: 12px 12px 12px 3px;
+    background: #fff;
+    font-size: 15px;
+    line-height: 1.2;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
+    animation: chill-mood 1.8s ease-out forwards;
+}
+
+@keyframes chill-mood {
+    0% { opacity: 0; transform: scale(0.4) translateY(6px); }
+    15% { opacity: 1; transform: scale(1.15); }
+    25%, 80% { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: translateY(-8px); }
+}
+
+/* Thả tim: pixel-art hearts, moving in steps like an old game */
+.chill-fx.is-heart {
+    animation-timing-function: steps(10);
+}
+
+.chill-pixel-heart {
+    position: relative;
+    display: block;
+    width: 21px;
+    height: 18px;
+    filter: drop-shadow(0 0 4px rgba(244, 63, 94, 0.75));
+}
+
+.chill-pixel-heart::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 3px;
+    height: 3px;
+    box-shadow:
+        3px 0px var(--heart,
+        #f43f5e),
+        6px 0px var(--heart,
+        #f43f5e),
+        12px 0px var(--heart,
+        #f43f5e),
+        15px 0px var(--heart,
+        #f43f5e),
+        0px 3px var(--heart,
+        #f43f5e),
+        3px 3px #fff,
+        6px 3px var(--heart,
+        #f43f5e),
+        9px 3px var(--heart,
+        #f43f5e),
+        12px 3px var(--heart,
+        #f43f5e),
+        15px 3px var(--heart,
+        #f43f5e),
+        18px 3px var(--heart,
+        #f43f5e),
+        0px 6px var(--heart,
+        #f43f5e),
+        3px 6px var(--heart,
+        #f43f5e),
+        6px 6px var(--heart,
+        #f43f5e),
+        9px 6px var(--heart,
+        #f43f5e),
+        12px 6px var(--heart,
+        #f43f5e),
+        15px 6px var(--heart,
+        #f43f5e),
+        18px 6px var(--heart,
+        #f43f5e),
+        3px 9px var(--heart,
+        #f43f5e),
+        6px 9px var(--heart,
+        #f43f5e),
+        9px 9px var(--heart,
+        #f43f5e),
+        12px 9px var(--heart,
+        #f43f5e),
+        15px 9px var(--heart,
+        #f43f5e),
+        6px 12px var(--heart,
+        #f43f5e),
+        9px 12px var(--heart,
+        #f43f5e),
+        12px 12px var(--heart,
+        #f43f5e),
+        9px 15px var(--heart,
+        #f43f5e);
+}
+
+.chill-fx.is-heart:nth-of-type(2n) .chill-pixel-heart {
+    --heart: #ec4899;
+}
+
+/* Happy: the head wiggles */
+.chill-char.is-happy .chill-face {
+    animation: chill-happy 0.6s ease-in-out 2;
+}
+
+@keyframes chill-happy {
+    25% { transform: rotate(-12deg) scale(1.08); }
+    75% { transform: rotate(12deg) scale(1.08); }
+}
+
+/* -10 / +10 HP */
+.chill-fx.is-num {
+    font-family: "Courier New", monospace;
+    font-size: 15px;
+    font-weight: 800;
+    text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+}
+
+.chill-fx.is-hurt {
+    color: #f87171;
+}
+
+.chill-fx.is-heal {
+    color: #4ade80;
+}
+
+/* Vỗ đầu: the hand pats the head three times, the head squishes */
+.chill-fx.is-pat {
+    animation: chill-pat 1s ease-in-out forwards;
+}
+
+@keyframes chill-pat {
+    0% { opacity: 0; transform: translateY(-14px); }
+    10% { opacity: 1; }
+    20%, 50%, 80% { transform: translateY(-14px); }
+    35%, 65%, 95% { opacity: 1; transform: translateY(2px); }
+    100% { opacity: 0; transform: translateY(2px); }
+}
+
+.chill-char.is-patted .chill-face {
+    animation: chill-patted 0.3s ease-in-out 3;
+}
+
+@keyframes chill-patted {
+    50% { transform: scale(1.12, 0.84) translateY(3px); }
+}
+
+/* Cười nhạo: the one laughing shakes with laughter */
+#chillScene .chill-char.is-laughing {
+    animation: chill-laugh 0.2s ease-in-out 8 !important;
+}
+
+@keyframes chill-laugh {
+    0%, 100% { transform: none; }
+    50% { transform: translateY(-3px) rotate(-4deg); }
+}
+
+/* Tipsy (3 beers): the character sways with rosy cheeks, and my own screen sways a little */
+#chillScene .chill-char.is-tipsy:not(.is-hugging):not(.is-duo) {
+    animation: chill-tipsy 2.2s ease-in-out infinite;
+}
+
+.chill-char.is-tipsy .chill-face::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(circle at 24% 68%, rgba(244, 63, 94, 0.55) 0 12%, transparent 14%),
+        radial-gradient(circle at 76% 68%, rgba(244, 63, 94, 0.55) 0 12%, transparent 14%);
+    pointer-events: none;
+}
+
+@keyframes chill-tipsy {
+    0%, 100% { transform: rotate(-6deg) translateX(-2px); }
+    50% { transform: rotate(6deg) translateX(2px); }
+}
+
+#chillScene.is-tipsy {
+    animation: chill-woozy 4s ease-in-out infinite;
+}
+
+@keyframes chill-woozy {
+    0%, 100% { transform: none; }
+    25% { transform: translate(3px, 1px) rotate(0.4deg); }
+    75% { transform: translate(-3px, -1px) rotate(-0.4deg); }
+}
+
+/* Dozing off (5 beers): head drops, Zzz floats up; on waking up, bubbles */
+#chillScene .chill-char.is-napping {
+    animation: chill-breathe 2s ease-in-out infinite;
+}
+
+.chill-char.is-napping .chill-face {
+    transform: rotate(18deg) translateY(3px);
+}
+
+.chill-char.is-napping .chill-prop {
+    bottom: auto;
+    top: 4px;
+    animation: chill-zzz 1s ease-in-out infinite;
+}
+
+.chill-particle.is-bubble {
+    width: 10px;
+    height: 10px;
+    border: 1.5px solid rgba(255, 255, 255, 0.85);
+    background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.8), rgba(125, 211, 252, 0.25) 60%);
+    box-shadow: 0 0 6px rgba(125, 211, 252, 0.7);
+    animation-duration: 1.6s;
+}
+
+/* Knocked out (0 HP): falls over, stars spin above the head; gets up again on its own */
+#chillScene .chill-char.is-ko {
+    transform-origin: 50% 100%;
+    animation: chill-ko 0.6s ease-in forwards !important;
+}
+
+.chill-char.is-ko .chill-face {
+    filter: saturate(0.5) brightness(0.9);
+}
+
+.chill-char.is-ko .chill-prop {
+    right: auto;
+    bottom: auto;
+    top: 6px;
+    left: 50%;
+    font-size: 16px;
+    animation: chill-ko-stars 1s linear infinite;
+}
+
+@keyframes chill-ko {
+    0% { transform: none; }
+    30% { transform: translateY(-10px) rotate(12deg); }
+    100% { transform: rotate(-84deg) translateX(4px); }
+}
+
+@keyframes chill-ko-stars {
+    from { transform: translateX(-50%) rotate(0); }
+    to { transform: translateX(-50%) rotate(360deg); }
 }
