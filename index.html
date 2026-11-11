@@ -975,6 +975,11 @@
                     <div class="chill-stage-row">
                         <span class="chill-speaker"></span>
                         <div class="chill-booth" id="chillBooth"></div>
+                        <button type="button" class="chill-request-notice" id="chillRequestNotice" aria-label="Yêu cầu bài hát đang chờ DJ duyệt" aria-controls="chillRequestPop" aria-expanded="false" title="Yêu cầu bài hát" hidden>🎵<span id="chillRequestCount"></span></button>
+                        <section class="chill-request-pop" id="chillRequestPop" aria-label="Yêu cầu bài hát chờ duyệt" hidden>
+                            <strong class="chill-request-title">Bài hát chờ duyệt</strong>
+                            <ul class="music-rooms music-queue-list" id="chillRequestsList"></ul>
+                        </section>
                         <span class="chill-speaker"></span>
                     </div>
                     <div class="chill-marquee"><span id="chillMarquee"></span></div>
@@ -9120,6 +9125,20 @@
                 .filter((item) => item?.key && /^[\w-]{11}$/.test(item.videoId || ""));
         }
 
+        function musicRequestRows(requests) {
+            return requests.map((item) => $("<li>", { class: "music-song-request" }).append(
+                $("<span>", { class: "music-cover" }).css("background-image", `url(${youtubeThumb(item.videoId)})`),
+                $("<div>").append(
+                    $("<strong>", { text: item.title || "Video YouTube" }),
+                    $("<span>", { text: `Yêu cầu bởi ${nameOf(authorOfId(item.addedBy))}` })
+                ),
+                $("<span>", { class: "music-request-actions" }).append(
+                    $("<button>", { type: "button", class: "music-request-approve", "data-key": item.key, text: "Duyệt" }),
+                    $("<button>", { type: "button", class: "music-request-skip", "data-key": item.key, text: "Bỏ qua" })
+                )
+            ));
+        }
+
         function renderMusicQueue(room) {
             const myId = userIdOf(currentAuthor());
             const queue = musicQueueOf(room);
@@ -9140,17 +9159,7 @@
             const isHost = isMusicHost(room);
             $("#musicRequestsPanel").prop("hidden", !isHost || requests.length === 0);
             $("#musicRequestsCount").text(requests.length ? `(${requests.length})` : "");
-            $("#musicRequestsList").empty().append(requests.map((item) => $("<li>", { class: "music-song-request" }).append(
-                $("<span>", { class: "music-cover" }).css("background-image", `url(${youtubeThumb(item.videoId)})`),
-                $("<div>").append(
-                    $("<strong>", { text: item.title || "Video YouTube" }),
-                    $("<span>", { text: `Yêu cầu bởi ${nameOf(authorOfId(item.addedBy))}` })
-                ),
-                $("<span>", { class: "music-request-actions" }).append(
-                    $("<button>", { type: "button", class: "music-request-approve", "data-key": item.key, text: "Duyệt" }),
-                    $("<button>", { type: "button", class: "music-request-skip", "data-key": item.key, text: "Bỏ qua" })
-                )
-            )));
+            $("#musicRequestsList").empty().append(musicRequestRows(requests));
         }
 
         // Host: play / pause / skip / seek. Member: the play button only shows when autoplay was blocked
@@ -9490,6 +9499,19 @@
             if (!room) {
                 $("#chillSongPop").prop("hidden", true);
                 $("#chillSongBtn").attr("aria-expanded", "false").removeClass("is-active");
+            }
+            const requests = room && isMusicHost(room) ? musicRequestsOf(room) : [];
+            const requestNoticeOpen = !$("#chillRequestPop").prop("hidden");
+            $("#chillRequestNotice")
+                .prop("hidden", requests.length === 0)
+                .attr("aria-expanded", String(requestNoticeOpen && requests.length > 0))
+                .attr("aria-label", `${requests.length} yêu cầu bài hát đang chờ DJ duyệt`)
+                .toggleClass("has-requests", requests.length > 0);
+            $("#chillRequestCount").text(requests.length || "");
+            $("#chillRequestsList").empty().append(musicRequestRows(requests));
+            if (!requests.length) {
+                $("#chillRequestPop").prop("hidden", true);
+                $("#chillRequestNotice").attr("aria-expanded", "false");
             }
             $("#chillSub").text(room ? `${room.name} · ${(room.memberIds || []).length} đang nghe` : "Phòng mẫu · vào một Chill Room để gặp bạn bè");
             renderChillChat(room);
@@ -10896,7 +10918,13 @@
             }
         }
 
-        $("#musicRequestsList")
+        $("#chillRequestNotice").on("click", function () {
+            const open = $("#chillRequestPop").prop("hidden");
+            $("#chillRequestPop").prop("hidden", !open);
+            $(this).attr("aria-expanded", String(open));
+        });
+
+        $("#musicRequestsList, #chillRequestsList")
             .on("click", ".music-request-approve", function () {
                 respondToSongRequest($(this).attr("data-key"), true);
             })
