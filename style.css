@@ -7696,20 +7696,21 @@ a.profile-about-row:hover {
 .chill-dog {
     position: absolute;
     display: grid;
-    width: 38px;
-    height: 42px;
+    width: 64px;
+    height: 68px;
     place-items: center;
     translate: -50% -100%;
     scale: calc(var(--depth, 1) * var(--chill-size, 1));
-    transition: left 0.9s linear, top 0.9s linear;
+    transition: left 0.75s linear, top 0.75s linear;
     pointer-events: none;
     filter: drop-shadow(0 3px 2px rgba(0, 0, 0, 0.48));
 }
 
 .chill-dog-sprite {
     display: block;
-    font-size: 30px;
-    line-height: 1;
+    width: 64px;
+    height: 64px;
+    object-fit: contain;
     transform-origin: 50% 80%;
     animation: chill-dog-run 0.28s steps(2, end) infinite alternate;
 }

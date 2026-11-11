@@ -10719,7 +10719,10 @@
             }
             if (!$sprite.length) {
                 $sprite = $("<div>", { id: "chillDog", class: "chill-dog", "aria-hidden": "true" })
-                    .append($("<span>", { class: "chill-dog-bark", text: "woof!" }), $("<span>", { class: "chill-dog-sprite", text: "🐕" }))
+                    .append(
+                        $("<span>", { class: "chill-dog-bark", text: "woof!" }),
+                        $("<img>", { class: "chill-dog-sprite", src: "images/shiba.png", alt: "", draggable: false })
+                    )
                     .appendTo($floor);
             }
             const biteId = dog.bite?.id || "";
@@ -10728,6 +10731,10 @@
                 .attr("data-bite", biteId);
             placeChillChar($sprite, dog.x, dog.y);
             $sprite.css("--depth", (0.8 + dog.y / 400).toFixed(2));
+            if (biteId && (room.id !== chillDogSeenBark.roomId || biteId !== chillDogSeenBark.id)) {
+                chillDogSeenBark = { roomId: room.id, id: biteId };
+                if (typeof dog.barkAt === "number" && Date.now() - dog.barkAt < CHILL_DOG_BARK_MS) playChillDogSound();
+            }
             if (biteId && (room.id !== chillDogSeenBite.roomId || biteId !== chillDogSeenBite.id)
                 && dog.bite.targetId === userIdOf(currentAuthor())
                 ) {
@@ -10737,7 +10744,6 @@
                     restartChillClass($me, "is-dog-bitten", 650);
                     showChillMood($me, "😵");
                     takeChillAct(userIdOf(currentAuthor()), () => chill, "dogBite", saveMyVitals);
-                    if (typeof dog.barkAt === "number" && Date.now() - dog.barkAt < CHILL_DOG_BARK_MS) playChillDogSound();
                 }
             }
         }
@@ -10747,17 +10753,20 @@
                 const AudioContext = window.AudioContext || window.webkitAudioContext;
                 if (!AudioContext) return;
                 const audio = new AudioContext();
-                const oscillator = audio.createOscillator();
-                const gain = audio.createGain();
-                oscillator.type = "square";
-                oscillator.frequency.setValueAtTime(420, audio.currentTime);
-                oscillator.frequency.exponentialRampToValueAtTime(180, audio.currentTime + 0.12);
-                gain.gain.setValueAtTime(0.06, audio.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.14);
-                oscillator.connect(gain).connect(audio.destination);
-                oscillator.start();
-                oscillator.stop(audio.currentTime + 0.14);
-                oscillator.onended = () => audio.close();
+                [0, 0.2].forEach((offset, index) => {
+                    const startAt = audio.currentTime + offset;
+                    const oscillator = audio.createOscillator();
+                    const gain = audio.createGain();
+                    oscillator.type = "square";
+                    oscillator.frequency.setValueAtTime(index ? 500 : 620, startAt);
+                    oscillator.frequency.exponentialRampToValueAtTime(190, startAt + 0.11);
+                    gain.gain.setValueAtTime(0.055, startAt);
+                    gain.gain.exponentialRampToValueAtTime(0.001, startAt + 0.15);
+                    oscillator.connect(gain).connect(audio.destination);
+                    oscillator.start(startAt);
+                    oscillator.stop(startAt + 0.15);
+                    if (index) oscillator.onended = () => audio.close();
+                });
             } catch (err) {
                 console.warn("Dog Chase sound could not be played.", err);
             }
@@ -10834,14 +10843,15 @@
             persistChillDog(room, nextDog);
         }
 
-        const CHILL_DOG_STEP = 3.2;
+        const CHILL_DOG_STEP = 4;
         const CHILL_DOG_REACH = 5;
         const CHILL_DOG_TARGET_MS = 7000;
         const CHILL_DOG_BITE_MS = 700;
-        const CHILL_DOG_BARK_MS = 400;
+        const CHILL_DOG_BARK_MS = 2200;
         const CHILL_DOG_BITE_COOLDOWN_MS = 2600;
         const CHILL_DOG_BITE_DAMAGE = 5;
         let chillDogSeenBite = { roomId: "", id: "" };
+        let chillDogSeenBark = { roomId: "", id: "" };
         let chillDogSyncBlockedRoom = "";
 
         function showChillGamePop(show) {
