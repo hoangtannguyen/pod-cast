@@ -10716,6 +10716,8 @@
             let $sprite = $("#chillDog");
             if (!dog || !Number.isFinite(dog.x) || !Number.isFinite(dog.y)) {
                 $sprite.remove();
+                clearInterval(chillDogFrameTimer);
+                chillDogFrameTimer = null;
                 return;
             }
             if (!$sprite.length) {
@@ -10730,6 +10732,21 @@
             $sprite.toggleClass("is-biting", dog.mode === "bite" || (dog.bite?.at && Date.now() - dog.bite.at < CHILL_DOG_BITE_MS))
                 .toggleClass("is-facing-left", !!dog.facingLeft)
                 .attr("data-bite", biteId);
+            if (chillDogFrameTimer === null) {
+                chillDogFrameTimer = setInterval(() => {
+                    const $dog = $("#chillDog");
+                    const $image = $dog.find(".chill-dog-sprite");
+                    if (!$image.length) {
+                        clearInterval(chillDogFrameTimer);
+                        chillDogFrameTimer = null;
+                        return;
+                    }
+                    const frame = $dog.hasClass("is-biting")
+                        ? "shiba-run-4.png"
+                        : CHILL_DOG_FRAMES[++chillDogFrameIndex % CHILL_DOG_FRAMES.length];
+                    $image.attr("src", `images/${frame}`);
+                }, 2000);
+            }
             placeChillChar($sprite, dog.x, dog.y);
             $sprite.css("--depth", (0.8 + dog.y / 400).toFixed(2));
             if (biteId && (room.id !== chillDogSeenBark.roomId || biteId !== chillDogSeenBark.id)) {
@@ -10851,6 +10868,9 @@
         const CHILL_DOG_BARK_MS = 2200;
         const CHILL_DOG_BITE_COOLDOWN_MS = 2600;
         const CHILL_DOG_BITE_DAMAGE = 5;
+        const CHILL_DOG_FRAMES = ["shiba.png", "shiba-run-2.png", "shiba-run-3.png", "shiba-run-4.png", "shiba-run-5.png"];
+        let chillDogFrameTimer = null;
+        let chillDogFrameIndex = 0;
         let chillDogSeenBite = { roomId: "", id: "" };
         let chillDogSeenBark = { roomId: "", id: "" };
         let chillDogSyncBlockedRoom = "";
