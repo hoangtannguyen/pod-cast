@@ -11172,3 +11172,42 @@ a.profile-about-row:hover {
         height: 34px;
     }
 }
+
+#chillModal .chill-stage {
+    width: max-content;
+    max-width: calc(100% - 6%);
+    grid-template-columns: minmax(0, clamp(160px, 28vw, 270px)) auto;
+}
+
+#chillModal .chill-screen,
+#chillModal .chill-marquee,
+#chillModal .chill-nextup {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+#chillModal .chill-marquee span,
+#chillModal .chill-nextup span {
+    max-width: none;
+}
+
+@media (max-width: 600px) {
+    #chillModal .chill-stage {
+        grid-template-columns: minmax(0, min(52vw, 200px)) auto;
+    }
+
+    #chillModal .chill-screen {
+        width: 100%;
+    }
+}
+
+@media (max-height: 520px) {
+    #chillModal .chill-stage {
+        grid-template-columns: minmax(0, 130px) auto;
+    }
+
+    #chillModal .chill-screen {
+        width: 100%;
+    }
+}
