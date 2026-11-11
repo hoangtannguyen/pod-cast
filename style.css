@@ -9950,6 +9950,31 @@ a.profile-about-row:hover {
     font-weight: 700;
 }
 
+/* Cooldown: a dark sweep that shrinks clockwise, the seconds left on top */
+.chill-act-row button.is-cooling,
+#chillModal .chill-emotes button.is-cooling {
+    position: relative;
+    overflow: hidden;
+    cursor: not-allowed;
+}
+
+.chill-act-row button.is-cooling::after,
+#chillModal .chill-emotes button.is-cooling::after {
+    content: attr(data-cd) "s";
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: inherit;
+    background: conic-gradient(rgba(0, 0, 0, 0.62) calc(var(--cd, 0) * 360deg), rgba(0, 0, 0, 0.18) 0);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 800;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+    pointer-events: none;
+}
+
 /* No room above the character: the menu opens below it */
 .chill-actions.is-below {
     translate: -50% 0;

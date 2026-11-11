@@ -9724,6 +9724,44 @@
         const CHILL_ZEN_HEAL = 5;
         let chillZenTimer = null;
 
+        // Cooldowns (ms) for HP actions: key = act type or emote, value = when it can be used again
+        const CHILL_COOLDOWN_MS = { poke: 3000, milktea: 5000, meditate: 6000 };
+        const chillCooldownUntil = {};
+
+        // Still cooling down: a toast with the seconds left and true; else starts the cooldown and false
+        function chillOnCooldown(key) {
+            if (!CHILL_COOLDOWN_MS[key]) return false;
+            const left = (chillCooldownUntil[key] || 0) - Date.now();
+            if (left > 0) {
+                showToast(`Chờ ${Math.ceil(left / 1000)} giây nữa để dùng lại nhé ⏳`);
+                return true;
+            }
+            chillCooldownUntil[key] = Date.now() + CHILL_COOLDOWN_MS[key];
+            paintChillCooldowns();
+            return false;
+        }
+
+        // The button dims with a sweep and the seconds left until it is ready again
+        let chillCooldownTimer = null;
+        function paintChillCooldowns() {
+            let cooling = false;
+            Object.keys(CHILL_COOLDOWN_MS).forEach((key) => {
+                const left = (chillCooldownUntil[key] || 0) - Date.now();
+                const $btn = $(`[data-chill-act="${key}"], [data-chill-emote="${key}"]`);
+                if (left > 0) {
+                    cooling = true;
+                    $btn.addClass("is-cooling").attr("data-cd", Math.ceil(left / 1000)).css("--cd", left / CHILL_COOLDOWN_MS[key]);
+                } else {
+                    $btn.removeClass("is-cooling").removeAttr("data-cd").css("--cd", "");
+                }
+            });
+            if (cooling && !chillCooldownTimer) chillCooldownTimer = setInterval(paintChillCooldowns, 100);
+            if (!cooling && chillCooldownTimer) {
+                clearInterval(chillCooldownTimer);
+                chillCooldownTimer = null;
+            }
+        }
+
         function startChillZen() {
             if (chillZenTimer) return;
             chillZenTimer = setInterval(() => {
@@ -10206,6 +10244,8 @@
                 showToast(chillDownText());
                 return;
             }
+            // Only starting it is limited: ending the current emote is always allowed
+            if (chill.emote !== emote && chillOnCooldown(emote)) return;
             chill.emote = chill.emote === emote ? "" : emote;
             if (chill.emote) chill.dancing = false;
             if (chill.emote === "meditate" && !$("#chillScene .chill-char.is-me").hasClass("is-seated")) {
@@ -10248,6 +10288,7 @@
                 showToast(chillDownText());
                 return;
             }
+            if (chillOnCooldown(type)) return;
             const $me = $("#chillFloor .chill-char.is-me");
             const $to = $("#chillFloor .chill-char").filter((_, el) => el.getAttribute("data-id") === toId);
             const room = myMusicRoom();
