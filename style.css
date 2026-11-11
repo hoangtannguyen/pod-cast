@@ -11227,3 +11227,118 @@ a.profile-about-row:hover {
         width: 100%;
     }
 }
+
+#chillModal .chill-chat-feed {
+    position: absolute;
+    right: 12px;
+    bottom: 12px;
+    z-index: 15;
+    width: min(280px, 42%);
+    max-height: 132px;
+    overflow: hidden;
+    padding: 8px 10px;
+    border: 1px solid rgba(192, 132, 252, 0.36);
+    border-radius: 12px;
+    background: rgba(18, 12, 36, 0.86);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28), 0 0 12px rgba(139, 92, 246, 0.12);
+    color: #f3e8ff;
+    font-size: 11px;
+    line-height: 1.35;
+    pointer-events: none;
+}
+
+#chillModal .chill-chat-feed[hidden] {
+    display: none;
+}
+
+#chillModal .chill-chat-feed-toggle {
+    display: grid;
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+    place-items: center;
+    border: 1px solid rgba(192, 132, 252, 0.48);
+    border-radius: 11px;
+    background: rgba(18, 12, 36, 0.82);
+    color: #f3e8ff;
+    font-size: 15px;
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.3);
+    transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+    pointer-events: auto;
+}
+
+#chillModal .chill-chat-feed-toggle:hover,
+#chillModal .chill-chat-feed-toggle[aria-pressed="false"] {
+    border-color: #c084fc;
+    background: rgba(126, 34, 206, 0.88);
+    box-shadow: 0 0 12px rgba(168, 85, 247, 0.38);
+}
+
+#chillModal .chill-chat-feed ul {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+#chillModal .chill-chat-feed ul[hidden] {
+    display: none;
+}
+
+#chillModal .chill-chat-feed-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 6px;
+    color: #d8b4fe;
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    pointer-events: none;
+}
+
+#chillModal .chill-chat-feed li {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 5px;
+    min-width: 0;
+}
+
+#chillModal .chill-chat-feed strong {
+    color: #d8b4fe;
+    white-space: nowrap;
+}
+
+#chillModal .chill-chat-feed li span {
+    min-width: 0;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 600px) {
+    #chillModal .chill-chat-feed-toggle {
+        width: 32px;
+        height: 32px;
+        flex-basis: 32px;
+    }
+
+    #chillModal .chill-chat-feed {
+        right: 8px;
+        bottom: 8px;
+        width: min(250px, 68%);
+        max-height: 104px;
+        padding: 6px 8px;
+        font-size: 10px;
+    }
+
+    #chillModal .chill-chat-feed ul {
+        gap: 3px;
+    }
+}

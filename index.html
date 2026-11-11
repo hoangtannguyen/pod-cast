@@ -978,6 +978,13 @@
                     <div class="chill-nextup" id="chillNextUpBar" hidden><span id="chillNextUp"></span></div>
                 </div>
                 <div class="chill-floor" id="chillFloor"></div>
+                <aside class="chill-chat-feed" id="chillChatFeed" aria-label="Tin nhắn trong phòng" hidden>
+                    <div class="chill-chat-feed-head">
+                        <strong>Chat phòng</strong>
+                        <button type="button" class="chill-chat-feed-toggle" id="chillChatFeedToggle" aria-label="Ẩn tin nhắn trong phòng" aria-controls="chillChatFeedList" aria-pressed="true" title="Ẩn tin nhắn">💬</button>
+                    </div>
+                    <ul id="chillChatFeedList" aria-live="polite"></ul>
+                </aside>
                 <!-- Shown over another character when it is clicked -->
                 <div class="chill-actions" id="chillActions" hidden>
                     <!-- Grouped by what it does to HP: fun (none), heal, damage, drinks (tipsy → nap) -->
@@ -10823,6 +10830,7 @@
                 musicChatMessages = [];
                 $("#musicChatList").empty();
                 $("#musicChatMore").hide();
+                renderChillChatFeed();
             }
             musicChatRoomId = roomId;
             if (!roomId) return;
@@ -10856,6 +10864,7 @@
             const list = $list[0];
             const fromBottom = list.scrollHeight - list.scrollTop;
             const atBottom = fromBottom - list.clientHeight < 24;
+            renderChillChatFeed();
             $list.empty().append(musicChatMessages.slice(-musicChatShown).map((m) => {
                 const name = authorOfId(m.fromId);
                 return $("<li>").append(
@@ -10867,6 +10876,30 @@
             if (keepPlace) list.scrollTop = list.scrollHeight - fromBottom;
             else if (atBottom) list.scrollTop = list.scrollHeight;
         }
+
+        function renderChillChatFeed() {
+            const recentRoomMessages = musicChatMessages.slice(-4);
+            const hidden = chillPref("hideChatFeed");
+            $("#chillChatFeedToggle")
+                .toggle(!!myMusicRoom())
+                .attr("aria-pressed", String(!hidden))
+                .attr("aria-label", hidden ? "Hiện tin nhắn trong phòng" : "Ẩn tin nhắn trong phòng")
+                .attr("title", hidden ? "Hiện tin nhắn" : "Ẩn tin nhắn");
+            $("#chillChatFeed").prop("hidden", !myMusicRoom());
+            $("#chillChatFeedList").prop("hidden", recentRoomMessages.length === 0 || hidden);
+            $("#chillChatFeedList").empty().append(recentRoomMessages.map((m) => {
+                const name = authorOfId(m.fromId);
+                return $("<li>").append(
+                    $("<strong>", { text: nameOf(name) }),
+                    $("<span>", { text: m.text })
+                );
+            }));
+        }
+
+        $("#chillChatFeedToggle").on("click", function () {
+            chillPref("hideChatFeed", !chillPref("hideChatFeed"));
+            renderChillChatFeed();
+        });
 
         function showOlderMusicChat() {
             musicChatShown += MUSIC_CHAT_PAGE;
