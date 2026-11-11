@@ -8853,6 +8853,21 @@ a.profile-about-row:hover {
     background: rgba(253, 230, 138, 0.18);
 }
 
+/* Heals (meditate on a seat): green outline and a "+5 HP" tag, also on phones */
+.chill-emotes button.is-heal {
+    border-color: rgba(34, 197, 94, 0.6);
+}
+
+.chill-emotes button b {
+    margin-left: 5px;
+    padding: 1px 5px;
+    border-radius: 999px;
+    background: #22c55e;
+    font-size: 9px;
+    font-weight: 700;
+    vertical-align: 1px;
+}
+
 @media (max-width: 600px) {
     .chill-emotes {
         justify-content: flex-start;
@@ -9574,4 +9589,120 @@ a.profile-about-row:hover {
 /* No room above the character: the menu opens below it */
 .chill-actions.is-below {
     translate: -50% 6px;
+}
+
+/* Poked, by HP left: "!" (90–70), wincing (60–40), dizzy with spinning eyes (30–10) */
+.chill-fx.is-alert {
+    color: #facc15;
+    font-size: 24px;
+    animation-name: chill-fx-pop;
+}
+
+#chillScene .chill-char.is-wincing {
+    animation: chill-wince 0.15s ease-in-out 6 !important;
+}
+
+.chill-char.is-wincing .chill-face {
+    transform: scale(1.06, 0.88);
+    filter: sepia(0.35) saturate(1.6) hue-rotate(-25deg);
+}
+
+@keyframes chill-wince {
+    0%, 100% { transform: none; }
+    25% { transform: translateX(-2px); }
+    75% { transform: translateX(2px); }
+}
+
+#chillScene .chill-char.is-dizzy {
+    animation: chill-dizzy 1.2s ease-in-out infinite !important;
+}
+
+@keyframes chill-dizzy {
+    0%, 100% { transform: rotate(0); }
+    25% { transform: rotate(-7deg) translateX(-3px); }
+    75% { transform: rotate(7deg) translateX(3px); }
+}
+
+.chill-eyes {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    padding-bottom: 4px;
+}
+
+.chill-eyes i {
+    font-size: 14px;
+    font-style: normal;
+    line-height: 1;
+    animation: chill-eyes-spin 0.8s linear infinite;
+}
+
+@keyframes chill-eyes-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Meditating on a seat (heals): cross-legged, eyes closed, a soft aura and leaves drifting around */
+.chill-char.is-seated[data-emote="meditate"] {
+    animation: chill-float 3s ease-in-out infinite;
+}
+
+.chill-char.is-seated[data-emote="meditate"] .chill-legs {
+    transform: scale(1.5, 0.3);
+}
+
+.chill-char.is-seated[data-emote="meditate"] .chill-face::before {
+    content: "︶ ︶";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    padding-bottom: 2px;
+    color: #1f2937;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-shadow: 0 0 3px #fff, 0 0 3px #fff;
+}
+
+.chill-char.is-seated[data-emote="meditate"]::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    left: 50%;
+    bottom: -4px;
+    width: 76px;
+    height: 76px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(167, 243, 208, 0.55), rgba(253, 230, 138, 0.25) 45%, transparent 70%);
+    translate: -50% 0;
+    animation: chill-aura 2s ease-in-out infinite;
+    pointer-events: none;
+}
+
+.chill-char.is-seated[data-emote="meditate"]::after {
+    content: "🍃";
+    position: absolute;
+    left: 50%;
+    bottom: 10px;
+    font-size: 12px;
+    animation: chill-leaf 4s linear infinite;
+    pointer-events: none;
+}
+
+@keyframes chill-aura {
+    0%, 100% { opacity: 0.6; transform: scale(0.9); }
+    50% { opacity: 1; transform: scale(1.1); }
+}
+
+@keyframes chill-leaf {
+    0% { opacity: 0; transform: translate(-30px, 0) rotate(0); }
+    15% { opacity: 1; }
+    50% { transform: translate(28px, -36px) rotate(180deg); }
+    85% { opacity: 1; }
+    100% { opacity: 0; transform: translate(-24px, -64px) rotate(360deg); }
 }

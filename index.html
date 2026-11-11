@@ -1027,7 +1027,7 @@
                 </div>
             </div>
             <div class="chill-emotes">
-                <button type="button" data-chill-emote="meditate">🧘<span> Thiền</span></button>
+                <button type="button" data-chill-emote="meditate" class="is-heal" title="Ngồi trên ghế rồi thiền: hồi 5 HP mỗi 2 giây">🧘<span> Thiền</span><b>+5 HP</b></button>
                 <button type="button" data-chill-emote="drink">🧋<span> Trà sữa</span></button>
                 <button type="button" data-chill-emote="beer">🍺<span> Uống bia</span></button>
                 <button type="button" data-chill-emote="sleep">😴<span> Ngủ gật</span></button>
@@ -9170,7 +9170,7 @@
             duoAsk: { text: "mời bạn nhảy đôi 💃", yes: "💃 Nhảy", then: "duo" },
         };
         const CHILL_PAIR_GAP = { hug: 4.5, duo: 8 }; // how close (percent of the floor) the pair stands
-        const CHILL_POKE_FACES = ["😳", "💢"];
+        const CHILL_DIZZY_MS = 3000; // poked at 30–10 HP: dizzy, eyes spinning
         // Heads one can pick instead of the avatar photo (chill.{userId}.skin); "" = the photo
         const CHILL_SKINS = ["🐱", "🐰", "🐶", "🐼", "🦊", "🐸", "🐯", "🐻", "🐨", "🐷", "🐵", "🐧"];
         const CHILL_HUG_MS = 4000;
@@ -9365,7 +9365,7 @@
                         && (Math.abs(parseFloat(this.style.left) - state.x) > 0.5 || Math.abs(parseFloat(this.style.top) - state.y) > 0.5);
                     const act = state.act;
                     setTimeout(() => {
-                        playChillAct(id, act.to, act.t, act.at);
+                        playChillAct(id, act.to, act.t);
                         if (act.to === myId) takeChillAct(myId, () => chill, act.t, saveMyVitals);
                     }, walking ? 850 : 0);
                     if (state.act.to === myId && CHILL_ASKS[state.act.t]) showChillInvite(id, state.act.t);
@@ -9591,7 +9591,28 @@
         let chillFxTimer = null;
         let chillFxTicks = 0;
 
+        // Meditating on a seat: +5 HP every 2 s. Mine only, written to the room (everyone sees the bar fill and +5)
+        const CHILL_ZEN_MS = 2000;
+        const CHILL_ZEN_HEAL = 5;
+        let chillZenTimer = null;
+
+        function startChillZen() {
+            if (chillZenTimer) return;
+            chillZenTimer = setInterval(() => {
+                if (!$("#chillModal").is(":visible")) {
+                    clearInterval(chillZenTimer);
+                    chillZenTimer = null;
+                    return;
+                }
+                const seated = $("#chillScene .chill-char.is-me").hasClass("is-seated");
+                if (chill.emote !== "meditate" || !seated || chill.ko || chillHpOf(chill) >= CHILL_HP_MAX) return;
+                chill.hp = Math.min(CHILL_HP_MAX, chillHpOf(chill) + CHILL_ZEN_HEAL);
+                saveMyChill();
+            }, CHILL_ZEN_MS);
+        }
+
         function startChillFx() {
+            startChillZen();
             if (chillFxTimer) return;
             chillFxTicks = 0;
             chillFxTimer = setInterval(() => {
@@ -9694,8 +9715,10 @@
             $char.find(".chill-hp").attr("title", `${hp}/${CHILL_HP_MAX} HP`).toggleClass("is-low", hp <= 30)
                 .find("i").css("width", `${(hp / CHILL_HP_MAX) * 100}%`);
             if (typeof before === "number" && before !== hp) showChillFloat($char, hp > before ? `+${hp - before}` : String(hp - before), hp > before ? "is-heal" : "is-hurt");
+            if (typeof before === "number" && hp < before && hp > 0) reactChillHurt($char, hp);
             const was = { ko: $char.hasClass("is-ko"), nap: $char.hasClass("is-napping"), tipsy: $char.hasClass("is-tipsy") };
             $char.toggleClass("is-ko", ko).toggleClass("is-napping", nap).toggleClass("is-tipsy", tipsy);
+            if (ko) $char.removeClass("is-startled is-wincing is-dizzy").find(".chill-eyes").remove();
             if (tipsy && !was.tipsy) showChillMood($char, "🥴");
             if (was.nap && !nap && !ko) {
                 spawnChillParticles($char, "bubble");
@@ -9715,22 +9738,39 @@
             $char.data("moodTimer", setTimeout(() => $mood.remove(), CHILL_MOOD_MS));
         }
 
-        // -10 / +50 floating up from the head
-        function showChillFloat($char, text, cls) {
+        // Hit, by what is left: startled with "!" (90–70), wincing with an angry bubble (60–40), dizzy with
+        // spinning eyes (30–10). 0 is the knock-out
+        function reactChillHurt($char, hp) {
+            if (hp >= 70) {
+                restartChillClass($char, "is-startled", 700);
+                showChillFloat($char, "!", "is-alert", -18);
+            } else if (hp >= 40) {
+                restartChillClass($char, "is-wincing", 900);
+                showChillMood($char, "💢");
+            } else {
+                $char.find(".chill-eyes").remove();
+                const $eyes = $("<span>", { class: "chill-eyes", "aria-hidden": "true" }).append($("<i>", { text: "🌀" }), $("<i>", { text: "🌀" }));
+                $char.find(".chill-face").append($eyes);
+                restartChillClass($char, "is-dizzy", CHILL_DIZZY_MS);
+                setTimeout(() => $eyes.remove(), CHILL_DIZZY_MS);
+            }
+        }
+
+        // -10 / +50 floating up from the head (`dx`: px right of its center)
+        function showChillFloat($char, text, cls, dx = 18) {
             const face = $char.find(".chill-face")[0];
             if (!face || !$("#chillModal").is(":visible")) return;
             const scene = $("#chillScene")[0].getBoundingClientRect();
             const box = face.getBoundingClientRect();
             const $fx = $("<span>", { class: `chill-fx is-num ${cls}`, text: text, "aria-hidden": "true" })
-                .css({ left: box.left - scene.left + box.width / 2 + 18, top: box.top - scene.top })
+                .css({ left: box.left - scene.left + box.width / 2 + dx, top: box.top - scene.top })
                 .appendTo("#chillScene");
             setTimeout(() => $fx.remove(), 1800);
         }
 
         // A short effect over the character who receives it; both characters hop and face each other
-        function playChillAct(fromId, toId, type, at = 0) {
-            // Poke: 😳 or 💢, picked from `at` so everyone sees the same face
-            const icon = type === "poke" ? CHILL_POKE_FACES[at % CHILL_POKE_FACES.length] : CHILL_ACTS[type];
+        function playChillAct(fromId, toId, type) {
+            const icon = CHILL_ACTS[type];
             const byId = (id) => $("#chillScene .chill-char").filter((_, el) => el.getAttribute("data-id") === id);
             const $from = byId(fromId);
             const $to = byId(toId);
@@ -9759,7 +9799,6 @@
                     .appendTo("#chillScene");
                 setTimeout(() => $fx.remove(), 1800);
             }
-            if (type === "poke") restartChillClass($to, "is-startled", 700);
             if (type === "pat") restartChillClass($to, "is-patted", 1000);
             if (type === "laugh") restartChillClass($from, "is-laughing", 1600);
             if (type === "heart") restartChillClass($to, "is-happy", 1200);
@@ -10031,6 +10070,9 @@
             }
             chill.emote = chill.emote === emote ? "" : emote;
             if (chill.emote) chill.dancing = false;
+            if (chill.emote === "meditate" && !$("#chillScene .chill-char.is-me").hasClass("is-seated")) {
+                showToast(`Ngồi lên ghế khi thiền 🧘 để hồi ${CHILL_ZEN_HEAL} HP mỗi ${CHILL_ZEN_MS / 1000} giây`);
+            }
             saveMyChill();
         });
 
@@ -10084,7 +10126,7 @@
             }
             setTimeout(() => {
                 chill.act = { t: type, to: toId, at: Date.now() };
-                playChillAct(myId, toId, type, chill.act.at);
+                playChillAct(myId, toId, type);
                 // Demo cast: nobody else applies it, so it lands here
                 if (!room) takeChillAct(toId, () => (chillDemoVitals[toId] ||= {}), type, () => applyChillStates(myMusicRoom()));
                 saveMyChill();
