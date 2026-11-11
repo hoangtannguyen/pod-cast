@@ -5540,6 +5540,56 @@ a.profile-about-row:hover {
     gap: 8px;
 }
 
+.music-requests {
+    margin: 8px 0 12px;
+    padding: 10px;
+    border: 1px solid rgba(124, 58, 237, 0.28);
+    border-radius: 12px;
+    background: rgba(124, 58, 237, 0.06);
+}
+
+.music-requests[hidden] {
+    display: none;
+}
+
+.music-requests .music-sub {
+    margin: 0 0 8px;
+    color: #6d28d9;
+    font-weight: 700;
+}
+
+.music-requests .music-queue-list {
+    max-height: 180px;
+}
+
+.music-song-request .music-request-actions {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 5px;
+}
+
+.music-request-actions button {
+    min-height: 28px;
+    padding: 4px 8px;
+    border: 1px solid var(--music);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--music);
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.music-request-actions .music-request-approve {
+    background: var(--music);
+    color: #fff;
+}
+
+.music-request-actions .music-request-skip {
+    border-color: var(--border);
+    color: var(--muted);
+}
+
 /* Queue rows and in-room results: 16:9 thumbnails, one line of title */
 .music-queue-list .music-cover,
 .music-queue-results .music-cover {
@@ -7293,7 +7343,8 @@ a.profile-about-row:hover {
     box-shadow: 0 0 10px rgba(168, 85, 247, 0.35);
 }
 
-.chill-scene.is-playing .chill-speaker {
+.chill-scene.is-playing .chill-speaker,
+.chill-scene.is-dj-active .chill-speaker {
     animation: chill-thump 0.45s ease-in-out infinite alternate;
 }
 
@@ -7576,6 +7627,86 @@ a.profile-about-row:hover {
     scale: calc(1.1 * var(--chill-size, 1));
 }
 
+.chill-booth .chill-char.is-dj:not(.is-ko):not(.is-napping) {
+    animation: chill-dj-bob 0.85s steps(2, end) infinite;
+}
+
+.chill-booth .chill-char.is-dj:not(.is-ko):not(.is-napping) .chill-arm.is-left {
+    animation: chill-dj-mix-left 0.65s ease-in-out infinite alternate;
+}
+
+.chill-booth .chill-char.is-dj:not(.is-ko):not(.is-napping) .chill-arm.is-right {
+    animation: chill-dj-mix-right 0.55s ease-in-out infinite alternate;
+}
+
+.chill-booth .chill-char.is-dj:not(.is-ko):not(.is-napping)::before,
+.chill-booth .chill-char.is-dj:not(.is-ko):not(.is-napping)::after {
+    position: absolute;
+    z-index: 4;
+    color: #e9d5ff;
+    font-size: 15px;
+    line-height: 1;
+    text-shadow: 0 0 8px #c084fc, 1px 2px 0 #581c87;
+    pointer-events: none;
+}
+
+.chill-booth .chill-char.is-dj:not(.is-ko):not(.is-napping)::before {
+    content: "♪";
+    top: 24px;
+    left: -18px;
+    animation: chill-dj-note-left 1.8s ease-in-out infinite;
+}
+
+.chill-booth .chill-char.is-dj:not(.is-ko):not(.is-napping)::after {
+    content: "♫";
+    top: 36px;
+    right: -18px;
+    color: #f0abfc;
+    animation: chill-dj-note-right 2.1s ease-in-out 0.55s infinite;
+}
+
+@keyframes chill-dj-bob {
+    0%, 100% { translate: 0 0; }
+    50% { translate: 0 -2px; }
+}
+
+@keyframes chill-dj-mix-left {
+    from { transform: rotate(18deg); }
+    to { transform: rotate(-75deg); }
+}
+
+@keyframes chill-dj-mix-right {
+    from { transform: rotate(-18deg); }
+    to { transform: rotate(72deg); }
+}
+
+@keyframes chill-dj-note-left {
+    0% { opacity: 0; transform: translate(0, 7px) scale(0.7) rotate(-12deg); }
+    20% { opacity: 1; }
+    100% { opacity: 0; transform: translate(-8px, -24px) scale(1.1) rotate(12deg); }
+}
+
+@keyframes chill-dj-note-right {
+    0% { opacity: 0; transform: translate(0, 8px) scale(0.7) rotate(12deg); }
+    20% { opacity: 1; }
+    100% { opacity: 0; transform: translate(9px, -27px) scale(1.15) rotate(-12deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .chill-booth .chill-char.is-dj,
+    .chill-booth .chill-char.is-dj .chill-arm,
+    .chill-booth .chill-char.is-dj::before,
+    .chill-booth .chill-char.is-dj::after,
+    .chill-scene.is-dj-active .chill-speaker {
+        animation: none;
+    }
+
+    .chill-booth .chill-char.is-dj::before,
+    .chill-booth .chill-char.is-dj::after {
+        opacity: 0.8;
+    }
+}
+
 .chill-name {
     max-width: 90px;
     margin-bottom: 3px;
@@ -7595,6 +7726,7 @@ a.profile-about-row:hover {
 
 .chill-char.is-dj .chill-name {
     background: #db2777;
+    box-shadow: 0 0 9px rgba(236, 72, 153, 0.65);
 }
 
 .chill-face {
@@ -11194,6 +11326,170 @@ a.profile-about-row:hover {
         flex-basis: 52px;
         width: 52px;
         height: 34px;
+    }
+}
+
+#chillModal .chill-room {
+    position: relative;
+}
+
+#chillModal #chillSongBtn {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    width: auto;
+    min-width: 78px;
+    height: 38px;
+    padding: 0 9px;
+    border: 1px solid rgba(216, 180, 254, 0.55);
+    border-radius: 12px;
+    background: linear-gradient(145deg, rgba(126, 34, 206, 0.92), rgba(91, 33, 182, 0.9));
+    color: #fff;
+    font-size: 14px;
+    line-height: 1;
+    box-shadow: 0 0 12px rgba(168, 85, 247, 0.2);
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+#chillModal #chillSongBtn:hover,
+#chillModal #chillSongBtn.is-active {
+    border-color: #e9d5ff;
+    background: linear-gradient(145deg, #a855f7, #7e22ce);
+    box-shadow: 0 0 14px rgba(168, 85, 247, 0.48);
+}
+
+#chillModal #chillSongBtn[hidden],
+#chillModal .chill-song-pop[hidden] {
+    display: none;
+}
+
+#chillModal .chill-song-pop {
+    position: absolute;
+    right: 12px;
+    bottom: 60px;
+    z-index: 350;
+    display: flex;
+    flex-direction: column;
+    width: min(360px, calc(100% - 24px));
+    max-height: min(390px, calc(100% - 100px));
+    overflow: hidden;
+    padding: 12px;
+    border: 1px solid rgba(192, 132, 252, 0.5);
+    border-radius: 16px;
+    background: rgba(18, 12, 36, 0.98);
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5), 0 0 20px rgba(139, 92, 246, 0.18);
+    color: #f3e8ff;
+}
+
+#chillModal .chill-song-pop-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+    color: #e9d5ff;
+}
+
+#chillModal #chillSongClose {
+    display: grid;
+    flex: 0 0 30px;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border: 1px solid rgba(196, 181, 253, 0.28);
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff;
+    cursor: pointer;
+}
+
+#chillModal .chill-song-form {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 7px;
+}
+
+#chillModal #chillSongInput {
+    flex: 1;
+    min-width: 0;
+    min-height: 42px;
+    padding: 0 12px;
+    border: 1px solid rgba(196, 181, 253, 0.35);
+    border-radius: 11px;
+    outline: none;
+    background: #100a21;
+    color: #fff;
+    font-size: 16px;
+}
+
+#chillModal #chillSongInput:focus {
+    border-color: #c084fc;
+    box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.2);
+}
+
+#chillModal #chillSongInput:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+#chillModal .chill-song-hint {
+    margin: 8px 0 0;
+    color: #c4b5fd;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+#chillModal .chill-song-hint[hidden] {
+    display: none;
+}
+
+#chillModal #chillSongSubmit {
+    min-width: 58px;
+    padding: 0 12px;
+    border: 1px solid rgba(216, 180, 254, 0.5);
+    border-radius: 11px;
+    background: linear-gradient(135deg, #7c3aed, #a855f7);
+    color: #fff;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+#chillModal #chillSongSubmit:disabled {
+    opacity: 0.65;
+    cursor: wait;
+}
+
+#chillModal .chill-song-results {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: 250px;
+    margin-top: 8px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(196, 181, 253, 0.35) transparent;
+}
+
+@media (max-width: 600px) {
+    #chillModal #chillSongBtn {
+        position: absolute;
+        right: 12px;
+        bottom: calc(136px + env(safe-area-inset-bottom));
+        z-index: 24;
+        height: 38px;
+        border-radius: 999px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.38), 0 0 16px rgba(168, 85, 247, 0.5);
+    }
+
+    #chillModal .chill-song-pop {
+        right: 8px;
+        bottom: calc(190px + env(safe-area-inset-bottom));
+        width: min(360px, calc(100% - 16px));
+        max-height: min(360px, calc(100% - 214px - env(safe-area-inset-bottom)));
+        padding: 10px;
     }
 }
 

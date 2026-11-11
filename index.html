@@ -386,7 +386,11 @@
                 </form>
                 <p class="music-sub">Tiếp theo <span id="musicQueueCount"></span></p>
                 <ul class="music-rooms music-queue-list" id="musicQueueList"></ul>
-                <!-- One field: a YouTube link is queued directly, any other text is searched -->
+                <section class="music-requests" id="musicRequestsPanel" hidden aria-label="Yêu cầu bài hát chờ duyệt">
+                    <p class="music-sub">Yêu cầu chờ DJ duyệt <span id="musicRequestsCount"></span></p>
+                    <ul class="music-rooms music-queue-list" id="musicRequestsList"></ul>
+                </section>
+                <!-- Members' picks are sent to the DJ; the DJ can approve them into the play queue -->
                 <form class="music-search music-search-sm" id="musicSongForm">
                     <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
                     <input type="search" id="musicSongUrl" maxlength="200" placeholder="Tìm bài hoặc dán link YouTube" autocomplete="off">
@@ -1083,11 +1087,24 @@
                     <strong id="chillSelfHpText">100</strong>
                 </div>
                 <button type="button" class="chill-dance" id="chillDance" aria-label="Bật hoặc tắt nhảy"></button>
+                <button type="button" class="chill-song-btn" id="chillSongBtn" aria-label="Gửi yêu cầu bài hát cho DJ" aria-controls="chillSongPop" aria-expanded="false" title="Yêu cầu bài hát">🎵 <span>Gửi bài</span></button>
                 <button type="button" class="chill-chat-toggle" id="chillChatToggle" aria-label="Mở hoặc đóng chat" aria-controls="chillChatForm" aria-expanded="false">💬 Chat</button>
                 <button type="button" class="chill-game-btn" id="chillGameBtn" aria-label="Mở mini game" aria-controls="chillGamePop" aria-expanded="false" title="Mini game">🎮<span> Mini game</span></button>
                 <button type="button" class="chill-exit modal-close" aria-label="Thoát" title="Thoát">✕</button>
             </div>
             </div>
+            <section class="chill-song-pop" id="chillSongPop" aria-label="Yêu cầu bài hát" hidden>
+                <div class="chill-song-pop-head">
+                    <strong id="chillSongPopTitle">Gửi bài cho DJ</strong>
+                    <button type="button" id="chillSongClose" aria-label="Đóng tìm bài">✕</button>
+                </div>
+                <form id="chillSongForm" class="chill-song-form">
+                    <input type="search" id="chillSongInput" maxlength="200" placeholder="Tìm bài hoặc dán link YouTube" autocomplete="off" aria-label="Tìm bài hát hoặc dán link YouTube">
+                    <button type="submit" id="chillSongSubmit">Tìm</button>
+                </form>
+                <p class="chill-song-hint" id="chillSongHint" hidden>Bạn cần vào một phòng nhạc có DJ trước khi gửi bài.</p>
+                <ul class="music-search-results music-queue-results chill-song-results" id="chillSongResults"></ul>
+            </section>
             <!-- Same chat as the music room; a new message pops up above the sender's head -->
             <form class="chill-chat" id="chillChatForm">
                 <span class="chill-quick" aria-label="Thả biểu cảm">
@@ -8924,7 +8941,7 @@
         }
 
         /* Playback: the host writes { playing, position, updatedAt }, every member's player follows it.
-           Members add songs to `queue`; when a song ends the room moves on to the first one. */
+           DJ-approved requests join `queue`; when a song ends the room moves on to the first one. */
 
         const MUSIC_DRIFT = 1; // seconds off before a player is put back in sync
         const MUSIC_QUEUE_MAX = 50;
@@ -9098,9 +9115,15 @@
             return (room.queue || []).filter((item) => /^[\w-]{11}$/.test(item.videoId || ""));
         }
 
+        function musicRequestsOf(room) {
+            return (Array.isArray(room.songRequests) ? room.songRequests : [])
+                .filter((item) => item?.key && /^[\w-]{11}$/.test(item.videoId || ""));
+        }
+
         function renderMusicQueue(room) {
             const myId = userIdOf(currentAuthor());
             const queue = musicQueueOf(room);
+            const requests = musicRequestsOf(room);
             $("#musicQueueCount").text(queue.length ? `(${queue.length})` : "");
             $("#musicQueueList").empty().append(queue.length
                 ? queue.map((item, i) => $("<li>").append(
@@ -9113,7 +9136,21 @@
                         ? $("<button>", { type: "button", class: "icon-btn music-queue-remove", "data-key": item.key, "aria-label": "Bỏ khỏi hàng đợi" }).append($("<i>", { class: "fa-solid fa-xmark" }))
                         : null
                 ))
-                : $("<li>", { class: "music-empty", text: "Chưa có bài nào, tìm hoặc dán link bên dưới để thêm." }));
+                : $("<li>", { class: "music-empty", text: "Chưa có bài nào trong hàng chờ." }));
+            const isHost = isMusicHost(room);
+            $("#musicRequestsPanel").prop("hidden", !isHost || requests.length === 0);
+            $("#musicRequestsCount").text(requests.length ? `(${requests.length})` : "");
+            $("#musicRequestsList").empty().append(requests.map((item) => $("<li>", { class: "music-song-request" }).append(
+                $("<span>", { class: "music-cover" }).css("background-image", `url(${youtubeThumb(item.videoId)})`),
+                $("<div>").append(
+                    $("<strong>", { text: item.title || "Video YouTube" }),
+                    $("<span>", { text: `Yêu cầu bởi ${nameOf(authorOfId(item.addedBy))}` })
+                ),
+                $("<span>", { class: "music-request-actions" }).append(
+                    $("<button>", { type: "button", class: "music-request-approve", "data-key": item.key, text: "Duyệt" }),
+                    $("<button>", { type: "button", class: "music-request-skip", "data-key": item.key, text: "Bỏ qua" })
+                )
+            )));
         }
 
         // Host: play / pause / skip / seek. Member: the play button only shows when autoplay was blocked
@@ -9124,9 +9161,12 @@
             renderMusicQueue(room);
             const isHost = isMusicHost(room);
             $("#musicPlayerWrap").toggleClass("is-empty", !room.videoId).toggleClass("is-failed", !!room.videoId && room.videoId === musicFailed.videoId);
+            $("#musicSongUrl").attr("placeholder", isHost ? "Tìm bài hoặc dán link YouTube" : "Tìm bài để gửi yêu cầu DJ duyệt");
+            const songInput = $.trim($("#musicSongUrl").val());
+            $("#musicSongBtn").text(songInput && youtubeIdOf(songInput) ? (isHost ? "Thêm" : "Yêu cầu") : "Tìm");
             if (!room.videoId) {
                 $("#musicToggle, #musicMute, #musicSkip, #musicProgress, #musicError").hide();
-                $("#musicTitle").text("Chưa có bài nào · tìm bài ở ô bên dưới để phát nhé 🎶");
+                $("#musicTitle").text(isHost ? "Chưa có bài nào · tìm bài bên dưới để phát 🎶" : "Chưa có bài nào · gửi yêu cầu để DJ duyệt 🎶");
                 updateChillRoom(room);
                 updateMusicMini();
                 return;
@@ -9338,6 +9378,7 @@
             const myId = userIdOf(currentAuthor());
             const { host, cast } = chillCastOf(room);
             chillCastKey = chillCastKeyOf(room);
+            $("#chillScene").toggleClass("is-dj-active", !!host);
             const saved = room?.chill?.[myId];
             // HP and drinks: what I have now when it is the same room (the saved copy may lag behind), else the saved ones
             const vitals = chillVitalsRoom === (room?.id || "") ? chill : saved || {};
@@ -9433,6 +9474,22 @@
             if (chillCastKeyOf(room) !== chillCastKey) {
                 renderChillRoom();
                 return;
+            }
+            $("#chillSongBtn").attr("aria-expanded", String(!$("#chillSongPop").prop("hidden")));
+            $("#chillSongInput")
+                .prop("disabled", !room)
+                .attr("placeholder", !room ? "Vào phòng nhạc có DJ để gửi bài" : isMusicHost(room) ? "Tìm bài hoặc dán link YouTube" : "Tìm bài để gửi DJ duyệt");
+            $("#chillSongSubmit").prop("disabled", !room);
+            $("#chillSongHint").prop("hidden", !!room);
+            $("#chillSongPopTitle").text(!room ? "Chưa vào phòng nhạc" : isMusicHost(room) ? "Thêm bài vào hàng chờ" : "Gửi bài cho DJ");
+            $("#chillSongBtn")
+                .attr("aria-label", !room ? "Gửi bài hát, cần vào phòng nhạc trước" : isMusicHost(room) ? "Thêm bài hát vào hàng chờ" : "Gửi yêu cầu bài hát cho DJ")
+                .attr("title", !room ? "Vào phòng nhạc để gửi bài" : isMusicHost(room) ? "Thêm bài hát vào hàng chờ" : "Yêu cầu bài hát");
+            const songText = $.trim($("#chillSongInput").val());
+            $("#chillSongSubmit").text(youtubeIdOf(songText) ? (isMusicHost(room) ? "Thêm" : "Yêu cầu") : "Tìm");
+            if (!room) {
+                $("#chillSongPop").prop("hidden", true);
+                $("#chillSongBtn").attr("aria-expanded", "false").removeClass("is-active");
             }
             $("#chillSub").text(room ? `${room.name} · ${(room.memberIds || []).length} đang nghe` : "Phòng mẫu · vào một Chill Room để gặp bạn bè");
             renderChillChat(room);
@@ -10733,25 +10790,59 @@
                 });
             });
 
-        // Any member can queue a song; the title is kept so the queue can show it
-        async function queueMusicVideo({ videoId, title }) {
+        // Members submit song requests for the DJ; the DJ can add songs to the queue directly.
+        async function queueMusicVideo({ videoId, title, clearSelector = "#musicSongUrl" }) {
             const room = myMusicRoom();
             const myId = userIdOf(currentAuthor());
             if (!room || !myId) return;
-            if (musicQueueOf(room).length >= MUSIC_QUEUE_MAX) return showToast(`Hàng đợi tối đa ${MUSIC_QUEUE_MAX} bài.`);
+            const isHost = isMusicHost(room);
+            if (musicQueueOf(room).length + musicRequestsOf(room).length >= MUSIC_QUEUE_MAX) {
+                return showToast(`Hàng đợi và yêu cầu tối đa ${MUSIC_QUEUE_MAX} bài.`);
+            }
+            if (!isHost) {
+                const request = {
+                    key: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                    videoId: videoId,
+                    title: (title || "").slice(0, 100),
+                    addedBy: myId,
+                };
+                try {
+                    await runTransaction(db, async (tx) => {
+                        const ref = doc(db, "musicRooms", room.id);
+                        const snap = await tx.get(ref);
+                        if (!snap.exists()) throw new Error("Phòng nhạc đã đóng.");
+                        const data = snap.data();
+                        const isMember = data.hostId === myId || (data.memberIds || []).includes(myId);
+                        if (!isMember) throw new Error("Bạn cần vào phòng trước khi gửi yêu cầu.");
+                        const queue = musicQueueOf(data);
+                        const requests = musicRequestsOf(data);
+                        if (queue.length + requests.length >= MUSIC_QUEUE_MAX) {
+                            throw new Error(`Hàng đợi và yêu cầu tối đa ${MUSIC_QUEUE_MAX} bài.`);
+                        }
+                        const currentRequests = Array.isArray(data.songRequests) ? data.songRequests : [];
+                        tx.update(ref, { songRequests: [...currentRequests, request] });
+                    });
+                    $(clearSelector).val("").trigger("input");
+                    showToast("Đã gửi yêu cầu bài hát cho DJ 🎶");
+                } catch (err) {
+                    console.error(err);
+                    showToast(errorMessage(err));
+                }
+                return;
+            }
             try {
-                // A room created without a song: the first one added plays right away instead of waiting in the queue
+                // The DJ can start an empty room directly; member requests still need approval.
                 if (!room.videoId) {
                     // Started inside the click so the browser lets the sound play; the room sync takes over after
                     if (musicPlayerReady) musicPlayer.loadVideoById(videoId, 0);
                     await updateDoc(doc(db, "musicRooms", room.id), { videoId: videoId, playing: true, position: 0, updatedAt: serverNow() });
-                    $("#musicSongUrl").val("").trigger("input");
+                    $(clearSelector).val("").trigger("input");
                     showToast("Đang phát bài đầu tiên 🎶");
                     return;
                 }
                 const item = { key: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, videoId: videoId, title: (title || "").slice(0, 100), addedBy: myId };
                 await updateDoc(doc(db, "musicRooms", room.id), { queue: arrayUnion(item) });
-                $("#musicSongUrl").val("").trigger("input");
+                $(clearSelector).val("").trigger("input");
                 showToast("Đã thêm vào hàng đợi 🎶");
             } catch (err) {
                 console.error(err);
@@ -10759,19 +10850,72 @@
             }
         }
 
-        // The button says what Enter will do: "Thêm" for a link, "Tìm" for anything else
+        async function respondToSongRequest(key, approve) {
+            const room = myMusicRoom();
+            const myId = userIdOf(currentAuthor());
+            if (!room || !myId || !isMusicHost(room)) return;
+            const ref = doc(db, "musicRooms", room.id);
+            try {
+                const result = await runTransaction(db, async (tx) => {
+                    const snap = await tx.get(ref);
+                    if (!snap.exists()) throw new Error("Phòng nhạc đã đóng.");
+                    const data = snap.data();
+                    if (data.hostId !== myId) throw new Error("Chỉ DJ mới có thể duyệt yêu cầu.");
+                    const requests = musicRequestsOf(data);
+                    const request = requests.find((item) => item.key === key);
+                    if (!request) return "missing";
+                    const remaining = (Array.isArray(data.songRequests) ? data.songRequests : [])
+                        .filter((item) => item?.key !== key);
+                    if (!approve) {
+                        tx.update(ref, { songRequests: remaining });
+                        return "skipped";
+                    }
+                    const queue = musicQueueOf(data);
+                    if (!data.videoId) {
+                        tx.update(ref, {
+                            songRequests: remaining,
+                            videoId: request.videoId,
+                            playing: true,
+                            position: 0,
+                            updatedAt: serverNow(),
+                        });
+                    } else {
+                        if (queue.length >= MUSIC_QUEUE_MAX) throw new Error(`Hàng đợi tối đa ${MUSIC_QUEUE_MAX} bài.`);
+                        tx.update(ref, {
+                            songRequests: remaining,
+                            queue: [...(data.queue || []), request],
+                        });
+                    }
+                    return "approved";
+                });
+                if (result === "missing") return showToast("Yêu cầu này đã được xử lý.");
+                showToast(result === "approved" ? "Đã duyệt yêu cầu bài hát 🎶" : "Đã bỏ qua yêu cầu.");
+            } catch (err) {
+                console.error(err);
+                showToast(errorMessage(err));
+            }
+        }
+
+        $("#musicRequestsList")
+            .on("click", ".music-request-approve", function () {
+                respondToSongRequest($(this).attr("data-key"), true);
+            })
+            .on("click", ".music-request-skip", function () {
+                respondToSongRequest($(this).attr("data-key"), false);
+            });
+
+        // The button says what Enter will do for a direct YouTube link.
         $("#musicSongUrl").on("input", function () {
             const text = $.trim($(this).val());
-            $("#musicSongBtn").text(youtubeIdOf(text) ? "Thêm" : "Tìm");
+            const room = myMusicRoom();
+            $("#musicSongBtn").text(youtubeIdOf(text) ? (isMusicHost(room) ? "Thêm" : "Yêu cầu") : "Tìm");
             if (!text) $("#musicQueueResults").empty();
         });
 
-        $("#musicSongForm").on("submit", async function (e) {
-            e.preventDefault();
-            const text = $.trim($("#musicSongUrl").val());
+        async function submitMusicSongText(text, $results, $button, clearSelector) {
             if (!text || !myMusicRoom()) return;
             const videoId = youtubeIdOf(text);
-            if (!videoId) return renderYouTubeResults($("#musicQueueResults"), $("#musicSongBtn"), text);
+            if (!videoId) return renderYouTubeResults($results, $button, text);
             let info = null;
             try {
                 info = await youtubeVideoInfo(videoId);
@@ -10779,11 +10923,48 @@
                 console.error(err); // queued without a title
             }
             if (info && !info.embeddable) return showToast("Video này không cho phát ở trang khác, chọn bài khác nhé.");
-            queueMusicVideo({ videoId: videoId, title: info?.title });
+            return queueMusicVideo({ videoId: videoId, title: info?.title, clearSelector });
+        }
+
+        $("#musicSongForm").on("submit", function (e) {
+            e.preventDefault();
+            submitMusicSongText($.trim($("#musicSongUrl").val()), $("#musicQueueResults"), $("#musicSongBtn"), "#musicSongUrl");
         });
 
         $("#musicQueueResults").on("click", ".music-result", function () {
             queueMusicVideo({ videoId: $(this).attr("data-video"), title: $(this).attr("data-title") });
+        });
+
+        $("#chillSongBtn").on("click", function () {
+            const open = $("#chillSongPop").prop("hidden");
+            $("#chillSongPop").prop("hidden", !open);
+            $(this).attr("aria-expanded", String(open)).toggleClass("is-active", open);
+            if (open) $("#chillSongInput").trigger("focus");
+        });
+
+        $("#chillSongClose").on("click", function () {
+            $("#chillSongPop").prop("hidden", true);
+            $("#chillSongBtn").attr("aria-expanded", "false").removeClass("is-active");
+        });
+
+        $("#chillSongInput").on("input", function () {
+            const text = $.trim($(this).val());
+            const room = myMusicRoom();
+            $("#chillSongSubmit").text(youtubeIdOf(text) ? (isMusicHost(room) ? "Thêm" : "Yêu cầu") : "Tìm");
+            if (!text) $("#chillSongResults").empty();
+        });
+
+        $("#chillSongForm").on("submit", function (e) {
+            e.preventDefault();
+            submitMusicSongText($.trim($("#chillSongInput").val()), $("#chillSongResults"), $("#chillSongSubmit"), "#chillSongInput");
+        });
+
+        $("#chillSongResults").on("click", ".music-result", function () {
+            queueMusicVideo({
+                videoId: $(this).attr("data-video"),
+                title: $(this).attr("data-title"),
+                clearSelector: "#chillSongInput",
+            });
         });
 
         // The one who added a song, or the host, can take it out
@@ -11231,6 +11412,7 @@
                     videoId: videoId, // "" = no song yet
                     memberIds: [myId],
                     queue: [],
+                    songRequests: [],
                     playing: !!videoId,
                     position: 0,
                     updatedAt: serverNow(),
