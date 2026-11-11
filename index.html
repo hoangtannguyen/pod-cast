@@ -1050,6 +1050,7 @@
                     <form class="chill-game-form" id="chillGameForm" hidden>
                         <strong>🎮 Thiết lập mini game</strong>
                         <label>Tên game <input type="text" id="chillGameName" maxlength="40" required placeholder="Đại chiến chọc chọc"></label>
+                        <label class="chill-game-option"><input type="checkbox" id="chillGameDog"> 🐕 Cho chó rượt đuổi trong phòng (cắn trừ 5 HP)</label>
                         <div class="chill-game-grid">
                             <label>Người chơi tối đa <input type="number" id="chillGameMax" min="2" placeholder="Không giới hạn"></label>
                             <label>Số mạng mỗi người <input type="number" id="chillGameLives" min="1" max="5" value="3" required></label>
@@ -9517,6 +9518,7 @@
             renderChillChat(room);
             renderChillScreenError(room);
             renderChillGame(room);
+            renderChillDog(room);
             $("#chillScene").toggleClass("is-playing", room ? !!room.playing : true);
             const title = musicPlayerReady && room ? musicPlayer.getVideoData()?.title : "";
             $("#chillMarquee").text(title ? `♪ ${title} ♪` : "♪ VibeGram Chill Room ♪");
@@ -9791,6 +9793,7 @@
                 }
                 chillFxTicks++;
                 tickChillGame();
+                tickChillDog();
                 if (chillFxTicks % CHILL_HEARTBEAT_TICKS === 0) saveMyChill();
                 else if (chillFxTicks % 10 === 0) applyChillStates(myMusicRoom());
                 $('#chillScene .chill-char[data-emote="firework"]').each(function () {
@@ -9838,6 +9841,12 @@
             };
             if (type === "poke") {
                 v.hp = Math.max(0, chillHpOf(v) - CHILL_POKE_DAMAGE);
+                if (!v.hp) {
+                    Object.assign(v, { ko: Date.now(), nap: false, dancing: false, emote: "" });
+                    later("ko", CHILL_KO_MS, (now) => Object.assign(now, { ko: 0, hp: CHILL_REVIVE_HP }));
+                }
+            } else if (type === "dogBite") {
+                v.hp = Math.max(0, chillHpOf(v) - CHILL_DOG_BITE_DAMAGE);
                 if (!v.hp) {
                     Object.assign(v, { ko: Date.now(), nap: false, dancing: false, emote: "" });
                     later("ko", CHILL_KO_MS, (now) => Object.assign(now, { ko: 0, hp: CHILL_REVIVE_HP }));
@@ -10453,6 +10462,9 @@
             const room = myMusicRoom();
             const game = chillGameOf(room);
             if (!game || game.status === "ended" || chillGameEnding === game.id) return;
+            if (game.type === "dog-chase") {
+                return saveChillGame({ ...game, status: "ended", endsAt: Date.now(), result: { winners: [], out: [] } });
+            }
             chillGameEnding = game.id;
             const players = chillGamePlayers(room, game);
             const alive = players.filter((p) => !p.out).sort((a, b) => b.lives - a.lives || a.hits - b.hits);
@@ -10469,6 +10481,7 @@
             renderChillGame(room);
             const game = chillGameOf(room);
             if (!game || game.status !== "playing" || room.hostId !== userIdOf(currentAuthor())) return;
+            if (game.type === "dog-chase") return;
             if (Date.now() >= game.endsAt || chillGamePlayers(room, game).filter((p) => !p.out).length <= 1) endChillGame();
         }
 
@@ -10478,6 +10491,7 @@
 
         // What is going on now, told when one opens the 2D room or first looks at the room
         function chillGameNowText(game, status) {
+            if (game.type === "dog-chase" && status === "playing") return "🐕 Chó rượt đuổi đang diễn ra! Né chó để tránh bị cắn (-5 HP).";
             if (status === "playing") return `🔥 Mini game "${game.name}" đang diễn ra · còn ${chillGameClock(game)}`;
             if (status === "waiting") return `🎮 Mini game "${game.name}" đang chờ người chơi · bấm 🎮 Mini game để tham gia`;
             return "";
@@ -10511,12 +10525,16 @@
             if (!game) return;
             const isHost = room.hostId === userIdOf(currentAuthor());
             if (first) {
-                announceChillGame(isHost ? "" : chillGameNowText(game, status));
+                announceChillGame(isHost ? "" : game.type === "dog-chase" && status === "playing"
+                    ? "🐕 Chó rượt đuổi đang chạy! Né chó để tránh bị cắn (-5 HP)."
+                    : chillGameNowText(game, status));
                 return;
             }
             if (status === "waiting" && !sameGame && !isHost) announceChillGame(`🎮 Chủ phòng vừa tạo mini game "${game.name}"! Bấm 🎮 Mini game để tham gia`);
             if (status === "playing") {
-                announceChillGame(`🔥 Mini game "${game.name}" bắt đầu! Chọc người chơi khác để loại họ`);
+                announceChillGame(game.type === "dog-chase"
+                    ? "🐕 Chó rượt đuổi bắt đầu! Né chó để tránh bị cắn (-5 HP)."
+                    : `🔥 Mini game "${game.name}" bắt đầu! Chọc người chơi khác để loại họ`);
                 if (chill.game?.id === game.id) {
                     Object.assign(chill, { hp: CHILL_HP_MAX, ko: 0 });
                     saveMyVitals();
@@ -10533,13 +10551,15 @@
             const status = game ? chillGameStatusOf(game) : "";
             const myId = userIdOf(currentAuthor());
             const isHost = !!room && room.hostId === myId;
+            const dogGame = game?.type === "dog-chase";
+            const dogActive = !!chillDogOf(room);
 
             $("#chillGameBadge").prop("hidden", !game).attr("data-status", status || null)
-                .text(game ? `🎮 ${game.name} · ${CHILL_GAME_STATUS[status]}${status === "playing" ? ` · ${chillGameClock(game)}` : ""}` : "");
+                .text(game ? `${dogGame ? "🐕" : "🎮"} ${game.name} · ${CHILL_GAME_STATUS[status]}${status === "playing" && !dogGame ? ` · ${chillGameClock(game)}` : ""}` : "");
             $(".chill-game-time").text(game && status === "playing" ? chillGameClock(game) : "");
 
             const players = game ? chillGamePlayers(room, game) : [];
-            const key = JSON.stringify([room?.id || "", myId, isHost, game, status, players]);
+            const key = JSON.stringify([room?.id || "", myId, isHost, game, status, players, game?.dog]);
             if (key === chillGameKey) return;
             chillGameKey = key;
             const $info = $("#chillGameInfo").empty();
@@ -10548,11 +10568,34 @@
                 $info.append($("<strong>", { text: "🎮 Mini game" }), $("<p>", { text: "Vào một Chill Room để chơi mini game cùng mọi người nhé." }));
                 return;
             }
+            if (!dogGame) {
+                $info.append(
+                    $("<div>", { class: "chill-dog-control" }).append(
+                        $("<span>", { text: dogActive ? "🐕 Chó rượt đuổi đang hoạt động" : "🐕 Chó rượt đuổi" }),
+                        isHost ? button("dog-toggle", dogActive ? "Dừng" : "Bắt đầu", dogActive) : null
+                    )
+                );
+            }
             if (!game) {
                 $info.append(
                     $("<strong>", { text: "🎮 Mini game" }),
                     $("<p>", { text: isHost ? "Chưa có game nào. Tạo một game để cả phòng cùng chơi nhé!" : "Chủ phòng chưa tạo game nào." }),
                     isHost ? $("<div>", { class: "chill-game-actions" }).append(button("create", "➕ Tạo game", true)) : null
+                );
+                return;
+            }
+
+            if (dogGame) {
+                $info.append(
+                    $("<div>", { class: "chill-game-head" }).append(
+                        $("<strong>", { text: "🐕 Chó rượt đuổi" }),
+                        $("<span>", { class: `chill-game-status is-${status}`, text: CHILL_GAME_STATUS[status] })
+                    ),
+                    $("<p>", { class: "chill-game-meta", text: dogActive ? "Chó đang chọn ngẫu nhiên người chơi để đuổi. Mỗi cú cắn trừ 5 HP." : "Chó đang nghỉ." }),
+                    isHost ? $("<div>", { class: "chill-game-actions" }).append(
+                        dogActive ? button("dog-stop", "⏹ Dừng game") : button("dog-toggle", "🐕 Chơi lại", true),
+                        !dogActive ? button("close", "🗑️ Đóng game") : null
+                    ) : null
                 );
                 return;
             }
@@ -10566,7 +10609,8 @@
                 $("<p>", {
                     class: "chill-game-meta",
                     text: `👥 ${game.max ? `${players.length}/${game.max}` : `${players.length} người`} · ❤️ ${game.lives} mạng · `
-                        + `${game.hits ? `👉 ${game.hits} lần chọc = mất 1 mạng` : "💥 Hết máu = mất 1 mạng"} · ⏱ ${game.minutes} phút`,
+                        + `${game.hits ? `👉 ${game.hits} lần chọc = mất 1 mạng` : "💥 Hết máu = mất 1 mạng"} · ⏱ ${game.minutes} phút`
+                        + (game.dogChaseEnabled ? " · 🐕 Có chó rượt đuổi (-5 HP/lần cắn)" : ""),
                 }),
                 status === "playing" ? $("<p>", { class: "chill-game-clock" }).append("Còn lại ", $("<b>", { class: "chill-game-time", text: chillGameClock(game) })) : null,
                 game.rules ? line("📜 Luật: ", game.rules) : null,
@@ -10621,8 +10665,184 @@
             $("#chillGameMinutes").val(game?.minutes || 5);
             $("#chillGameRules").val(game?.rules || "");
             $("#chillGameChallenge").val(game?.challenge || "");
+            $("#chillGameDog").prop("checked", !!game?.dogChaseEnabled || game?.type === "dog-chase");
             $("#chillGameName").trigger("focus");
         }
+
+        function createChillDog() {
+            return {
+                active: true,
+                x: Math.round((10 + Math.random() * 80) * 10) / 10,
+                y: Math.round((14 + Math.random() * 72) * 10) / 10,
+                targetId: "",
+                mode: "run",
+                nextTargetAt: 0,
+                nextBiteAt: 0,
+                bite: null,
+            };
+        }
+
+        function saveChillDog(dog) {
+            const room = myMusicRoom();
+            if (!room || !chillGameOf(room) || room.hostId !== userIdOf(currentAuthor())) return Promise.resolve(false);
+            return updateDoc(doc(db, "musicRooms", room.id), { chillGame: { ...chillGameOf(room), dog } })
+                .then(() => true)
+                .catch((err) => {
+                    console.error(err);
+                    showToast(errorMessage(err));
+                    return false;
+                });
+        }
+
+        function chillDogOf(room) {
+            const game = chillGameOf(room);
+            if (game?.dogChaseEnabled) {
+                return game.dog?.active && chillGameStatusOf(game) === "playing" ? game.dog : null;
+            }
+            if (game?.type === "dog-chase") {
+                if (typeof game.dog?.active === "boolean") {
+                    return game.dog.active && chillGameStatusOf(game) === "playing" ? game.dog : null;
+                }
+                return chillGameStatusOf(game) === "playing" ? game.dog : null;
+            }
+            if (typeof game?.dog?.active === "boolean") return game.dog.active ? game.dog : null;
+            return null;
+        }
+
+        function renderChillDog(room) {
+            const dog = chillDogOf(room);
+            const $floor = $("#chillFloor");
+            let $sprite = $("#chillDog");
+            if (!dog || !Number.isFinite(dog.x) || !Number.isFinite(dog.y)) {
+                $sprite.remove();
+                return;
+            }
+            if (!$sprite.length) {
+                $sprite = $("<div>", { id: "chillDog", class: "chill-dog", "aria-hidden": "true" })
+                    .append($("<span>", { class: "chill-dog-bark", text: "woof!" }), $("<span>", { class: "chill-dog-sprite", text: "🐕" }))
+                    .appendTo($floor);
+            }
+            const biteId = dog.bite?.id || "";
+            $sprite.toggleClass("is-biting", dog.mode === "bite" || (dog.bite?.at && Date.now() - dog.bite.at < CHILL_DOG_BITE_MS))
+                .toggleClass("is-facing-left", !!dog.facingLeft)
+                .attr("data-bite", biteId);
+            placeChillChar($sprite, dog.x, dog.y);
+            $sprite.css("--depth", (0.8 + dog.y / 400).toFixed(2));
+            if (biteId && (room.id !== chillDogSeenBite.roomId || biteId !== chillDogSeenBite.id)
+                && dog.bite.targetId === userIdOf(currentAuthor())
+                ) {
+                chillDogSeenBite = { roomId: room.id, id: biteId };
+                const $me = $("#chillFloor .chill-char.is-me");
+                if ($me.length && !chill.ko && !chill.nap) {
+                    restartChillClass($me, "is-dog-bitten", 650);
+                    showChillMood($me, "😵");
+                    takeChillAct(userIdOf(currentAuthor()), () => chill, "dogBite", saveMyVitals);
+                    if (typeof dog.barkAt === "number" && Date.now() - dog.barkAt < CHILL_DOG_BARK_MS) playChillDogSound();
+                }
+            }
+        }
+
+        function playChillDogSound() {
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) return;
+                const audio = new AudioContext();
+                const oscillator = audio.createOscillator();
+                const gain = audio.createGain();
+                oscillator.type = "square";
+                oscillator.frequency.setValueAtTime(420, audio.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(180, audio.currentTime + 0.12);
+                gain.gain.setValueAtTime(0.06, audio.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.14);
+                oscillator.connect(gain).connect(audio.destination);
+                oscillator.start();
+                oscillator.stop(audio.currentTime + 0.14);
+                oscillator.onended = () => audio.close();
+            } catch (err) {
+                console.warn("Dog Chase sound could not be played.", err);
+            }
+        }
+
+        let chillDogWriteInFlight = false;
+        function persistChillDog(room, dog) {
+            if (chillDogWriteInFlight || chillDogSyncBlockedRoom === room.id) return;
+            chillDogWriteInFlight = true;
+            updateDoc(doc(db, "musicRooms", room.id), { chillGame: { ...chillGameOf(room), dog } })
+                .catch((err) => {
+                    console.error(err);
+                    chillDogSyncBlockedRoom = room.id;
+                    showToast(errorMessage(err));
+                })
+                .finally(() => {
+                    chillDogWriteInFlight = false;
+                });
+        }
+
+        function tickChillDog() {
+            const room = myMusicRoom();
+            const game = chillGameOf(room);
+            const dog = chillDogOf(room);
+            if (!dog || room.hostId !== userIdOf(currentAuthor()) || !$("#chillModal").is(":visible")) return;
+            if (chillDogSyncBlockedRoom === room.id) return;
+            const now = Date.now();
+            const candidates = [...new Set([room.hostId, ...(room.memberIds || [])])]
+                .filter((id) => {
+                    const state = room.chill?.[id];
+                    return typeof state?.x === "number" && typeof state?.y === "number"
+                        && now - (state.at || 0) < CHILL_ONLINE_MS && !state.booth && !state.ko && !state.nap;
+                });
+            let target = candidates.find((id) => id === dog.targetId);
+            let nextTargetId = dog.targetId;
+            if (!target || now >= (dog.nextTargetAt || 0)) {
+                target = candidates.length ? candidates[Math.floor(Math.random() * candidates.length)] : null;
+                nextTargetId = target || "";
+            }
+            let nextDog = { ...dog, targetId: nextTargetId, mode: "run", updatedAt: now };
+            if (!target) {
+                if (now >= (dog.nextTargetAt || 0)) nextDog.nextTargetAt = now + CHILL_DOG_TARGET_MS;
+                persistChillDog(room, nextDog);
+                return;
+            }
+            const victim = room.chill?.[target];
+            const dx = victim.x - dog.x;
+            const dy = victim.y - dog.y;
+            const distance = Math.hypot(dx, dy);
+            if (distance <= CHILL_DOG_REACH && now >= (dog.nextBiteAt || 0)) {
+                nextDog = {
+                    ...nextDog,
+                    x: victim.x,
+                    y: victim.y,
+                    mode: "bite",
+                    facingLeft: dx < 0,
+                    bite: { id: `b${now.toString(36)}`, targetId: target, at: now },
+                    barkAt: now,
+                    nextBiteAt: now + CHILL_DOG_BITE_COOLDOWN_MS,
+                };
+            } else if (distance > CHILL_DOG_REACH) {
+                const step = Math.min(CHILL_DOG_STEP, distance);
+                nextDog = {
+                    ...nextDog,
+                    x: Math.max(4, Math.min(96, dog.x + dx / distance * step)),
+                    y: Math.max(8, Math.min(92, dog.y + dy / distance * step)),
+                    facingLeft: dx < 0,
+                    mode: "run",
+                };
+            } else if (dog.mode === "bite" && now - (dog.bite?.at || 0) < CHILL_DOG_BITE_MS) {
+                return;
+            }
+            nextDog.nextTargetAt = now >= (dog.nextTargetAt || 0) ? now + CHILL_DOG_TARGET_MS : dog.nextTargetAt;
+            persistChillDog(room, nextDog);
+        }
+
+        const CHILL_DOG_STEP = 3.2;
+        const CHILL_DOG_REACH = 5;
+        const CHILL_DOG_TARGET_MS = 7000;
+        const CHILL_DOG_BITE_MS = 700;
+        const CHILL_DOG_BARK_MS = 400;
+        const CHILL_DOG_BITE_COOLDOWN_MS = 2600;
+        const CHILL_DOG_BITE_DAMAGE = 5;
+        let chillDogSeenBite = { roomId: "", id: "" };
+        let chillDogSyncBlockedRoom = "";
 
         function showChillGamePop(show) {
             $("#chillGamePop").prop("hidden", !show);
@@ -10661,6 +10881,8 @@
                 minutes: num("#chillGameMinutes", CHILL_GAME_LIMITS.minutes),
                 rules: $("#chillGameRules").val().trim().slice(0, 200),
                 challenge: $("#chillGameChallenge").val().trim().slice(0, 200),
+                dogChaseEnabled: $("#chillGameDog").prop("checked"),
+                ...(old?.dog ? { dog: { ...old.dog, active: false, targetId: "", mode: "idle" } } : {}),
                 status: "waiting",
                 endsAt: 0,
             };
@@ -10676,7 +10898,40 @@
                 showChillGameForm(true);
                 return;
             }
+            if (act === "dog-toggle") {
+                if (!room || room.hostId !== myId) return;
+                const currentDog = game?.dog || (game?.type === "dog-chase" ? game.dog : null);
+                const dogIsActive = !!chillDogOf(room);
+                if (dogIsActive) {
+                    if (game?.type === "dog-chase" && !currentDog?.active) {
+                        endChillGame();
+                        return;
+                    }
+                    saveChillDog({ ...currentDog, active: false, targetId: "", mode: "idle" });
+                    return;
+                }
+                const now = Date.now();
+                chillDogSyncBlockedRoom = "";
+                const dog = createChillDog();
+                if (game && !(game.type === "dog-chase" && chillGameStatusOf(game) === "ended")) {
+                    saveChillDog(dog);
+                } else {
+                    saveChillGame({
+                        id: `dog${now.toString(36)}`,
+                        type: "dog-chase",
+                        name: "Chó rượt đuổi",
+                        status: "playing",
+                        endsAt: now + 7 * 24 * 60 * 60 * 1000,
+                        dog,
+                    });
+                }
+                return;
+            }
             if (!room || !game) return;
+            if (act === "dog-stop") {
+                if (room.hostId === myId) endChillGame();
+                return;
+            }
             if (act === "join" || act === "leave") {
                 if (!myId) {
                     showToast("Đăng nhập để tham gia game nhé");
@@ -10693,7 +10948,17 @@
             }
             if (room.hostId !== myId) return;
             if (act === "edit") showChillGameForm(true, game);
-            if (act === "start") saveChillGame({ ...game, status: "playing", endsAt: Date.now() + game.minutes * 60000 });
+            if (act === "start") {
+                const dog = game.dogChaseEnabled
+                    ? createChillDog()
+                    : game.dog;
+                saveChillGame({
+                    ...game,
+                    ...(dog ? { dog } : {}),
+                    status: "playing",
+                    endsAt: Date.now() + game.minutes * 60000,
+                });
+            }
             if (act === "end") endChillGame();
             if (act === "close" && confirm(`Hủy game "${game.name}"?`)) saveChillGame(null);
         });
