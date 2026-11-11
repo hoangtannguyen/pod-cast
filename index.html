@@ -10117,13 +10117,19 @@
             const scene = $("#chillScene")[0].getBoundingClientRect();
             const box = this.getBoundingClientRect();
             const $menu = $("#chillActions").data("to", $(this).attr("data-id")).prop("hidden", false);
-            // Kept inside the scene: opens below the character when there is no room above, slides in from the sides
-            const width = $menu.outerWidth();
-            const above = box.top - scene.top - $menu.outerHeight() - 6 >= 0;
+            const menuWidth = $menu.outerWidth();
+            const menuHeight = $menu.outerHeight();
+            const pad = 8;
+            const above = box.top - scene.top - menuHeight - 6 >= 0;
             const x = box.left - scene.left + box.width / 2;
+            const minX = menuWidth / 2 + pad;
+            const maxX = scene.width - menuWidth / 2 - pad;
+            const clampedX = Math.min(Math.max(x, minX), maxX);
+            const rawTop = above ? box.top - scene.top - menuHeight - 6 : box.bottom - scene.top + 6;
+            const clampedTop = Math.min(Math.max(rawTop, 10), Math.max(10, scene.height - menuHeight - 10));
             $menu.toggleClass("is-below", !above).css({
-                left: Math.min(scene.width - width / 2 - 4, Math.max(width / 2 + 4, x)),
-                top: above ? box.top - scene.top : box.bottom - scene.top,
+                left: clampedX,
+                top: clampedTop,
             });
         });
 

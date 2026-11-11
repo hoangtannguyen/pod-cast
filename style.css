@@ -8057,6 +8057,16 @@ a.profile-about-row:hover {
         column-gap: 8px;
     }
 
+    .chill-actions {
+        max-width: min(260px, calc(100vw - 20px));
+        max-height: min(42vh, 220px);
+    }
+
+    .chill-actions button {
+        font-size: 11px;
+        padding: 6px 8px;
+    }
+
     .chill-screen {
         width: min(52vw, 200px);
     }
@@ -8368,13 +8378,27 @@ a.profile-about-row:hover {
     align-items: stretch;
     gap: 6px;
     width: max-content;
-    max-width: 290px;
+    max-width: min(290px, calc(100vw - 24px));
+    max-height: min(46vh, 240px);
     padding: 6px;
     border-radius: 16px;
     background: rgba(17, 12, 34, 0.92);
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
     translate: -50% calc(-100% - 6px);
     white-space: nowrap;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.35) transparent;
+}
+
+.chill-actions::-webkit-scrollbar {
+    width: 6px;
+}
+
+.chill-actions::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.28);
+    border-radius: 999px;
 }
 
 .chill-actions[hidden] {
@@ -8388,6 +8412,9 @@ a.profile-about-row:hover {
     background: rgba(255, 255, 255, 0.08);
     color: #fff;
     font-size: 12px;
+    line-height: 1.25;
+    text-align: center;
+    white-space: normal;
     cursor: pointer;
 }
 
