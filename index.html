@@ -308,10 +308,19 @@
         <!-- Music rooms: create / join / leave (playback comes in the next step) -->
         <section class="music-widget card" aria-labelledby="musicWidgetTitle">
             <div class="pass-widget-head">
-                <h3 class="pass-widget-title" id="musicWidgetTitle"><i class="fa-solid fa-headphones music-accent"></i> Chill Room</h3>
-                <button type="button" class="chill-open" id="chillOpen" title="Vào phòng 2D: nhảy, emote, chat cùng mọi người">🕺 Phòng 2D</button>
+                <h3 class="pass-widget-title" id="musicWidgetTitle"><i class="fa-solid fa-couch music-accent"></i> Chill Room</h3>
                 <button type="button" class="link-btn" id="musicCreateBtn">+ Tạo phòng</button>
                 <button type="button" class="icon-btn side-right-close" id="sideRightClose" aria-label="Đóng"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <!-- What the room is for: hang out, chat, play; the 2D room is the main entry -->
+            <div class="chill-hero">
+                <p class="chill-hero-text">Góc tụ tập của hội bạn: trò chuyện, chơi game, quẩy cùng nhau</p>
+                <ul class="chill-hero-tags" aria-label="Có gì trong phòng">
+                    <li>💬 Trò chuyện</li>
+                    <li>🎮 Mini game</li>
+                    <li>🕺 Nhảy 2D</li>
+                </ul>
+                <button type="button" class="chill-open" id="chillOpen" title="Vào phòng 2D: nhảy, emote, chat, chơi game cùng mọi người">🚪 Vào phòng 2D</button>
             </div>
             <!-- Shown while in a room; kept outside #musicCurrent so re-rendering does not reload the player -->
             <div class="music-player-wrap" id="musicPlayerWrap" style="display:none">
@@ -8939,7 +8948,7 @@
                 const label = { join: "Tham gia phòng", leave: "Rời phòng", close: "Đóng phòng" }[action];
 
                 $current.append(
-                    $("<p>", { class: "music-live" }).append($("<span>", { class: "music-dot" }), `${members.length} đang nghe`),
+                    $("<p>", { class: "music-live" }).append($("<span>", { class: "music-dot" }), `${members.length} đang online`),
                     // In the room the player above shows the video instead of the thumbnail
                     featured === mine ? null : $("<div>", { class: "music-now" })
                         .css("background-image", `linear-gradient(transparent 30%, rgba(0, 0, 0, 0.75)), url(${youtubeThumb(featured.videoId)})`)
@@ -8947,7 +8956,7 @@
                             $("<strong>", { text: featured.name }),
                             $("<span>", { text: `Chủ phòng: ${nameOf(featured.host)}` })
                         )),
-                    $("<p>", { class: "music-sub", text: "Thành viên đang nghe" }),
+                    $("<p>", { class: "music-sub", text: "Đang trong phòng" }),
                     $("<div>", { class: "music-members" }).append(
                         members.slice(0, MUSIC_MEMBER_AVATARS).map((id) => {
                             const name = authorOfId(id);
@@ -8967,7 +8976,7 @@
                 $("<span>", { class: "music-cover" }).css("background-image", `url(${youtubeThumb(room.videoId)})`),
                 $("<div>").append(
                     $("<strong>", { text: room.name }),
-                    $("<span>", { text: `${(room.memberIds || []).length} đang nghe` })
+                    $("<span>", { text: `${(room.memberIds || []).length} đang online` })
                 ),
                 $("<button>", { type: "button", class: "music-join", "data-room": room.id, "data-action": "join", text: "Tham gia" }),
                 isAdmin
@@ -9547,7 +9556,7 @@
                 $("#chillRequestPop").prop("hidden", true);
                 $("#chillRequestNotice").attr("aria-expanded", "false");
             }
-            $("#chillSub").text(room ? `${room.name} · ${(room.memberIds || []).length} đang nghe` : "Phòng mẫu · vào một Chill Room để gặp bạn bè");
+            $("#chillSub").text(room ? `${room.name} · ${(room.memberIds || []).length} đang online` : "Phòng mẫu · vào một Chill Room để gặp bạn bè");
             renderChillChat(room);
             renderChillScreenError(room);
             renderChillGame(room);
