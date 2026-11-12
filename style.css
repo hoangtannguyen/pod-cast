@@ -7802,6 +7802,7 @@ a.profile-about-row:hover {
 #chillScene .chill-char.is-dog-target:not([data-emote="meditate"])::before {
     content: "🎯";
     position: absolute;
+    top: auto; /* the DJ's ♪ note uses this ::before with a top offset */
     bottom: 100%;
     left: 50%;
     font-size: 16px;

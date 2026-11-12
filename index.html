@@ -10813,8 +10813,10 @@
                 }, 2000);
             }
             if (chillDogSpeedPending === chillDogSpeedOf(dog)) chillDogSpeedPending = null;
-            placeChillChar($sprite, dog.x, dog.y);
-            $sprite.css({ "--depth": (0.8 + dog.y / 400).toFixed(2), "--dog-speed": chillDogSpeedOf(dog) });
+            const spot = (dog.atBooth && chillDogBoothSpot()) || dog;
+            placeChillChar($sprite, spot.x, spot.y);
+            $sprite.css({ "--depth": (0.8 + Math.max(0, spot.y) / 400).toFixed(2), "--dog-speed": chillDogSpeedOf(dog) });
+            if (spot.y < 0) $sprite.css("z-index", CHILL_DOG_BOOTH_Z); // up on the stage: in front of the booth
             if (biteId && (room.id !== chillDogSeenBark.roomId || biteId !== chillDogSeenBark.id)) {
                 chillDogSeenBark = { roomId: room.id, id: biteId };
                 if (typeof dog.barkAt === "number" && Date.now() - dog.barkAt < CHILL_DOG_BARK_MS) playChillDogSound();
@@ -10823,7 +10825,7 @@
                 && dog.bite.targetId === userIdOf(currentAuthor())
                 ) {
                 chillDogSeenBite = { roomId: room.id, id: biteId };
-                const $me = $("#chillFloor .chill-char.is-me");
+                const $me = $("#chillScene .chill-char.is-me"); // on the floor or behind the DJ booth
                 if ($me.length && !chill.ko && !chill.nap) {
                     restartChillClass($me, "is-dog-bitten", 650);
                     showChillMood($me, "😵");
@@ -10878,11 +10880,15 @@
             if (!dog || room.hostId !== userIdOf(currentAuthor()) || !$("#chillModal").is(":visible")) return;
             if (chillDogSyncBlockedRoom === room.id) return;
             const now = Date.now();
+            // The DJ behind the decks (that is me, the host, so online) is fair game too: the dog runs up to the booth
+            const boothSpot = chillHostOnFloor(room) ? null : chillDogBoothSpot();
             const candidates = [...new Set([room.hostId, ...(room.memberIds || [])])]
                 .filter((id) => {
                     const state = room.chill?.[id];
+                    if (state?.ko || state?.nap) return false;
+                    if (id === room.hostId && boothSpot) return true;
                     return typeof state?.x === "number" && typeof state?.y === "number"
-                        && now - (state.at || 0) < CHILL_ONLINE_MS && !state.booth && !state.ko && !state.nap;
+                        && now - (state.at || 0) < CHILL_ONLINE_MS && !state.booth;
                 });
             let target = candidates.find((id) => id === dog.targetId);
             let nextTargetId = dog.targetId;
@@ -10897,7 +10903,8 @@
                 persistChillDog(room, nextDog);
                 return;
             }
-            const victim = room.chill?.[target];
+            const toBooth = target === room.hostId && !!boothSpot;
+            const victim = toBooth ? boothSpot : room.chill?.[target];
             const dx = victim.x - dog.x;
             const dy = victim.y - dog.y;
             const distance = Math.hypot(dx, dy);
@@ -10914,16 +10921,20 @@
                 };
             } else if (distance > CHILL_DOG_REACH) {
                 const step = Math.min(CHILL_DOG_STEP * speed, distance);
+                // Above the floor only on the way up to the booth, or back down from it
+                const minY = Math.min(8, toBooth ? victim.y : dog.y);
                 nextDog = {
                     ...nextDog,
                     x: Math.max(4, Math.min(96, dog.x + dx / distance * step)),
-                    y: Math.max(8, Math.min(92, dog.y + dy / distance * step)),
+                    y: Math.max(minY, Math.min(92, dog.y + dy / distance * step)),
                     facingLeft: dx < 0,
                     mode: "run",
                 };
             } else if (dog.mode === "bite" && now - (dog.bite?.at || 0) < CHILL_DOG_BITE_MS) {
                 return;
             }
+            // At the booth: every screen puts the dog on its own booth (the layout differs from screen to screen)
+            nextDog.atBooth = toBooth && Math.hypot(victim.x - nextDog.x, victim.y - nextDog.y) <= CHILL_DOG_REACH;
             nextDog.nextTargetAt = now >= (dog.nextTargetAt || 0) ? now + CHILL_DOG_TARGET_MS : dog.nextTargetAt;
             persistChillDog(room, nextDog);
         }
@@ -10932,6 +10943,19 @@
         const CHILL_DOG_SPEED_MIN = 0.5;
         const CHILL_DOG_SPEED_MAX = 2.5;
         let chillDogSpeedPending = null; // picked by the host, not yet back from Firestore: the ticks use it meanwhile
+
+        const CHILL_DOG_BOOTH_Z = 200; // above the stage row (8), below the action menu (300)
+
+        // The DJ booth's front edge in floor % (y below 0: the booth stands above the floor), or null when not drawn
+        function chillDogBoothSpot() {
+            const floor = document.getElementById("chillFloor")?.getBoundingClientRect();
+            const booth = document.getElementById("chillBooth")?.getBoundingClientRect();
+            if (!floor?.width || !floor.height || !booth?.width) return null;
+            return {
+                x: Math.round(((booth.left + booth.width / 2 - floor.left) / floor.width) * 1000) / 10,
+                y: Math.round(((booth.bottom - floor.top) / floor.height) * 1000) / 10,
+            };
+        }
 
         function chillDogSpeedOf(dog) {
             const speed = Number(dog?.speed);
