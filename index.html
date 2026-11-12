@@ -256,22 +256,6 @@
 
         <!-- Feed -->
         <!-- Feed filter: hides posts of other kinds with CSS (see #feed[data-filter]) -->
-        <!-- Below 1120px: "Góc Pass đồ" as a swipeable strip (wide screens have the sidebar widget) -->
-        <section class="pass-strip card" id="passStrip" aria-labelledby="passStripTitle" style="display:none">
-            <div class="pass-widget-head">
-                <h3 class="pass-widget-title" id="passStripTitle">🛍️ Góc Pass đồ Nhà Gô</h3>
-                <button type="button" class="link-btn" id="passStripAll">Xem tất cả</button>
-            </div>
-            <div class="pass-strip-track" id="passStripTrack"></div>
-        </section>
-        <!-- Below 1120px: friend suggestions as a swipeable strip (wide screens have the sidebar widget) -->
-        <section class="suggest-strip card is-empty" id="suggestStrip" aria-labelledby="suggestStripTitle">
-            <div class="pass-widget-head">
-                <h3 class="pass-widget-title" id="suggestStripTitle">✨ Gợi ý bạn bè</h3>
-                <button type="button" class="link-btn suggest-all">Xem tất cả →</button>
-            </div>
-            <div class="suggest-strip-track" id="suggestStripTrack"></div>
-        </section>
         <div class="feed-tabs" id="feedTabs" role="tablist" aria-label="Lọc bảng tin">
             <button type="button" class="feed-tab is-active" data-filter="all" role="tab" aria-selected="true">Tất cả</button>
             <button type="button" class="feed-tab" data-filter="post" role="tab" aria-selected="false">Bài viết</button>
@@ -316,21 +300,6 @@
             <div class="profile-about" id="profileAbout"></div>
             <div class="profile-panel-actions" id="profilePanelActions"></div>
         </div>
-        <!-- Items still for sale, always beside the feed (wide screens only); a tile opens #itemDetailModal -->
-        <section class="pass-widget card" id="passWidget" aria-labelledby="passWidgetTitle">
-            <div class="pass-widget-head">
-                <h3 class="pass-widget-title" id="passWidgetTitle">🛍️ Góc Pass đồ</h3>
-                <button type="button" class="link-btn" id="passWidgetAll">Xem tất cả</button>
-            </div>
-            <div class="pass-grid" id="passGrid"></div>
-        </section>
-        <section class="suggest-widget card is-empty" id="suggestWidget" aria-labelledby="suggestWidgetTitle">
-            <div class="pass-widget-head">
-                <h3 class="pass-widget-title" id="suggestWidgetTitle">✨ Gợi ý bạn bè</h3>
-                <button type="button" class="link-btn suggest-all">Xem tất cả →</button>
-            </div>
-            <ul class="suggest-list" id="suggestList"></ul>
-        </section>
     </aside>
 
     <!-- Right column (wide screens only): music rooms -->
@@ -560,6 +529,35 @@
                 <button type="submit" class="btn-primary" id="aboutSave">Lưu</button>
             </div>
         </form>
+    </div>
+
+    <!-- Floating shortcuts above the AI button: each opens its panel (popup on wide screens, bottom sheet on phones) -->
+    <div class="quick-dock" id="quickDock">
+        <button type="button" class="quick-fab" data-panel="suggestWidget" id="suggestFab" style="display:none" aria-label="Gợi ý bạn bè" title="Gợi ý bạn bè" aria-expanded="false">
+            <i class="fa-solid fa-user-plus"></i><span class="quick-fab-count" id="suggestFabCount"></span>
+        </button>
+        <button type="button" class="quick-fab" data-panel="passWidget" id="passFab" style="display:none" aria-label="Góc Pass đồ" title="Góc Pass đồ" aria-expanded="false">
+            🛍️<span class="quick-fab-count" id="passFabCount"></span>
+        </button>
+    </div>
+    <div class="quick-panel" id="quickPanel" style="display:none">
+        <section class="suggest-widget card" id="suggestWidget" role="dialog" aria-labelledby="suggestWidgetTitle">
+            <div class="pass-widget-head">
+                <h3 class="pass-widget-title" id="suggestWidgetTitle">✨ Gợi ý bạn bè</h3>
+                <button type="button" class="link-btn suggest-all">Xem tất cả →</button>
+                <button type="button" class="icon-btn quick-panel-close" aria-label="Đóng"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <ul class="suggest-list" id="suggestList"></ul>
+        </section>
+        <!-- Items still for sale; a tile opens #itemDetailModal -->
+        <section class="pass-widget card" id="passWidget" role="dialog" aria-labelledby="passWidgetTitle">
+            <div class="pass-widget-head">
+                <h3 class="pass-widget-title" id="passWidgetTitle">🛍️ Góc Pass đồ</h3>
+                <button type="button" class="link-btn" id="passWidgetAll">Xem tất cả</button>
+                <button type="button" class="icon-btn quick-panel-close" aria-label="Đóng"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="pass-grid" id="passGrid"></div>
+        </section>
     </div>
 
     <!-- VibeGram AI: RAG on community posts and events, for every signed-in user -->
@@ -2330,7 +2328,6 @@
         // friendship id (chatIdOf the two user ids) -> { memberIds, fromId, toId, status: "pending" | "accepted", ... }
         const friendships = new Map();
         const SUGGEST_WIDGET_SIZE = 5;
-        const SUGGEST_STRIP_SIZE = 10;
         let friendsTab = "requests";
 
         function friendshipWith(otherId) {
@@ -2417,7 +2414,7 @@
             );
         }
 
-        // Header badge, sidebar widget and phone strip; called from renderFriends()
+        // Header badge and the floating suggestions panel; called from renderFriends()
         function renderFriendExtras() {
             const me = currentAuthor();
             const requests = incomingRequests();
@@ -2425,18 +2422,8 @@
             $("#friendsBadge").text(requests.length > 9 ? "9+" : requests.length).toggle(requests.length > 0);
 
             const suggestions = me ? friendSuggestions() : [];
-            $("#suggestWidget, #suggestStrip").toggleClass("is-empty", !suggestions.length);
+            setQuickFab("#suggestFab", suggestions.length);
             $("#suggestList").empty().append(suggestions.slice(0, SUGGEST_WIDGET_SIZE).map((name) => buildFriendRow(name, friendButton(userIdOf(name)))));
-            $("#suggestStripTrack").empty().append(suggestions.slice(0, SUGGEST_STRIP_SIZE).map((name) => {
-                const mutual = mutualCount(userIdOf(name));
-                return $("<div>", { class: "suggest-card" }).append(
-                    $("<button>", { type: "button", class: "suggest-profile", "data-name": name, "aria-label": `Xem trang cá nhân của ${nameOf(name)}` })
-                        .append(fillAvatar($("<span>", { class: "avatar avatar-lg" }), name)),
-                    $("<strong>", { class: "suggest-profile", "data-name": name, text: nameOf(name) }),
-                    $("<span>", { text: mutual ? `${mutual} bạn chung` : "Chưa có bạn chung" }),
-                    friendButton(userIdOf(name))
-                );
-            }));
             if ($("#friendsModal").is(":visible")) renderFriendsModal();
         }
 
@@ -5952,10 +5939,51 @@
                 track.scrollTo({ left: Number($(this).attr("data-index")) * track.clientWidth, behavior: "smooth" });
             });
 
-        /* "Góc Pass đồ" sidebar: items still for sale, opened in a popup so the feed keeps its place */
+        /* Floating shortcuts (#quickDock): one panel open at a time, closed by its ✕, Escape or a click outside */
+
+        // Shows the button with its count; hides it (and its open panel) when there is nothing to show
+        function setQuickFab(selector, count) {
+            const $fab = $(selector);
+            $fab.toggle(count > 0);
+            $fab.find(".quick-fab-count").text(count > 9 ? "9+" : count);
+            if (!count && $fab.attr("aria-expanded") === "true") closeQuickPanel();
+        }
+
+        function openQuickPanel(panelId) {
+            $("#quickPanel > section").hide();
+            $(`#${panelId}`).show();
+            $("#quickDock .quick-fab").each(function () {
+                $(this).attr("aria-expanded", String($(this).attr("data-panel") === panelId));
+            });
+            $("#quickPanel").fadeIn(150);
+        }
+
+        function closeQuickPanel() {
+            $("#quickPanel").fadeOut(150);
+            $("#quickDock .quick-fab").attr("aria-expanded", "false");
+        }
+
+        $("#quickDock").on("click", ".quick-fab", function () {
+            if ($(this).attr("aria-expanded") === "true") closeQuickPanel();
+            else openQuickPanel($(this).attr("data-panel"));
+        });
+
+        $("#quickPanel").on("click", ".quick-panel-close, .suggest-all, #passWidgetAll", closeQuickPanel);
+
+        $(document)
+            .on("click", function (e) {
+                if (!$("#quickPanel").is(":visible") || $("#itemDetailModal").is(":visible")) return;
+                // A re-rendered row (e.g. after "Kết bạn") is no longer in the page: not a click outside
+                if (!document.contains(e.target)) return;
+                if (!$(e.target).closest("#quickPanel, #quickDock, .modal").length) closeQuickPanel();
+            })
+            .on("keydown", function (e) {
+                if (e.key === "Escape" && $("#quickPanel").is(":visible") && !$(".modal:visible").length) closeQuickPanel();
+            });
+
+        /* "Góc Pass đồ": items still for sale, opened in a popup so the feed keeps its place */
 
         const PASS_WIDGET_SIZE = 6;
-        const PASS_STRIP_SIZE = 12;
         let passItems = []; // [{ id, data }], newest first
         let passDetail = { id: "", index: 0 }; // item shown in #itemDetailModal, and its photo
 
@@ -5972,11 +6000,10 @@
             );
         }
 
-        // Sidebar grid (wide screens) and the swipeable strip above the feed (smaller screens; hidden when empty)
+        // Grid in the floating panel; its button hides when nothing is for sale
         function renderPassWidget() {
             const $grid = $("#passGrid").empty();
-            $("#passStrip").toggle(passItems.length > 0);
-            $("#passStripTrack").empty().append(passItems.slice(0, PASS_STRIP_SIZE).map(buildPassTile));
+            setQuickFab("#passFab", passItems.length);
             if (!passItems.length) {
                 $grid.append($("<p>", { class: "pass-empty", text: "Chưa có món đồ nào đang bán" }));
                 return;
@@ -6060,12 +6087,12 @@
             );
         }
 
-        $("#passGrid, #passStripTrack").on("click", ".pass-tile", function () {
+        $("#passGrid").on("click", ".pass-tile", function () {
             passDetail = { id: $(this).attr("data-id"), index: 0 };
             if (renderPassDetail()) $("#itemDetailModal").fadeIn(150);
         });
 
-        $("#passWidgetAll, #passStripAll").on("click", function () {
+        $("#passWidgetAll").on("click", function () {
             $('#feedTabs .feed-tab[data-filter="item"]').trigger("click");
             document.getElementById("feedTabs").scrollIntoView({ behavior: "smooth", block: "start" });
         });
@@ -10379,6 +10406,7 @@
 
         const CHILL_GAME_LIMITS = { max: [2, Infinity], lives: [1, 5], hits: [1, 10], minutes: [1, 30] };
         const CHILL_GAME_ANNOUNCE_MS = 5000;
+        const CHILL_GAME_RESULT_MS = 10000; // the result has more to read
         const CHILL_GAME_STATUS = { waiting: "⏳ Chờ bắt đầu", playing: "🔥 Đang diễn ra", ended: "🏁 Đã kết thúc" };
         let chillGameKey = ""; // what the panel shows: rebuilt only when it changes (the countdown ticks on its own)
         let chillGameSeen = null; // `${roomId}:${gameId}:${status}:${result}` last told (null: not looked yet)
@@ -10498,19 +10526,21 @@
             return "";
         }
 
-        // In the 2D room: a banner over the scene for a few seconds (click: the game panel); elsewhere a toast
-        function announceChillGame(text) {
-            if (!text) return;
+        // In the 2D room: a banner over the scene for a few seconds (click: the game panel); elsewhere a toast.
+        // Several lines: one per line on the banner, on one line in the toast
+        function announceChillGame(text, ms = CHILL_GAME_ANNOUNCE_MS) {
+            const lines = (Array.isArray(text) ? text : [text]).filter(Boolean);
+            if (!lines.length) return;
             if (!$("#chillModal").is(":visible")) {
-                showToast(text);
+                showToast(lines.join(" · "));
                 return;
             }
-            const $banner = $("#chillGameAnnounce").text(text).prop("hidden", false);
+            const $banner = $("#chillGameAnnounce").text(lines.join("\n")).prop("hidden", false);
             $banner.removeClass("is-in");
             void $banner[0].offsetWidth; // restart its entrance
             $banner.addClass("is-in");
             clearTimeout($banner.data("timer"));
-            $banner.data("timer", setTimeout(() => $banner.prop("hidden", true), CHILL_GAME_ANNOUNCE_MS));
+            $banner.data("timer", setTimeout(() => $banner.prop("hidden", true), ms));
         }
 
         // Every room update (2D room open or not): created / started / over is told once to everyone in the room,
@@ -10541,8 +10571,17 @@
                     saveMyVitals();
                 }
             }
+            // Over: everyone in the room (players or watching) is told who won and who is out, in the order they fell
             if (status === "ended" && game.result) {
-                announceChillGame(game.result.winners.length ? `🏁 "${game.name}" kết thúc! 🏆 ${chillGameNames(game.result.winners)}` : `🏁 "${game.name}" kết thúc`);
+                const { winners, out } = game.result;
+                const iAmOut = out.includes(userIdOf(currentAuthor()));
+                announceChillGame([
+                    `🏁 "${game.name}" kết thúc!`,
+                    winners.length ? `🏆 Chiến thắng: ${chillGameNames(winners)}` : "",
+                    out.length ? `💀 Bị loại: ${out.map((id, i) => `${i + 1}. ${nameOf(authorOfId(id))}`).join(" · ")}` : "",
+                    iAmOut ? "😵 Bạn đã bị loại!" : "",
+                    out.length && game.challenge ? `🎯 Thử thách cho người bị loại: ${game.challenge}` : "",
+                ], out.length ? CHILL_GAME_RESULT_MS : CHILL_GAME_ANNOUNCE_MS);
             }
         }
 
@@ -10560,11 +10599,25 @@
             $(".chill-game-time").text(game && status === "playing" ? chillGameClock(game) : "");
 
             const players = game ? chillGamePlayers(room, game) : [];
-            const key = JSON.stringify([room?.id || "", myId, isHost, game, status, players, game?.dog]);
+            // Only the dog's on/off and speed matter here: its position changes every tick and would rebuild the panel (and the speed slider being dragged)
+            const gameKey = game?.dog ? { ...game, dog: { active: game.dog.active, speed: chillDogSpeedOf(game.dog) } } : game;
+            const key = JSON.stringify([room?.id || "", myId, isHost, gameKey, status, players, dogActive]);
             if (key === chillGameKey) return;
             chillGameKey = key;
             const $info = $("#chillGameInfo").empty();
             const button = (act, text, primary = false) => $("<button>", { type: "button", "data-game-act": act, class: primary ? "is-primary" : "", text });
+            // While the dog runs: the host drags the speed, everyone else sees it
+            const speedControl = () => {
+                if (!dogActive) return null;
+                const speed = chillDogSpeedOf(game.dog);
+                return $("<label>", { class: "chill-dog-speed" }).append(
+                    $("<span>", { text: "⚡ Tốc độ chó" }),
+                    isHost ? $("<input>", {
+                        type: "range", id: "chillDogSpeed", min: CHILL_DOG_SPEED_MIN, max: CHILL_DOG_SPEED_MAX, step: 0.25, value: speed, "aria-label": "Tốc độ chó",
+                    }) : null,
+                    $("<b>", { class: "chill-dog-speed-value", text: `x${speed}` })
+                );
+            };
             if (!room) {
                 $info.append($("<strong>", { text: "🎮 Mini game" }), $("<p>", { text: "Vào một Chill Room để chơi mini game cùng mọi người nhé." }));
                 return;
@@ -10574,7 +10627,8 @@
                     $("<div>", { class: "chill-dog-control" }).append(
                         $("<span>", { text: dogActive ? "🐕 Chó rượt đuổi đang hoạt động" : "🐕 Chó rượt đuổi" }),
                         isHost ? button("dog-toggle", dogActive ? "Dừng" : "Bắt đầu", dogActive) : null
-                    )
+                    ),
+                    speedControl()
                 );
             }
             if (!game) {
@@ -10593,6 +10647,7 @@
                         $("<span>", { class: `chill-game-status is-${status}`, text: CHILL_GAME_STATUS[status] })
                     ),
                     $("<p>", { class: "chill-game-meta", text: dogActive ? "Chó đang chọn ngẫu nhiên người chơi để đuổi. Mỗi cú cắn trừ 5 HP." : "Chó đang nghỉ." }),
+                    speedControl(),
                     isHost ? $("<div>", { class: "chill-game-actions" }).append(
                         dogActive ? button("dog-stop", "⏹ Dừng game") : button("dog-toggle", "🐕 Chơi lại", true),
                         !dogActive ? button("close", "🗑️ Đóng game") : null
@@ -10670,9 +10725,11 @@
             $("#chillGameName").trigger("focus");
         }
 
-        function createChillDog() {
+        // Playing again keeps the speed the host picked
+        function createChillDog(speed = 1) {
             return {
                 active: true,
+                speed: chillDogSpeedOf({ speed }),
                 x: Math.round((10 + Math.random() * 80) * 10) / 10,
                 y: Math.round((14 + Math.random() * 72) * 10) / 10,
                 targetId: "",
@@ -10714,7 +10771,9 @@
             const dog = chillDogOf(room);
             const $floor = $("#chillFloor");
             let $sprite = $("#chillDog");
+            $("#chillScene .chill-char.is-dog-target").removeClass("is-dog-target");
             if (!dog || !Number.isFinite(dog.x) || !Number.isFinite(dog.y)) {
+                chillDogSpeedPending = null;
                 $sprite.remove();
                 clearInterval(chillDogFrameTimer);
                 chillDogFrameTimer = null;
@@ -10724,9 +10783,15 @@
                 $sprite = $("<div>", { id: "chillDog", class: "chill-dog", "aria-hidden": "true" })
                     .append(
                         $("<span>", { class: "chill-dog-bark", text: "woof!" }),
+                        $("<span>", { class: "chill-dog-hit", text: "💥" }),
                         $("<img>", { class: "chill-dog-sprite", src: "images/shiba.png", alt: "", draggable: false })
                     )
                     .appendTo($floor);
+            }
+            if (dog.targetId) {
+                $("#chillScene .chill-char[data-id]").filter(function () {
+                    return $(this).attr("data-id") === dog.targetId;
+                }).addClass("is-dog-target");
             }
             const biteId = dog.bite?.id || "";
             $sprite.toggleClass("is-biting", dog.mode === "bite" || (dog.bite?.at && Date.now() - dog.bite.at < CHILL_DOG_BITE_MS))
@@ -10747,8 +10812,9 @@
                     $image.attr("src", `images/${frame}`);
                 }, 2000);
             }
+            if (chillDogSpeedPending === chillDogSpeedOf(dog)) chillDogSpeedPending = null;
             placeChillChar($sprite, dog.x, dog.y);
-            $sprite.css("--depth", (0.8 + dog.y / 400).toFixed(2));
+            $sprite.css({ "--depth": (0.8 + dog.y / 400).toFixed(2), "--dog-speed": chillDogSpeedOf(dog) });
             if (biteId && (room.id !== chillDogSeenBark.roomId || biteId !== chillDogSeenBark.id)) {
                 chillDogSeenBark = { roomId: room.id, id: biteId };
                 if (typeof dog.barkAt === "number" && Date.now() - dog.barkAt < CHILL_DOG_BARK_MS) playChillDogSound();
@@ -10824,7 +10890,8 @@
                 target = candidates.length ? candidates[Math.floor(Math.random() * candidates.length)] : null;
                 nextTargetId = target || "";
             }
-            let nextDog = { ...dog, targetId: nextTargetId, mode: "run", updatedAt: now };
+            const speed = chillDogSpeedPending ?? chillDogSpeedOf(dog);
+            let nextDog = { ...dog, speed, targetId: nextTargetId, mode: "run", updatedAt: now };
             if (!target) {
                 if (now >= (dog.nextTargetAt || 0)) nextDog.nextTargetAt = now + CHILL_DOG_TARGET_MS;
                 persistChillDog(room, nextDog);
@@ -10846,7 +10913,7 @@
                     nextBiteAt: now + CHILL_DOG_BITE_COOLDOWN_MS,
                 };
             } else if (distance > CHILL_DOG_REACH) {
-                const step = Math.min(CHILL_DOG_STEP, distance);
+                const step = Math.min(CHILL_DOG_STEP * speed, distance);
                 nextDog = {
                     ...nextDog,
                     x: Math.max(4, Math.min(96, dog.x + dx / distance * step)),
@@ -10861,7 +10928,15 @@
             persistChillDog(room, nextDog);
         }
 
-        const CHILL_DOG_STEP = 8;
+        const CHILL_DOG_STEP = 8; // per tick at speed x1
+        const CHILL_DOG_SPEED_MIN = 0.5;
+        const CHILL_DOG_SPEED_MAX = 2.5;
+        let chillDogSpeedPending = null; // picked by the host, not yet back from Firestore: the ticks use it meanwhile
+
+        function chillDogSpeedOf(dog) {
+            const speed = Number(dog?.speed);
+            return Number.isFinite(speed) ? Math.min(CHILL_DOG_SPEED_MAX, Math.max(CHILL_DOG_SPEED_MIN, speed)) : 1;
+        }
         const CHILL_DOG_REACH = 5;
         const CHILL_DOG_TARGET_MS = 7000;
         const CHILL_DOG_BITE_MS = 700;
@@ -10920,6 +10995,20 @@
             saveChillGame(game).then((ok) => ok && showChillGameForm(false));
         });
 
+        // Dog speed: the value updates while dragging, saved on release
+        $("#chillGameInfo")
+            .on("input", "#chillDogSpeed", function () {
+                $(this).siblings(".chill-dog-speed-value").text(`x${Number(this.value)}`);
+            })
+            .on("change", "#chillDogSpeed", function () {
+                const dog = chillDogOf(myMusicRoom());
+                if (!dog) return;
+                chillDogSpeedPending = chillDogSpeedOf({ speed: this.value });
+                saveChillDog({ ...dog, speed: chillDogSpeedPending }).then((saved) => {
+                    if (!saved) chillDogSpeedPending = null;
+                });
+            });
+
         $("#chillGameInfo").on("click", "[data-game-act]", function () {
             const act = $(this).attr("data-game-act");
             const room = myMusicRoom();
@@ -10943,7 +11032,7 @@
                 }
                 const now = Date.now();
                 chillDogSyncBlockedRoom = "";
-                const dog = createChillDog();
+                const dog = createChillDog(currentDog?.speed);
                 if (game && !(game.type === "dog-chase" && chillGameStatusOf(game) === "ended")) {
                     saveChillDog(dog);
                 } else {
@@ -10981,7 +11070,7 @@
             if (act === "edit") showChillGameForm(true, game);
             if (act === "start") {
                 const dog = game.dogChaseEnabled
-                    ? createChillDog()
+                    ? createChillDog(game.dog?.speed)
                     : game.dog;
                 saveChillGame({
                     ...game,

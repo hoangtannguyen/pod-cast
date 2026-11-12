@@ -2943,10 +2943,6 @@ a.profile-about-row:hover {
         display: none;
     }
 
-    .profile-panel .pass-widget {
-        display: block;
-    }
-
     #btnMyProfile {
         display: none !important;
     }
@@ -4196,10 +4192,8 @@ a.profile-about-row:hover {
     opacity: 0.5;
 }
 
-/* "Góc Pass đồ" sidebar widget: only in the wide-screen left column (the panel is a profile popup on phones) */
+/* "Góc Pass đồ" panel, opened from its floating button (#quickDock) */
 .pass-widget {
-    display: none;
-    margin-top: 16px;
     padding: 14px;
 }
 
@@ -4350,41 +4344,6 @@ a.profile-about-row:hover {
 #feed[data-filter="party"] .post:not([data-kind="party"]),
 #feed[data-filter="item"] .post:not([data-kind="item"]) {
     display: none;
-}
-
-/* "Góc Pass đồ" strip above the feed (below 1120px): tiles swipe sideways */
-.pass-strip {
-    margin-bottom: 12px;
-    padding: 12px 0 12px 12px;
-}
-
-.pass-strip .pass-widget-head {
-    padding-right: 12px;
-}
-
-.pass-strip-track {
-    display: flex;
-    gap: 8px;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    scroll-snap-type: x proximity;
-    scrollbar-width: none;
-    padding-right: 12px;
-}
-
-.pass-strip-track::-webkit-scrollbar {
-    display: none;
-}
-
-.pass-strip-track .pass-tile {
-    flex: 0 0 96px;
-    scroll-snap-align: start;
-}
-
-@media (min-width: 1120px) {
-    .pass-strip {
-        display: none !important; /* the sidebar widget shows the same items */
-    }
 }
 
 /* Archive popup: one row per hidden post */
@@ -5035,19 +4994,7 @@ a.profile-about-row:hover {
 
 /* ---------- Friend suggestions & requests ---------- */
 .suggest-widget {
-    display: none;
-    margin-top: 16px;
     padding: 14px;
-}
-
-@media (min-width: 1120px) {
-    .profile-panel .suggest-widget:not(.is-empty) {
-        display: block;
-    }
-
-    .suggest-strip {
-        display: none !important; /* the sidebar widget shows the same people */
-    }
 }
 
 .suggest-list {
@@ -5087,8 +5034,7 @@ a.profile-about-row:hover {
     text-align: left;
 }
 
-.suggest-info span,
-.suggest-card > span {
+.suggest-info span {
     font-size: 12px;
     color: var(--muted);
 }
@@ -5099,16 +5045,13 @@ a.profile-about-row:hover {
 }
 
 .suggest-item .btn-primary,
-.suggest-item .btn-ghost,
-.suggest-card .btn-primary,
-.suggest-card .btn-ghost {
+.suggest-item .btn-ghost {
     padding: 6px 12px;
     font-size: 13px;
     white-space: nowrap;
 }
 
-.suggest-item .friend-action[data-action="add"],
-.suggest-card .friend-action[data-action="add"] {
+.suggest-item .friend-action[data-action="add"] {
     background: linear-gradient(90deg, #4f6bff, #b14cff);
     color: #fff;
 }
@@ -5116,60 +5059,6 @@ a.profile-about-row:hover {
 .friends-modal-list {
     max-height: 60vh;
     overflow-y: auto;
-}
-
-/* Phones / tablets: swipeable cards above the feed */
-.suggest-strip {
-    margin-bottom: 12px;
-    padding: 12px 0 12px 12px;
-}
-
-.suggest-strip.is-empty {
-    display: none;
-}
-
-.suggest-strip .pass-widget-head {
-    padding-right: 12px;
-}
-
-.suggest-strip-track {
-    display: flex;
-    gap: 8px;
-    padding-right: 12px;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    scroll-snap-type: x proximity;
-    scrollbar-width: none;
-}
-
-.suggest-strip-track::-webkit-scrollbar {
-    display: none;
-}
-
-.suggest-card {
-    flex: 0 0 140px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-    padding: 12px 8px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    scroll-snap-align: start;
-    text-align: center;
-}
-
-.suggest-card strong {
-    max-width: 100%;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    font-size: 14px;
-}
-
-.suggest-card .friend-action {
-    width: 100%;
-    margin-top: 4px;
 }
 
 /* Right column: only on wide screens, in the third grid column, sticky like the profile panel */
@@ -6120,6 +6009,106 @@ a.profile-about-row:hover {
 
 .music-queue-results .music-result-text strong {
     -webkit-line-clamp: 1;
+}
+
+/* ---------- Floating shortcuts: friend suggestions, items for sale ---------- */
+/* Stacked above the AI button (24 + 52 + 12) */
+.quick-dock {
+    position: fixed;
+    right: 28px;
+    bottom: 88px;
+    z-index: 30; /* above the bottom bar (25), below popups (40) */
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.quick-fab {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: var(--card);
+    font-size: 20px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+    cursor: pointer;
+    transition: transform 0.15s;
+}
+
+/* Same blue-purple as the "Kết bạn" button */
+.quick-fab .fa-user-plus {
+    font-size: 17px;
+    color: #6366f1;
+}
+
+.quick-fab:hover,
+.quick-fab[aria-expanded="true"] {
+    transform: scale(1.08);
+}
+
+.quick-fab-count {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: #f97316;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 18px;
+}
+
+/* Opens to the left of the buttons */
+.quick-panel {
+    position: fixed;
+    right: 84px; /* 28 + 44 + 12 */
+    bottom: 24px;
+    z-index: 33; /* above the buttons, below the music sheet (35) and popups (40) */
+    width: 340px;
+    max-height: calc(100dvh - 100px);
+    overflow-y: auto;
+    border-radius: var(--radius);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
+    animation: modal-in 0.2s ease;
+}
+
+.quick-panel .pass-widget-head .link-btn {
+    margin-left: auto;
+}
+
+.quick-panel-close {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    font-size: 14px;
+}
+
+/* Phones: above the AI button (72 + 52 + 12); the panel is a bottom sheet over the bottom bar */
+@media (max-width: 600px) {
+    .quick-dock {
+        right: 20px;
+        bottom: calc(136px + env(safe-area-inset-bottom));
+    }
+
+    .quick-panel {
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: auto;
+        max-height: 70dvh;
+    }
+
+    .quick-panel > .card {
+        border-radius: 16px 16px 0 0;
+        padding-bottom: calc(14px + env(safe-area-inset-bottom));
+    }
 }
 
 /* ---------- VibeGram AI: always dark, like a separate assistant surface ---------- */
@@ -7396,7 +7385,11 @@ a.profile-about-row:hover {
 
 @media (prefers-reduced-motion: reduce) {
     .chill-dog-sprite,
+    .chill-dog::before,
+    .chill-dog::after,
     .chill-dog.is-biting .chill-dog-bark,
+    .chill-dog.is-biting .chill-dog-hit,
+    #chillScene .chill-char.is-dog-target:not([data-emote="meditate"])::before,
     #chillScene .chill-char.is-dog-bitten .chill-face {
         animation: none;
     }
@@ -7696,8 +7689,8 @@ a.profile-about-row:hover {
 .chill-dog {
     position: absolute;
     display: grid;
-    width: 64px;
-    height: 68px;
+    width: 88px;
+    height: 92px;
     place-items: center;
     translate: -50% -100%;
     scale: calc(var(--depth, 1) * var(--chill-size, 1));
@@ -7706,13 +7699,45 @@ a.profile-about-row:hover {
     filter: drop-shadow(0 3px 2px rgba(0, 0, 0, 0.48));
 }
 
+/* Ground shadow: shrinks while the dog is up in its hop */
+.chill-dog::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 6px;
+    z-index: -1;
+    width: 54px;
+    height: 10px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.35);
+    translate: -50% 0;
+    animation: chill-dog-shadow calc(0.28s / var(--dog-speed, 1)) ease-in-out infinite alternate;
+}
+
+/* Dust kicked up behind the back feet (the sprite faces right) */
+.chill-dog::before {
+    content: "💨";
+    position: absolute;
+    left: -6px;
+    bottom: 8px;
+    font-size: 20px;
+    opacity: 0;
+    animation: chill-dog-dust calc(0.56s / var(--dog-speed, 1)) ease-out infinite;
+}
+
+.chill-dog.is-facing-left::before {
+    left: auto;
+    right: -6px;
+    scale: -1 1;
+}
+
 .chill-dog-sprite {
     display: block;
-    width: 64px;
-    height: 64px;
+    width: 88px;
+    height: 88px;
     object-fit: contain;
     transform-origin: 50% 80%;
-    animation: chill-dog-run 0.28s steps(2, end) infinite alternate;
+    animation: chill-dog-run calc(0.28s / var(--dog-speed, 1)) ease-in-out infinite alternate; /* faster legs at a higher speed */
 }
 
 .chill-dog.is-facing-left .chill-dog-sprite {
@@ -7721,46 +7746,109 @@ a.profile-about-row:hover {
 
 .chill-dog-bark {
     position: absolute;
-    top: -8px;
+    top: -14px;
     left: 50%;
-    padding: 2px 5px;
-    border: 1px solid rgba(255, 255, 255, 0.35);
-    border-radius: 8px;
+    z-index: 1;
+    padding: 3px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    border-radius: 10px;
     background: #7c3aed;
     color: #fff;
-    font-size: 8px;
+    font-size: 12px;
     font-weight: 800;
     line-height: 1;
+    white-space: nowrap;
     opacity: 0;
     translate: -50% 0;
+    box-shadow: 0 0 10px rgba(124, 58, 237, 0.7);
+}
+
+/* Impact burst in front of the mouth when it bites */
+.chill-dog-hit {
+    position: absolute;
+    top: 20px;
+    right: -14px;
+    font-size: 26px;
+    line-height: 1;
+    opacity: 0;
+}
+
+.chill-dog.is-facing-left .chill-dog-hit {
+    right: auto;
+    left: -14px;
+}
+
+.chill-dog.is-biting::before {
+    animation: none;
 }
 
 .chill-dog.is-biting .chill-dog-sprite {
-    animation: chill-dog-bite 0.7s steps(2, end) 1;
+    animation: chill-dog-bite 0.7s ease-in-out 1;
 }
 
 .chill-dog.is-biting .chill-dog-bark {
     animation: chill-dog-bark 0.7s ease-out 1;
 }
 
+.chill-dog.is-biting .chill-dog-hit {
+    animation: chill-dog-hit 0.7s ease-out 1;
+}
+
 #chillScene .chill-char.is-dog-bitten .chill-face {
     animation: chill-dog-startle 0.55s steps(2, end) 1;
 }
 
+/* The person the dog is chasing: a bouncing target over their head */
+#chillScene .chill-char.is-dog-target:not([data-emote="meditate"])::before {
+    content: "🎯";
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    font-size: 16px;
+    line-height: 1;
+    translate: -50% -4px;
+    animation: chill-dog-target 0.6s ease-in-out infinite alternate;
+}
+
 @keyframes chill-dog-run {
-    from { translate: 0 1px; }
-    to { translate: 0 -3px; }
+    from { translate: 0 2px; rotate: 3deg; }
+    to { translate: 0 -7px; rotate: -4deg; }
+}
+
+@keyframes chill-dog-shadow {
+    from { width: 58px; opacity: 1; }
+    to { width: 40px; opacity: 0.6; }
+}
+
+@keyframes chill-dog-dust {
+    0% { opacity: 0; transform: translate(0, 0) scale(0.5); }
+    25% { opacity: 0.85; }
+    100% { opacity: 0; transform: translate(-14px, -6px) scale(1.2); }
 }
 
 @keyframes chill-dog-bite {
-    0%, 100% { transform: scaleX(1) rotate(0); }
-    25% { transform: scaleX(1.12) rotate(-12deg); }
-    60% { transform: scaleX(0.9) rotate(12deg); }
+    0%, 100% { transform: scale(1) rotate(0); }
+    20% { transform: translateX(-6px) scale(0.92, 1.08) rotate(6deg); }
+    45% { transform: translateX(10px) scale(1.25, 0.9) rotate(-14deg); }
+    70% { transform: translateX(4px) scale(1.1) rotate(10deg); }
 }
 
 @keyframes chill-dog-bark {
-    15%, 70% { opacity: 1; }
-    100% { opacity: 0; transform: translate(-50%, -5px); }
+    0% { opacity: 0; transform: scale(0.4); }
+    15% { opacity: 1; transform: scale(1.25); }
+    30%, 70% { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: translateY(-8px); }
+}
+
+@keyframes chill-dog-hit {
+    0%, 30% { opacity: 0; transform: scale(0.3) rotate(0); }
+    45% { opacity: 1; transform: scale(1.4) rotate(-15deg); }
+    100% { opacity: 0; transform: scale(1.8) rotate(10deg); }
+}
+
+@keyframes chill-dog-target {
+    from { transform: translateY(0) scale(1); }
+    to { transform: translateY(-5px) scale(1.15); }
 }
 
 @keyframes chill-dog-startle {
@@ -10673,6 +10761,39 @@ a.profile-about-row:hover {
     font-weight: 700;
 }
 
+/* Dog speed: slider for the host, value only for everyone else */
+.chill-dog-speed {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 10px;
+    padding: 8px 10px;
+    border: 1px solid rgba(192, 132, 252, 0.32);
+    border-radius: 10px;
+    background: rgba(168, 85, 247, 0.1);
+    color: #f3e8ff;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.chill-dog-speed span {
+    flex: 0 0 auto;
+}
+
+.chill-dog-speed input {
+    flex: 1;
+    min-width: 0;
+    accent-color: #a855f7;
+    cursor: pointer;
+}
+
+.chill-dog-speed-value {
+    margin-left: auto;
+    min-width: 34px;
+    text-align: right;
+    color: #fde68a;
+}
+
 .chill-dog-control button {
     flex: 0 0 auto;
     padding: 6px 12px;
@@ -10800,6 +10921,7 @@ a.profile-about-row:hover {
     font-weight: 700;
     line-height: 1.4;
     text-align: center;
+    white-space: pre-line; /* the game result comes as several lines */
     translate: -50% 0;
     cursor: pointer;
 }
@@ -12001,5 +12123,65 @@ a.profile-about-row:hover {
 
     #chillModal .chill-chat-feed ul {
         gap: 3px;
+    }
+}
+
+@media (max-width: 700px) and (orientation: portrait) {
+    #chillModal .chill-room {
+        height: 100dvh;
+        max-height: 100dvh;
+    }
+
+    #chillModal .chill-scene {
+        flex: 1 1 0;
+        min-height: min(30dvh, 240px);
+    }
+
+    #chillModal .chill-toolbar {
+        flex: 0 1 auto;
+        max-height: min(30dvh, 210px);
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(192, 132, 252, 0.3) transparent;
+        border-top: 1px solid rgba(192, 132, 252, 0.3);
+        border-bottom: 1px solid rgba(192, 132, 252, 0.16);
+    }
+
+    #chillModal .chill-toolbar .chill-emotes {
+        justify-content: flex-start;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding-bottom: 5px;
+        touch-action: pan-x;
+    }
+
+    #chillModal .chill-toolbar .chill-bar {
+        width: 100%;
+    }
+
+    #chillModal .chill-song-pop {
+        position: relative;
+        inset: auto;
+        flex: 0 1 auto;
+        width: auto;
+        max-height: min(30dvh, 220px);
+        margin: 0 8px 6px;
+        overscroll-behavior: contain;
+    }
+
+    #chillModal .chill-chat {
+        position: relative;
+        inset: auto;
+        flex: 0 0 auto;
+        width: auto;
+        max-height: 72px;
+        margin: 0;
+        padding: 6px 8px max(6px, env(safe-area-inset-bottom));
+        border: 0;
+        border-top: 1px solid rgba(192, 132, 252, 0.22);
+        border-radius: 0;
+        box-shadow: none;
     }
 }
