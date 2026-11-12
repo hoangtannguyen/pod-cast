@@ -8868,6 +8868,46 @@ a.profile-about-row:hover {
     100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(1); }
 }
 
+/* Losing HP: hot sparks shoot out fast and shrink, a few ✦ shards spin, a red ring flashes at the impact */
+.chill-particle.is-hurt {
+    width: 5px;
+    height: 5px;
+    animation: chill-hurt-spark 0.65s cubic-bezier(0.15, 0.8, 0.3, 1) forwards;
+}
+
+.chill-particle.is-hurt.is-shard {
+    width: auto;
+    height: auto;
+    margin: -7px 0 0 -5px;
+    background: none;
+    box-shadow: none;
+    font-size: 13px;
+    font-weight: 900;
+    line-height: 1;
+    text-shadow: 0 0 6px currentColor;
+}
+
+.chill-particle.is-hurt-ring {
+    width: 14px;
+    height: 14px;
+    margin: -7px 0 0 -7px;
+    border: 3px solid #ef4444;
+    background: rgba(254, 202, 202, 0.35);
+    box-shadow: 0 0 12px #ef4444;
+    animation: chill-hurt-ring 0.45s ease-out forwards;
+}
+
+@keyframes chill-hurt-spark {
+    0% { opacity: 1; transform: translate(0, 0) scale(1.4) rotate(0); }
+    70% { opacity: 1; }
+    100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.3) rotate(220deg); }
+}
+
+@keyframes chill-hurt-ring {
+    0% { opacity: 1; transform: scale(0.4); }
+    100% { opacity: 0; transform: scale(3.2); }
+}
+
 /* Others can be clicked for the heart / high-five / cheers menu */
 .chill-floor .chill-char:not(.is-me),
 .chill-booth .chill-char:not(.is-me) {

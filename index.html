@@ -9712,28 +9712,39 @@
         /* Particles: small dots / hearts drifting up from a character and fading. Capped so a busy room stays light */
         const CHILL_PARTICLE_MAX = 120;
         const CHILL_PARTICLE_COLORS = ["#f472b6", "#fde68a", "#60a5fa", "#a78bfa", "#34d399", "#fb923c"];
+        const CHILL_HURT_COLORS = ["#ef4444", "#f97316", "#fde68a", "#ffffff", "#dc2626"];
 
         function spawnChillParticles($char, kind) {
             const face = $char.find(".chill-face")[0];
             if (!face || !$("#chillModal").is(":visible")) return;
             const room = CHILL_PARTICLE_MAX - $("#chillScene .chill-particle").length;
-            const count = Math.min(room, kind === "firework" ? 14 : kind === "bubble" ? 10 : 8);
+            const hurt = kind === "hurt";
+            const count = Math.min(room, kind === "firework" ? 14 : kind === "bubble" ? 10 : hurt ? 12 : 8);
             if (count <= 0) return;
             const scene = $("#chillScene")[0].getBoundingClientRect();
             const box = face.getBoundingClientRect();
             const x = box.left - scene.left + box.width / 2;
             const y = kind === "firework" ? box.top - scene.top - 18 : box.top - scene.top + box.height / 2;
+            // Hurt: an impact ring, then sparks and shards thrown all around the face
+            if (hurt) {
+                const $ring = $("<span>", { class: "chill-particle is-hurt-ring", "aria-hidden": "true" }).css({ left: x, top: y }).appendTo("#chillScene");
+                setTimeout(() => $ring.remove(), 700);
+            }
             for (let i = 0; i < count; i++) {
-                const angle = kind === "firework" ? (i / count) * Math.PI * 2 : -Math.PI / 2 + (Math.random() - 0.5) * 1.4;
-                const dist = kind === "firework" ? 30 + Math.random() * 25 : 40 + Math.random() * 40;
-                const $p = $("<span>", { class: `chill-particle is-${kind}`, text: kind === "heart" ? "♥" : "", "aria-hidden": "true" })
+                const angle = kind === "firework" || hurt
+                    ? (i / count) * Math.PI * 2 + (hurt ? (Math.random() - 0.5) * 0.5 : 0)
+                    : -Math.PI / 2 + (Math.random() - 0.5) * 1.4;
+                const dist = kind === "firework" ? 30 + Math.random() * 25 : hurt ? 22 + Math.random() * 30 : 40 + Math.random() * 40;
+                const text = kind === "heart" ? "♥" : hurt && i % 3 === 0 ? "✦" : "";
+                const colors = hurt ? CHILL_HURT_COLORS : CHILL_PARTICLE_COLORS;
+                const $p = $("<span>", { class: `chill-particle is-${kind}${text && hurt ? " is-shard" : ""}`, text, "aria-hidden": "true" })
                     .css({
                         left: x,
                         top: y,
-                        color: CHILL_PARTICLE_COLORS[i % CHILL_PARTICLE_COLORS.length],
+                        color: colors[i % colors.length],
                         "--dx": `${Math.cos(angle) * dist}px`,
                         "--dy": `${Math.sin(angle) * dist - (kind === "heart" ? 20 : 0)}px`,
-                        "animation-delay": `${(Math.random() * 0.25).toFixed(2)}s`,
+                        "animation-delay": `${(Math.random() * (hurt ? 0.06 : 0.25)).toFixed(2)}s`,
                     })
                     .appendTo("#chillScene");
                 setTimeout(() => $p.remove(), 1700);
@@ -9925,6 +9936,10 @@
             }
             if (typeof before === "number" && before !== hp) showChillFloat($char, hp > before ? `+${hp - before}` : String(hp - before), hp > before ? "is-heal" : "is-hurt");
             if (typeof before === "number" && hp < before && hp > 0) reactChillHurt($char, hp);
+            if (typeof before === "number" && hp < before) {
+                spawnChillParticles($char, "hurt");
+                playChillHurtSound(isMe);
+            }
             const was = { ko: $char.hasClass("is-ko"), nap: $char.hasClass("is-napping"), tipsy: $char.hasClass("is-tipsy") };
             $char.toggleClass("is-ko", ko).toggleClass("is-napping", nap).toggleClass("is-tipsy", tipsy);
             if (ko) $char.removeClass("is-startled is-wincing is-dizzy").find(".chill-eyes").remove();
@@ -9962,6 +9977,83 @@
                 $char.find(".chill-face").append($eyes);
                 restartChillClass($char, "is-dizzy", CHILL_DIZZY_MS);
                 setTimeout(() => $eyes.remove(), CHILL_DIZZY_MS);
+            }
+        }
+
+        // Losing HP, made with Web Audio (no sound files): a funny "á!" when it is me, a soft "bụp" for someone else.
+        // One shared context; hits landing together play once
+        let chillSfxAudio = null;
+        let chillSfxLastAt = 0;
+        function playChillHurtSound(isMe) {
+            if (!$("#chillModal").is(":visible")) return;
+            const nowMs = Date.now();
+            if (!isMe && nowMs - chillSfxLastAt < 90) return; // my own "á!" always plays
+            chillSfxLastAt = nowMs;
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (!AudioCtx) return;
+                chillSfxAudio = chillSfxAudio || new AudioCtx();
+                const ctx = chillSfxAudio;
+                ctx.resume().catch(() => {});
+                const t = ctx.currentTime;
+                const out = ctx.createGain();
+                out.connect(ctx.destination);
+
+                // "bụp": a sine thump dropping fast, plus a short burst of filtered noise
+                const thump = ctx.createOscillator();
+                thump.type = "sine";
+                thump.frequency.setValueAtTime(isMe ? 260 : 220, t);
+                thump.frequency.exponentialRampToValueAtTime(60, t + 0.12);
+                const thumpGain = ctx.createGain();
+                thumpGain.gain.setValueAtTime(isMe ? 0.35 : 0.16, t);
+                thumpGain.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+                thump.connect(thumpGain).connect(out);
+                thump.start(t);
+                thump.stop(t + 0.17);
+
+                const noise = ctx.createBufferSource();
+                noise.buffer = ctx.createBuffer(1, Math.round(ctx.sampleRate * 0.06), ctx.sampleRate);
+                const data = noise.buffer.getChannelData(0);
+                for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+                const lowpass = ctx.createBiquadFilter();
+                lowpass.type = "lowpass";
+                lowpass.frequency.value = 1400;
+                const noiseGain = ctx.createGain();
+                noiseGain.gain.value = isMe ? 0.25 : 0.1;
+                noise.connect(lowpass).connect(noiseGain).connect(out);
+                noise.start(t);
+
+                if (!isMe) return;
+                // "á!": a cartoon voice, a buzzy tone through two "a" vowel formants, sliding up then falling with a wobble
+                const voice = ctx.createOscillator();
+                voice.type = "sawtooth";
+                const start = t + 0.04;
+                voice.frequency.setValueAtTime(420, start);
+                voice.frequency.linearRampToValueAtTime(640, start + 0.07);
+                voice.frequency.exponentialRampToValueAtTime(300, start + 0.32);
+                const wobble = ctx.createOscillator();
+                wobble.frequency.value = 18;
+                const wobbleDepth = ctx.createGain();
+                wobbleDepth.gain.value = 22;
+                wobble.connect(wobbleDepth).connect(voice.frequency);
+                const voiceGain = ctx.createGain();
+                voiceGain.gain.setValueAtTime(0.001, start);
+                voiceGain.gain.exponentialRampToValueAtTime(0.22, start + 0.03);
+                voiceGain.gain.exponentialRampToValueAtTime(0.001, start + 0.34);
+                [[850, 6], [1250, 8]].forEach(([freq, q]) => {
+                    const formant = ctx.createBiquadFilter();
+                    formant.type = "bandpass";
+                    formant.frequency.value = freq;
+                    formant.Q.value = q;
+                    voice.connect(formant).connect(voiceGain);
+                });
+                voiceGain.connect(out);
+                voice.start(start);
+                wobble.start(start);
+                voice.stop(start + 0.36);
+                wobble.stop(start + 0.36);
+            } catch (err) {
+                console.warn("Hurt sound could not be played.", err);
             }
         }
 
