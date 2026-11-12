@@ -8,7 +8,7 @@
     <!-- Apply the theme before the page paints, so a dark page does not flash white.
          By the clock: light 06:00-18:00, dark otherwise. A theme picked with the button lasts until
          the next of those two times ("vibegram:themeUntil"), then the clock takes over again.
-         "sepia" and "dim" are tones on top of light / dark (data-tone), so the dark-theme styles still apply. -->
+         "sepia", "pastel", and "dim" are tones on top of light / dark (data-tone), so base-theme styles still apply. -->
     <script>
         (function () {
             var hour = new Date().getHours();
@@ -16,9 +16,9 @@
             try {
                 var picked = localStorage.getItem("vibegram:theme");
                 var until = Number(localStorage.getItem("vibegram:themeUntil")) || 0;
-                if (["light", "sepia", "dark", "dim"].indexOf(picked) >= 0 && Date.now() < until) theme = picked;
+                if (["light", "sepia", "pastel", "dark", "dim"].indexOf(picked) >= 0 && Date.now() < until) theme = picked;
             } catch (e) {}
-            var base = theme === "sepia" ? "light" : theme === "dim" ? "dark" : theme;
+            var base = theme === "sepia" || theme === "pastel" ? "light" : theme === "dim" ? "dark" : theme;
             document.documentElement.setAttribute("data-theme", base);
             if (base !== theme) document.documentElement.setAttribute("data-tone", theme);
         })();
@@ -2556,10 +2556,11 @@
         const THEMES = {
             light: { base: "light", label: "Chế độ sáng", icon: "fa-regular fa-sun" },
             sepia: { base: "light", tone: "sepia", label: "Chế độ kem", icon: "fa-solid fa-mug-hot" },
+            pastel: { base: "light", tone: "pastel", label: "Chế độ pastel", icon: "fa-solid fa-palette" },
             dark: { base: "dark", label: "Chế độ tối", icon: "fa-regular fa-moon" },
             dim: { base: "dark", tone: "dim", label: "Chế độ xanh đêm", icon: "fa-regular fa-star" },
         };
-        const THEME_ORDER = ["light", "sepia", "dark", "dim"];
+        const THEME_ORDER = ["light", "sepia", "pastel", "dark", "dim"];
 
         function currentTheme() {
             const root = document.documentElement;

@@ -3346,6 +3346,51 @@ a.profile-about-row:hover {
     background: rgba(251, 246, 234, 0.9);
 }
 
+/* Pastel: lavender controls with mint and peach details on a cool white canvas */
+:root[data-tone="pastel"] {
+    --bg: #f8f7ff;
+    --card: #ffffff;
+    --border: #e5e0f5;
+    --border-soft: #f0ecfa;
+    --text: #2f2942;
+    --muted: #817a96;
+    --input: #f0edfa;
+    --primary: #7461d2;
+    --primary-hover: #5f4bb8;
+    --like-soft: #ffe8e8;
+    --pastel-mint: #e4f7ef;
+    --pastel-peach: #ffe4d6;
+}
+
+:root[data-tone="pastel"] .topbar {
+    background: rgba(248, 247, 255, 0.9);
+}
+
+:root[data-tone="pastel"] .notify-item.is-unread {
+    background: var(--pastel-mint);
+}
+
+:root[data-tone="pastel"] .notify-item.is-unread:hover,
+:root[data-tone="pastel"] .notify-item:hover {
+    background: #f0edfa;
+}
+
+:root[data-tone="pastel"] .btn-edit:hover,
+:root[data-tone="pastel"] .btn-edit-comment:hover,
+:root[data-tone="pastel"] .emoji-option.is-selected {
+    background-color: #ebe6ff;
+}
+
+:root[data-tone="pastel"] .event-card {
+    border-color: #e2dafa;
+    background: linear-gradient(135deg, var(--pastel-mint) 0%, #f5f0ff 100%);
+}
+
+:root[data-tone="pastel"] .event-status:not(.is-cancelled) {
+    background: var(--pastel-peach);
+    color: #86503a;
+}
+
 /* Dim: dark navy instead of pure black, less contrast glare at night */
 :root[data-tone="dim"] {
     --bg: #15202b;
@@ -6197,6 +6242,31 @@ a.profile-about-row:hover {
     --ai-link-border: #b9d9f5;
     --ai-link-bg: #eaf4fd;
     --ai-link-text: #1d5f99;
+    --ai-found: #15803d;
+}
+
+:root[data-tone="pastel"] .ai-panel {
+    box-shadow: 0 20px 50px rgba(90, 75, 160, 0.18);
+    --ai-bg: linear-gradient(180deg, #ffffff 0%, #f5f2ff 100%);
+    --ai-surface: #efebfb;
+    --ai-surface-2: #faf9ff;
+    --ai-surface-3: #e9e3fa;
+    --ai-hover: #e9e3fa;
+    --ai-border: #e2dcf2;
+    --ai-border-strong: #c9bfea;
+    --ai-divider: #ebe6f7;
+    --ai-form-bg: #ffffff;
+    --ai-text: #2f2942;
+    --ai-text-soft: #514968;
+    --ai-muted: #817a96;
+    --ai-strong: #211b32;
+    --ai-tag-text: #5f4bb8;
+    --ai-error-border: #f5c2cc;
+    --ai-error-bg: #fff0f1;
+    --ai-error-text: #b4233c;
+    --ai-link-border: #c7e9da;
+    --ai-link-bg: #e4f7ef;
+    --ai-link-text: #24664d;
     --ai-found: #15803d;
 }
 
