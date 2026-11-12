@@ -11641,7 +11641,9 @@
                 .attr("aria-pressed", String(!hidden))
                 .attr("aria-label", hidden ? "Hiện tin nhắn trong phòng" : "Ẩn tin nhắn trong phòng")
                 .attr("title", hidden ? "Hiện tin nhắn" : "Ẩn tin nhắn");
-            $("#chillChatFeed").prop("hidden", !myMusicRoom());
+            $("#chillChatFeed")
+                .prop("hidden", !myMusicRoom())
+                .toggleClass("is-collapsed", recentRoomMessages.length === 0 || hidden);
             $("#chillChatFeedList").prop("hidden", recentRoomMessages.length === 0 || hidden);
             $("#chillChatFeedList").empty().append(recentRoomMessages.map((m) => {
                 const name = authorOfId(m.fromId);
