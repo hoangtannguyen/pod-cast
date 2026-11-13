@@ -7501,6 +7501,8 @@ a.profile-about-row:hover {
     .chill-dog::after,
     .chill-dog.is-biting .chill-dog-bark,
     .chill-dog.is-biting .chill-dog-hit,
+    .chill-dog.is-sleeping::before,
+    .chill-dog.is-sleeping .chill-dog-sprite,
     #chillScene .chill-char.is-dog-target:not([data-emote="meditate"])::before,
     #chillScene .chill-char.is-dog-bitten .chill-face {
         animation: none;
@@ -7904,6 +7906,49 @@ a.profile-about-row:hover {
 
 .chill-dog.is-biting .chill-dog-hit {
     animation: chill-dog-hit 0.7s ease-out 1;
+}
+
+/* Stopped: the dog lies down where it was, zZz floating up */
+.chill-dog.is-sleeping {
+    transition: none;
+}
+
+.chill-dog.is-sleeping .chill-dog-sprite {
+    transform-origin: 50% 100%;
+    animation: chill-dog-breathe 2.4s ease-in-out infinite;
+}
+
+.chill-dog.is-sleeping::after {
+    width: 66px;
+    animation: none;
+}
+
+.chill-dog.is-sleeping::before {
+    content: "💤";
+    top: 6px;
+    right: 4px;
+    bottom: auto;
+    left: auto;
+    scale: 1;
+    font-size: 18px;
+    opacity: 1;
+    animation: chill-dog-zzz 2.4s ease-out infinite;
+}
+
+.chill-dog.is-sleeping .chill-dog-bark,
+.chill-dog.is-sleeping .chill-dog-hit {
+    display: none;
+}
+
+@keyframes chill-dog-breathe {
+    0%, 100% { transform: scale(1, 1); }
+    50% { transform: scale(1.02, 1.05); }
+}
+
+@keyframes chill-dog-zzz {
+    0% { opacity: 0; transform: translate(0, 6px) scale(0.6); }
+    30% { opacity: 1; }
+    100% { opacity: 0; transform: translate(8px, -14px) scale(1.1); }
 }
 
 #chillScene .chill-char.is-dog-bitten .chill-face {

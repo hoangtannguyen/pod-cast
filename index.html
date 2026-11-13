@@ -10732,7 +10732,7 @@
                 $info.append(
                     $("<div>", { class: "chill-dog-control" }).append(
                         $("<span>", { text: dogActive ? "🐕 Chó rượt đuổi đang hoạt động" : "🐕 Chó rượt đuổi" }),
-                        isHost ? button("dog-toggle", dogActive ? "Dừng" : "Bắt đầu", dogActive) : null
+                        isHost ? button("dog-toggle", dogActive ? "💤 Cho ngủ" : "Bắt đầu", dogActive) : null
                     ),
                     speedControl()
                 );
@@ -10752,10 +10752,12 @@
                         $("<strong>", { text: "🐕 Chó rượt đuổi" }),
                         $("<span>", { class: `chill-game-status is-${status}`, text: CHILL_GAME_STATUS[status] })
                     ),
-                    $("<p>", { class: "chill-game-meta", text: dogActive ? "Chó đang chọn ngẫu nhiên người chơi để đuổi. Mỗi cú cắn trừ 5 HP." : "Chó đang nghỉ." }),
+                    $("<p>", { class: "chill-game-meta", text: dogActive ? "Chó đang chọn ngẫu nhiên người chơi để đuổi. Mỗi cú cắn trừ 5 HP." : "💤 Chó đang ngủ, không cắn ai." }),
                     speedControl(),
                     isHost ? $("<div>", { class: "chill-game-actions" }).append(
-                        dogActive ? button("dog-stop", "⏹ Dừng game") : button("dog-toggle", "🐕 Chơi lại", true),
+                        // Sleep: the game stays on, the dog naps where it is; wake it up to chase again
+                        dogActive ? button("dog-toggle", "💤 Cho chó ngủ") : button("dog-toggle", status === "ended" ? "🐕 Chơi lại" : "🐕 Đánh thức", true),
+                        dogActive ? button("dog-stop", "⏹ Dừng game") : null,
                         !dogActive ? button("close", "🗑️ Đóng game") : null
                     ) : null
                 );
@@ -10832,12 +10834,14 @@
         }
 
         // Playing again keeps the speed the host picked
-        function createChillDog(speed = 1) {
+        // `from`: a napping dog wakes up where it lay
+        function createChillDog(speed = 1, from = null) {
+            const lay = Number.isFinite(from?.x) && Number.isFinite(from?.y);
             return {
                 active: true,
                 speed: chillDogSpeedOf({ speed }),
-                x: Math.round((10 + Math.random() * 80) * 10) / 10,
-                y: Math.round((14 + Math.random() * 72) * 10) / 10,
+                x: lay ? from.x : Math.round((10 + Math.random() * 80) * 10) / 10,
+                y: lay ? from.y : Math.round((14 + Math.random() * 72) * 10) / 10,
                 targetId: "",
                 mode: "run",
                 nextTargetAt: 0,
@@ -10873,8 +10877,15 @@
             return null;
         }
 
+        // Stopped while the game is still around: the dog stays where it was and naps
+        function chillSleepingDogOf(room) {
+            const dog = chillGameOf(room)?.dog;
+            return !chillDogOf(room) && Number.isFinite(dog?.x) && Number.isFinite(dog?.y) ? dog : null;
+        }
+
         function renderChillDog(room) {
-            const dog = chillDogOf(room);
+            const sleeping = chillSleepingDogOf(room);
+            const dog = chillDogOf(room) || sleeping;
             const $floor = $("#chillFloor");
             let $sprite = $("#chillDog");
             $("#chillScene .chill-char.is-dog-target").removeClass("is-dog-target");
@@ -10893,6 +10904,18 @@
                         $("<img>", { class: "chill-dog-sprite", src: "images/shiba.png", alt: "", draggable: false })
                     )
                     .appendTo($floor);
+            }
+            $sprite.toggleClass("is-sleeping", !!sleeping);
+            if (sleeping) {
+                chillDogSpeedPending = null;
+                clearInterval(chillDogFrameTimer);
+                chillDogFrameTimer = null;
+                $sprite.removeClass("is-biting").find(".chill-dog-sprite").attr("src", "images/shiba-sleep.png");
+                const spot = (dog.atBooth && chillDogBoothSpot()) || dog;
+                placeChillChar($sprite, spot.x, spot.y);
+                $sprite.css("--depth", (0.8 + Math.max(0, spot.y) / 400).toFixed(2));
+                if (spot.y < 0) $sprite.css("z-index", CHILL_DOG_BOOTH_Z);
+                return;
             }
             if (dog.targetId) {
                 $("#chillScene .chill-char[data-id]").filter(function () {
@@ -11162,7 +11185,7 @@
                 }
                 const now = Date.now();
                 chillDogSyncBlockedRoom = "";
-                const dog = createChillDog(currentDog?.speed);
+                const dog = createChillDog(currentDog?.speed, currentDog);
                 if (game && !(game.type === "dog-chase" && chillGameStatusOf(game) === "ended")) {
                     saveChillDog(dog);
                 } else {
@@ -11200,7 +11223,7 @@
             if (act === "edit") showChillGameForm(true, game);
             if (act === "start") {
                 const dog = game.dogChaseEnabled
-                    ? createChillDog(game.dog?.speed)
+                    ? createChillDog(game.dog?.speed, game.dog)
                     : game.dog;
                 saveChillGame({
                     ...game,
