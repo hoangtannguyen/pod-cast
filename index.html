@@ -334,6 +334,7 @@
                     <button type="button" class="music-play" id="musicToggle" aria-label="Phát / tạm dừng"><i class="fa-solid fa-play"></i></button>
                     <button type="button" class="icon-btn music-mute" id="musicMute" aria-label="Tắt âm thanh"><i class="fa-solid fa-volume-high"></i></button>
                     <button type="button" class="icon-btn music-skip" id="musicSkip" aria-label="Bài tiếp theo" style="display:none"><i class="fa-solid fa-forward-step"></i></button>
+                    <button type="button" class="icon-btn music-skip" id="musicStop" aria-label="Hủy bài đang phát" title="Hủy bài đang phát" style="display:none"><i class="fa-solid fa-stop"></i></button>
                     <span class="music-title" id="musicTitle"></span>
                 </div>
                 <!-- Everyone sees the progress; only the host can drag it -->
@@ -1053,6 +1054,27 @@
                         <button type="button" data-chill-skin="🐵" title="Khỉ">🐵</button>
                         <button type="button" data-chill-skin="🐧" title="Cánh cụt">🐧</button>
                     </div>
+                    <!-- Outfit and accessory (chill.{userId}.outfit / .acc); the shirt keeps each person's colour -->
+                    <span class="chill-look-label">👕 Trang phục</span>
+                    <div class="chill-skin-grid">
+                        <button type="button" data-chill-outfit="" title="Áo thun">👕</button>
+                        <button type="button" data-chill-outfit="hoodie" title="Hoodie">🧥</button>
+                        <button type="button" data-chill-outfit="shirt" title="Sơ mi">👔</button>
+                        <button type="button" data-chill-outfit="suit" title="Vest">🤵</button>
+                        <button type="button" data-chill-outfit="dress" title="Váy">👗</button>
+                        <button type="button" data-chill-outfit="jersey" title="Áo đấu">🎽</button>
+                    </div>
+                    <span class="chill-look-label">✨ Phụ kiện</span>
+                    <div class="chill-skin-grid">
+                        <button type="button" data-chill-acc="" title="Không đeo">🚫</button>
+                        <button type="button" data-chill-acc="hat" title="Mũ chóp">🎩</button>
+                        <button type="button" data-chill-acc="cap" title="Mũ lưỡi trai">🧢</button>
+                        <button type="button" data-chill-acc="crown" title="Vương miện">👑</button>
+                        <button type="button" data-chill-acc="bow" title="Nơ">🎀</button>
+                        <button type="button" data-chill-acc="flower" title="Hoa cài tóc">🌸</button>
+                        <button type="button" data-chill-acc="glasses" title="Kính râm">🕶️</button>
+                        <button type="button" data-chill-acc="headphones" title="Tai nghe">🎧</button>
+                    </div>
                 </div>
                 <!-- Mini game (room.chillGame, set by the host; each player's lives in chill.{userId}.game) -->
                 <button type="button" class="chill-game-badge" id="chillGameBadge" hidden></button>
@@ -1451,6 +1473,17 @@
             GoogleAuthProvider,
             signInWithPopup,
         } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+        import {
+            getDatabase,
+            ref as rtdbRef,
+            onValue as onRtdbValue,
+            push as rtdbPush,
+            set as rtdbSet,
+            onDisconnect,
+            serverTimestamp as rtdbNow,
+            goOffline,
+            goOnline,
+        } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
         const firebaseConfig = {
             apiKey : "AIzaSyAn6U45kKfYSWfrFhMcwIP6_N7VC9KO5FQ" , 
@@ -1459,7 +1492,9 @@
             storageBucket : "mini-photo-app-891a5.firebasestorage.app" , 
             messagingSenderId : "539133097244" , 
             appId : "1:539133097244:web:ca8540eeee7749f77036d9" , 
-            measurementId : "G-H5H3C0F5MV" 
+            measurementId : "G-H5H3C0F5MV" ,
+            // Realtime Database: only the online / offline presence lives there (rules: database.rules.json)
+            databaseURL : "https://mini-photo-app-891a5-default-rtdb.firebaseio.com"
         };
 
         // "auto" lets Cloudinary accept both images and videos
@@ -1482,6 +1517,7 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
+        const rtdb = getDatabase(app);
         // Resolves once Firebase has restored the previous session (if any) from the browser
         const authReady = new Promise((resolve) => {
             const unsubscribe = onAuthStateChanged(auth, () => {
@@ -1815,7 +1851,7 @@
             })
                 .attr(isMe ? { type: "button", id: "myStory" } : {})
                 .append(storyCardBg(author, emoji))
-                .append($("<span>", { class: "ring" }).append(fillAvatar($("<span>", { class: "avatar avatar-lg" }), author, emoji)))
+                .append($("<span>", { class: "ring" }).attr(isMe ? {} : { "data-presence-of": author }).append(fillAvatar($("<span>", { class: "avatar avatar-lg" }), author, emoji)))
                 .append($("<span>", { class: "story-name", text: name }));
 
             // Friends are a <div> (the chat button sits inside), so act as a button via role/tabindex.
@@ -1925,6 +1961,99 @@
             renderFriendExtras();
             renderProfilePanel();
             if ($("#chatListView").is(":visible")) renderChatList();
+            // Later in the tick: the first render runs before the chat state further down the script exists
+            if (!presenceQueued) {
+                presenceQueued = true;
+                queueMicrotask(() => {
+                    presenceQueued = false;
+                    syncPresence();
+                });
+            }
+        }
+
+        /* Online / offline: Realtime Database presence/{authUid}. Every open tab adds a connection that the server
+           removes when the tab goes away, stamping last_seen. Keyed by the Firebase Auth uid (the rules check it),
+           saved as users.authUid so friends can look it up: name-only accounts (no Auth) show no status. */
+        let presenceQueued = false;
+        let presenceUid = ""; // the uid my connection watcher runs for
+        let presenceStop = null;
+        let presenceSavingUid = "";
+        const presenceByUid = new Map(); // authUid -> { online, lastSeen }
+        const presenceWatch = new Map(); // authUid -> unsubscribe
+
+        function startMyPresence(uid) {
+            if (presenceUid === uid) return;
+            presenceStop?.();
+            presenceStop = null;
+            presenceUid = uid;
+            if (!uid) return;
+            goOnline(rtdb);
+            presenceStop = onRtdbValue(rtdbRef(rtdb, ".info/connected"), (snap) => {
+                if (snap.val() !== true) return;
+                const conn = rtdbPush(rtdbRef(rtdb, `presence/${uid}/connections`));
+                onDisconnect(conn).remove();
+                onDisconnect(rtdbRef(rtdb, `presence/${uid}/last_seen`)).set(rtdbNow());
+                rtdbSet(conn, true).catch((err) => console.warn("Presence could not be written.", err));
+            });
+        }
+
+        // Signed out: dropping the connection runs the server's onDisconnect, so friends see me offline at once
+        onAuthStateChanged(auth, (user) => {
+            if (user) return;
+            startMyPresence("");
+            goOffline(rtdb);
+            presenceWatch.forEach((stop) => stop());
+            presenceWatch.clear();
+            presenceByUid.clear();
+            paintPresence();
+        });
+
+        function presenceOf(name) {
+            const uid = usersByAuthor.get(name)?.authUid;
+            return uid ? presenceByUid.get(uid) : null;
+        }
+
+        // My connection, my users.authUid, and a watcher per friend / chat partner
+        function syncPresence() {
+            const me = currentAuthor();
+            const uid = auth.currentUser?.uid || "";
+            startMyPresence(me ? uid : "");
+            const mine = usersByAuthor.get(me);
+            if (me && uid && mine && mine.authUid !== uid && presenceSavingUid !== uid) {
+                presenceSavingUid = uid;
+                setDoc(doc(db, "users", userDocId(me)), { authUid: uid }, { merge: true })
+                    .then(() => usersByAuthor.set(me, { ...usersByAuthor.get(me), authUid: uid }))
+                    .catch((err) => console.error(err))
+                    .finally(() => (presenceSavingUid = ""));
+            }
+            const names = new Set([...usersByAuthor.keys()].filter((name) => name && name !== me && isFriend(name)));
+            myConversations.forEach((conv) => conv.type === "direct" && partnerOf(conv) && names.add(partnerOf(conv)));
+            const uids = new Set(uid ? [...names].map((name) => usersByAuthor.get(name)?.authUid).filter(Boolean) : []);
+            presenceWatch.forEach((stop, watched) => {
+                if (uids.has(watched)) return;
+                stop();
+                presenceWatch.delete(watched);
+                presenceByUid.delete(watched);
+            });
+            uids.forEach((watched) => {
+                if (presenceWatch.has(watched)) return;
+                presenceWatch.set(watched, onRtdbValue(rtdbRef(rtdb, `presence/${watched}`), (snap) => {
+                    const value = snap.val() || {};
+                    presenceByUid.set(watched, { online: Object.keys(value.connections || {}).length > 0, lastSeen: Number(value.last_seen) || 0 });
+                    paintPresence();
+                }, (err) => console.warn("Presence could not be read.", err)));
+            });
+            paintPresence();
+        }
+
+        // Green dot on the avatar; the chat list also says when they were last active
+        function paintPresence() {
+            $("[data-presence-of]").each(function () {
+                const state = presenceOf($(this).attr("data-presence-of"));
+                const text = !state ? "" : state.online ? "Đang hoạt động" : state.lastSeen ? `Hoạt động ${timeAgo(state.lastSeen).toLowerCase()}` : "";
+                $(this).toggleClass("is-online", !!state?.online).attr("title", text || null);
+                $(this).closest(".chat-item").find(".chat-item-presence").text(text).toggleClass("is-online", !!state?.online);
+            });
         }
 
         // Arrows at both ends of the friends bar, each shown only while there is more to scroll that way
@@ -8313,13 +8442,14 @@
 
                 const unread = partner ? unreadByFriend.get(userIdOf(partner)) || 0 : (isGroupUnread(conv, seen) ? "Mới" : 0);
                 const $avatar = partner
-                    ? fillAvatar($("<span>", { class: "avatar avatar-md" }), partner)
+                    ? $("<span>", { class: "chat-item-avatar", "data-presence-of": partner }).append(fillAvatar($("<span>", { class: "avatar avatar-md" }), partner))
                     : $("<span>", { class: "avatar avatar-md", text: "👥" });
                 $list.append(
                     $("<button>", { type: "button", class: "chat-item" + (unread ? " has-unread" : ""), "data-conv": conv.id }).append(
                         $avatar,
                         $("<span>", { class: "chat-item-text" }).append(
                             $("<strong>", { text: title }),
+                            partner ? $("<span>", { class: "chat-item-presence" }) : null,
                             $("<span>", { class: "chat-item-last", text: conv.lastText || (conv.type === "group" ? `${conv.memberIds.length} thành viên` : "") })
                         ),
                         $("<span>", { class: "chat-item-meta" }).append(
@@ -8339,8 +8469,8 @@
                 others.forEach((name) => {
                     $list.append(
                         $("<button>", { type: "button", class: "chat-item", "data-user": name }).append(
-                            fillAvatar($("<span>", { class: "avatar avatar-md" }), name),
-                            $("<span>", { class: "chat-item-text" }).append($("<strong>", { text: nameOf(name) }))
+                            $("<span>", { class: "chat-item-avatar", "data-presence-of": name }).append(fillAvatar($("<span>", { class: "avatar avatar-md" }), name)),
+                            $("<span>", { class: "chat-item-text" }).append($("<strong>", { text: nameOf(name) }), $("<span>", { class: "chat-item-presence" }))
                         )
                     );
                 });
@@ -8349,6 +8479,7 @@
             if (!$list.children().length) {
                 $list.append($("<p>", { class: "chat-empty", text: search ? "Không tìm thấy kết quả" : "Chưa có cuộc trò chuyện nào" }));
             }
+            paintPresence();
         }
 
         $("#btnChat").on("click", openChatList);
@@ -9217,7 +9348,9 @@
             const songInput = $.trim($("#musicSongUrl").val());
             $("#musicSongBtn").text(songInput && youtubeIdOf(songInput) ? (isHost ? "Thêm" : "Yêu cầu") : "Tìm");
             if (!room.videoId) {
-                $("#musicToggle, #musicMute, #musicSkip, #musicProgress, #musicError").hide();
+                $("#musicToggle, #musicMute, #musicSkip, #musicStop, #musicProgress, #musicError").hide();
+                // After a cancel the queue may still hold songs: ⏭ starts the next one
+                $("#musicSkip").toggle(isHost && musicQueueOf(room).length > 0);
                 $("#musicTitle").text(isHost ? "Chưa có bài nào · tìm bài bên dưới để phát 🎶" : "Chưa có bài nào · gửi yêu cầu để DJ duyệt 🎶");
                 updateChillRoom(room);
                 updateMusicMini();
@@ -9242,7 +9375,7 @@
             $("#musicToggle").toggle(!failed && (isHost || blocked || room.playing || localPaused))
                 .attr("aria-label", label)
                 .find("i").attr("class", `fa-solid ${icon}`);
-            $("#musicSkip").toggle(isHost);
+            $("#musicSkip, #musicStop").toggle(isHost);
             $("#musicSeek").prop("disabled", !isHost);
             $("#musicProgress").toggle(!failed);
             $("#musicError").toggle(failed);
@@ -9308,6 +9441,17 @@
         const CHILL_DIZZY_MS = 3000; // poked at 30–10 HP: dizzy, eyes spinning
         // Heads one can pick instead of the avatar photo (chill.{userId}.skin); "" = the photo
         const CHILL_SKINS = ["🐱", "🐰", "🐶", "🐹", "🦦", "🐣", "🦄", "🐼", "🦊", "🐸", "🐯", "🐻", "🐨", "🐷", "🐵", "🐧"];
+        const CHILL_OUTFITS = ["hoodie", "shirt", "suit", "dress", "jersey"]; // "" = the plain tee
+        // Accessory -> emoji and where it sits on the head
+        const CHILL_ACCS = {
+            hat: { icon: "🎩", spot: "top" },
+            cap: { icon: "🧢", spot: "top" },
+            crown: { icon: "👑", spot: "top" },
+            bow: { icon: "🎀", spot: "side" },
+            flower: { icon: "🌸", spot: "side" },
+            glasses: { icon: "🕶️", spot: "eyes" },
+            headphones: { icon: "🎧", spot: "around" },
+        };
         const CHILL_HUG_MS = 4000;
         const CHILL_DUO_MS = 16000;
         const CHILL_INVITE_MS = 20000;
@@ -9337,6 +9481,7 @@
                     $("<span>", { class: "chill-hp", "aria-hidden": "true" }).append($("<i>")),
                     $("<span>", { class: "chill-lives" }),
                     $("<span>", { class: "chill-face" }).append($face),
+                    $("<span>", { class: "chill-acc", "aria-hidden": "true" }),
                     $("<span>", { class: "chill-body" }).append($("<i>", { class: "chill-arm is-left" }), $("<i>", { class: "chill-arm is-right" })),
                     $("<span>", { class: "chill-legs" }).append($("<i>"), $("<i>")),
                     $("<span>", { class: "chill-prop", "aria-hidden": "true" }),
@@ -9438,6 +9583,8 @@
             chill = {
                 dancing: !!saved?.dancing, vote: saved?.vote || 0, emote: saved?.emote || "", act: saved?.act || null, booth: !!saved?.booth,
                 skin: room ? saved?.skin || "" : chill.skin || "",
+                outfit: room ? saved?.outfit || "" : chill.outfit || "",
+                acc: room ? saved?.acc || "" : chill.acc || "",
                 hp: chillHpOf(vitals), beers: vitals.beers || 0, ko: vitals.ko || 0, nap: !!vitals.nap, game: vitals.game || null,
             };
             // Left while knocked out / dozing (nothing is counting down anymore): back on my feet now
@@ -9488,6 +9635,7 @@
                 const online = !room || isMe || (typeof state.at === "number" && Date.now() - state.at < CHILL_ONLINE_MS);
                 $char.toggleClass("is-online", online).attr("title", online ? null : "Đang nghe nhạc, chưa vào phòng 2D");
                 setChillSkin($char, CHILL_SKINS.includes(state.skin) ? state.skin : "");
+                setChillLook($char, state.outfit, state.acc);
                 // Knocked out / dozing: no emote, no dance; the prop shows the stars / Zzz instead
                 const down = !!state.ko || !!state.nap;
                 const emote = CHILL_EMOTES[state.emote] && !down ? state.emote : "";
@@ -9503,6 +9651,11 @@
                         && (Math.abs(parseFloat(this.style.left) - state.x) > 0.5 || Math.abs(parseFloat(this.style.top) - state.y) > 0.5);
                     const act = state.act;
                     setTimeout(() => {
+                        if (act.t === "dogPoke") {
+                            showChillDogHit();
+                            if (room?.hostId === myId) chillDogHitsPending++;
+                            return;
+                        }
                         playChillAct(id, act.to, act.t);
                         if (act.to !== myId) return;
                         const wasKo = !!chill.ko;
@@ -9780,7 +9933,7 @@
         let chillZenTimer = null;
 
         // Cooldowns (ms) for HP actions: key = act type or emote, value = when it can be used again
-        const CHILL_COOLDOWN_MS = { poke: 3000, milktea: 5000, meditate: 6000 };
+        const CHILL_COOLDOWN_MS = { poke: 3000, milktea: 5000, meditate: 6000, dogPoke: 3000 };
         const chillCooldownUntil = {};
 
         // Still cooling down: a toast with the seconds left and true; else starts the cooldown and false
@@ -9862,6 +10015,13 @@
             if (!$char.data("photo")) $char.data("photo", $face.children().detach());
             $face.empty().append(skin ? $("<span>", { class: "chill-emoji is-skin", text: skin }) : $char.data("photo"));
             $char.attr("data-skin", skin || null);
+        }
+
+        // Outfit on the body, accessory on the head; unknown values (from other clients) fall back to none
+        function setChillLook($char, outfit, acc) {
+            const look = Object.hasOwn(CHILL_ACCS, acc || "") ? CHILL_ACCS[acc] : null;
+            $char.attr("data-outfit", CHILL_OUTFITS.includes(outfit) ? outfit : null);
+            $char.find(".chill-acc").text(look?.icon || "").attr("data-spot", look?.spot || null);
         }
 
         // Adds a class for `ms` (restarting its animation if it is already on), e.g. a hug or a startle
@@ -10147,6 +10307,12 @@
             $("[data-chill-skin]").each(function () {
                 $(this).toggleClass("is-active", $(this).attr("data-chill-skin") === (chill.skin || ""));
             });
+            $("[data-chill-outfit]").each(function () {
+                $(this).toggleClass("is-active", $(this).attr("data-chill-outfit") === (chill.outfit || ""));
+            });
+            $("[data-chill-acc]").each(function () {
+                $(this).toggleClass("is-active", $(this).attr("data-chill-acc") === (chill.acc || ""));
+            });
         }
 
         // Shows my change at once, then writes it to the room for the others
@@ -10162,6 +10328,8 @@
             if (chill.act) data.act = chill.act;
             if (chill.booth) data.booth = true;
             if (chill.skin) data.skin = chill.skin;
+            if (chill.outfit) data.outfit = chill.outfit;
+            if (chill.acc) data.acc = chill.acc;
             if (chillHpOf(chill) < CHILL_HP_MAX) data.hp = chillHpOf(chill);
             if (chill.beers) data.beers = chill.beers;
             if (chill.ko) data.ko = chill.ko;
@@ -10310,6 +10478,10 @@
         // Click the floor: my character walks there
         $("#chillFloor").on("click", function (e) {
             $("#chillActions").prop("hidden", true);
+            if ($(e.target).closest("#chillDog:not(.is-sleeping)").length) {
+                pokeChillDog();
+                return;
+            }
             const $me = $(this).find(".chill-char.is-me");
             const fromBooth = !$me.length && $("#chillBooth .chill-char.is-me").length > 0; // the host stepping down
             if (!$me.length && !fromBooth) return;
@@ -10377,6 +10549,16 @@
             chill.skin = CHILL_SKINS.includes(skin) ? skin : "";
             $("#chillSkinPop").prop("hidden", true);
             $("#chillSkinBtn").attr("aria-expanded", "false").removeClass("is-active");
+            saveMyChill();
+        });
+
+        // Outfit / accessory: the picker stays open so both can be tried on
+        $("#chillSkinPop").on("click", "[data-chill-outfit], [data-chill-acc]", function (e) {
+            e.stopPropagation();
+            const outfit = $(this).attr("data-chill-outfit");
+            const acc = $(this).attr("data-chill-acc");
+            if (outfit !== undefined) chill.outfit = CHILL_OUTFITS.includes(outfit) ? outfit : "";
+            if (acc !== undefined) chill.acc = Object.hasOwn(CHILL_ACCS, acc) ? acc : "";
             saveMyChill();
         });
 
@@ -10752,7 +10934,7 @@
                         $("<strong>", { text: "🐕 Chó rượt đuổi" }),
                         $("<span>", { class: `chill-game-status is-${status}`, text: CHILL_GAME_STATUS[status] })
                     ),
-                    $("<p>", { class: "chill-game-meta", text: dogActive ? "Chó đang chọn ngẫu nhiên người chơi để đuổi. Mỗi cú cắn trừ 5 HP." : "💤 Chó đang ngủ, không cắn ai." }),
+                    $("<p>", { class: "chill-game-meta", text: dogActive ? `Chó đang chọn ngẫu nhiên người chơi để đuổi. Mỗi cú cắn trừ 5 HP. Bấm vào chó để chọc (-${CHILL_DOG_POKE_DAMAGE} máu chó), hết máu chó lăn ra ngủ.` : "💤 Chó đang ngủ, không cắn ai." }),
                     speedControl(),
                     isHost ? $("<div>", { class: "chill-game-actions" }).append(
                         // Sleep: the game stays on, the dog naps where it is; wake it up to chase again
@@ -10901,11 +11083,17 @@
                     .append(
                         $("<span>", { class: "chill-dog-bark", text: "woof!" }),
                         $("<span>", { class: "chill-dog-hit", text: "💥" }),
+                        $("<span>", { class: "chill-dog-hp" }).append($("<i>")),
+                        $("<span>", { class: "chill-dog-ouch" }),
                         $("<img>", { class: "chill-dog-sprite", src: "images/shiba.png", alt: "", draggable: false })
                     )
                     .appendTo($floor);
             }
             $sprite.toggleClass("is-sleeping", !!sleeping);
+            if (sleeping && dog.koAt && (room.id !== chillDogSeenKo.roomId || dog.koAt !== chillDogSeenKo.at)) {
+                chillDogSeenKo = { roomId: room.id, at: dog.koAt };
+                if (Date.now() - dog.koAt < 10000) showToast("🐕 Chó bị chọc hết máu, lăn ra ngủ rồi 💤");
+            }
             if (sleeping) {
                 chillDogSpeedPending = null;
                 clearInterval(chillDogFrameTimer);
@@ -10917,6 +11105,7 @@
                 if (spot.y < 0) $sprite.css("z-index", CHILL_DOG_BOOTH_Z);
                 return;
             }
+            $sprite.find(".chill-dog-hp i").css("width", `${chillDogHpOf(dog)}%`);
             if (dog.targetId) {
                 $("#chillScene .chill-char[data-id]").filter(function () {
                     return $(this).attr("data-id") === dog.targetId;
@@ -10989,7 +11178,7 @@
 
         let chillDogWriteInFlight = false;
         function persistChillDog(room, dog) {
-            if (chillDogWriteInFlight || chillDogSyncBlockedRoom === room.id) return;
+            if (chillDogWriteInFlight || chillDogSyncBlockedRoom === room.id) return false;
             chillDogWriteInFlight = true;
             updateDoc(doc(db, "musicRooms", room.id), { chillGame: { ...chillGameOf(room), dog } })
                 .catch((err) => {
@@ -11000,6 +11189,7 @@
                 .finally(() => {
                     chillDogWriteInFlight = false;
                 });
+            return true;
         }
 
         function tickChillDog() {
@@ -11009,6 +11199,15 @@
             if (!dog || room.hostId !== userIdOf(currentAuthor()) || !$("#chillModal").is(":visible")) return;
             if (chillDogSyncBlockedRoom === room.id) return;
             const now = Date.now();
+            if (chillDogHitsPending) {
+                const hits = chillDogHitsPending;
+                const hp = Math.max(0, chillDogHpOf(dog) - hits * CHILL_DOG_POKE_DAMAGE);
+                const hurt = hp
+                    ? { ...dog, hp, updatedAt: now }
+                    : { ...dog, hp: 0, active: false, targetId: "", mode: "idle", koAt: now };
+                if (persistChillDog(room, hurt)) chillDogHitsPending -= hits;
+                return;
+            }
             // The DJ behind the decks (that is me, the host, so online) is fair game too: the dog runs up to the booth
             const boothSpot = chillHostOnFloor(room) ? null : chillDogBoothSpot();
             const candidates = [...new Set([room.hostId, ...(room.memberIds || [])])]
@@ -11069,6 +11268,49 @@
         }
 
         const CHILL_DOG_STEP = 8; // per tick at speed x1
+        // Everyone can poke the running dog: the host adds the pokes up and writes the dog's HP
+        const CHILL_DOG_HP_MAX = 100;
+        const CHILL_DOG_POKE_DAMAGE = 10;
+        let chillDogHitsPending = 0;
+        let chillDogSeenKo = { roomId: "", at: 0 };
+
+        function chillDogHpOf(dog) {
+            const hp = Number(dog?.hp);
+            return Number.isFinite(hp) ? Math.min(CHILL_DOG_HP_MAX, Math.max(0, hp)) : CHILL_DOG_HP_MAX;
+        }
+
+        function showChillDogHit() {
+            const $dog = $("#chillDog");
+            if (!$dog.length || $dog.hasClass("is-sleeping")) return;
+            $dog.find(".chill-dog-ouch").text(`-${CHILL_DOG_POKE_DAMAGE}`);
+            restartChillClass($dog, "is-poked", 700);
+        }
+
+        // My character walks up to the dog, then pokes it
+        function pokeChillDog() {
+            const room = myMusicRoom();
+            const dog = chillDogOf(room);
+            const myId = userIdOf(currentAuthor());
+            if (!room || !dog) return;
+            if (!myId) return showToast("Đăng nhập để chọc chó nhé");
+            if (chillDownText()) return showToast(chillDownText());
+            if (chillOnCooldown("dogPoke")) return;
+            const $me = $("#chillFloor .chill-char.is-me");
+            let delay = 0;
+            if ($me.length && !dog.atBooth) {
+                const me = { x: parseFloat($me[0].style.left), y: parseFloat($me[0].style.top) };
+                if (Math.abs(me.x - dog.x) > CHILL_NEAR.x || Math.abs(me.y - dog.y) > CHILL_NEAR.y) {
+                    moveChillChar($me, Math.min(95, Math.max(5, dog.x + (me.x < dog.x ? -7 : 7))), Math.min(95, Math.max(15, dog.y)));
+                    delay = 800;
+                }
+            }
+            setTimeout(() => {
+                chill.act = { t: "dogPoke", to: "dog", at: Date.now() };
+                showChillDogHit();
+                if (room.hostId === myId) chillDogHitsPending++;
+                saveMyChill();
+            }, delay);
+        }
         const CHILL_DOG_SPEED_MIN = 0.5;
         const CHILL_DOG_SPEED_MAX = 2.5;
         let chillDogSpeedPending = null; // picked by the host, not yet back from Firestore: the ticks use it meanwhile
@@ -11369,6 +11611,17 @@
             if (!isMusicHost(room)) return;
             if (!musicQueueOf(room).length) return showToast("Hàng đợi đang trống.");
             playNextInQueue(room).catch((err) => {
+                console.error(err);
+                showToast(errorMessage(err));
+            });
+        });
+
+        // Host: drop the current song without moving on to the queue; the room goes back to "no song yet"
+        $("#musicStop").on("click", function () {
+            const room = myMusicRoom();
+            if (!isMusicHost(room) || !room.videoId) return;
+            if (!confirm("Hủy bài đang phát? Hàng chờ vẫn giữ nguyên.")) return;
+            setMusicState(room, { videoId: "", playing: false, position: 0 }).catch((err) => {
                 console.error(err);
                 showToast(errorMessage(err));
             });

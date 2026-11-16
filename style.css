@@ -398,6 +398,40 @@ body.no-scroll {
     border-width: 3px;
 }
 
+/* Online friend: green dot on the avatar (top right; the chat button sits bottom right) */
+.story .ring[data-presence-of],
+.chat-item-avatar {
+    position: relative;
+}
+
+.story .ring.is-online::after,
+.chat-item-avatar.is-online::after {
+    content: "";
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--card);
+    border-radius: 50%;
+    background: #22c55e;
+}
+
+.story .ring.is-online::after {
+    top: 2px;
+    right: 2px;
+}
+
+.chat-item-avatar {
+    flex-shrink: 0;
+    display: inline-flex;
+}
+
+.chat-item-avatar.is-online::after {
+    right: 0;
+    bottom: 0;
+    width: 12px;
+    height: 12px;
+}
+
 .story-name {
     max-width: 100%;
     font-size: 12px;
@@ -3000,6 +3034,20 @@ a.profile-about-row:hover {
     min-width: 0;
     display: flex;
     flex-direction: column;
+}
+
+.chat-item-presence {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.chat-item-presence:empty {
+    display: none;
+}
+
+.chat-item-presence.is-online {
+    color: #16a34a;
+    font-weight: 600;
 }
 
 .chat-item-last {
@@ -7951,6 +7999,70 @@ a.profile-about-row:hover {
     100% { opacity: 0; transform: translate(8px, -14px) scale(1.1); }
 }
 
+/* The running dog can be clicked (poked) */
+.chill-dog:not(.is-sleeping) .chill-dog-sprite {
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+.chill-dog-hp {
+    position: absolute;
+    top: -2px;
+    left: 50%;
+    width: 46px;
+    height: 6px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.45);
+    translate: -50% 0;
+}
+
+.chill-dog-hp i {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, #f97316, #facc15);
+    transition: width 0.3s;
+}
+
+.chill-dog.is-sleeping .chill-dog-hp {
+    display: none;
+}
+
+.chill-dog-ouch {
+    position: absolute;
+    top: -18px;
+    left: 50%;
+    color: #f87171;
+    font-size: 14px;
+    font-weight: 900;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+    opacity: 0;
+    translate: -50% 0;
+    pointer-events: none;
+}
+
+.chill-dog.is-poked .chill-dog-sprite {
+    animation: chill-dog-poked 0.4s ease-in-out 1;
+}
+
+.chill-dog.is-poked .chill-dog-ouch {
+    animation: chill-dog-ouch 0.7s ease-out 1;
+}
+
+@keyframes chill-dog-poked {
+    0%, 100% { transform: translateX(0) rotate(0); }
+    25% { transform: translateX(-5px) rotate(-8deg); }
+    75% { transform: translateX(5px) rotate(8deg); }
+}
+
+@keyframes chill-dog-ouch {
+    0% { opacity: 0; transform: translateY(4px); }
+    20% { opacity: 1; }
+    100% { opacity: 0; transform: translateY(-16px); }
+}
+
 #chillScene .chill-char.is-dog-bitten .chill-face {
     animation: chill-dog-startle 0.55s steps(2, end) 1;
 }
@@ -8322,6 +8434,143 @@ a.profile-about-row:hover {
 .chill-legs {
     display: flex;
     gap: 4px;
+}
+
+/* Outfits (chill.{userId}.outfit), drawn on the body in the person's colour --c.
+   The face's bottom sits 30px above the character's bottom (body 22 - 3 overlap + legs 11) */
+.chill-char[data-outfit] .chill-body::before,
+.chill-char[data-outfit] .chill-body::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    translate: -50% 0;
+    pointer-events: none;
+}
+
+.chill-char[data-outfit="hoodie"] .chill-body::before {
+    top: -4px;
+    width: 24px;
+    height: 9px;
+    border-radius: 10px 10px 2px 2px;
+    background: var(--c);
+    filter: brightness(0.8);
+}
+
+.chill-char[data-outfit="hoodie"] .chill-body::after {
+    bottom: 3px;
+    width: 14px;
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.chill-char[data-outfit="shirt"] .chill-body::before {
+    top: 0;
+    width: 12px;
+    height: 8px;
+    background: #fff;
+    clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+
+.chill-char[data-outfit="shirt"] .chill-body::after {
+    top: 9px;
+    width: 2px;
+    height: 10px;
+    background: repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.9) 0 2px, transparent 2px 4px);
+}
+
+.chill-char[data-outfit="suit"] .chill-body,
+.chill-char[data-outfit="suit"] .chill-arm {
+    background: #1f2937;
+}
+
+.chill-char[data-outfit="suit"] .chill-body::before {
+    top: 0;
+    width: 11px;
+    height: 15px;
+    background: #fff;
+    clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+
+.chill-char[data-outfit="suit"] .chill-body::after {
+    top: 1px;
+    width: 4px;
+    height: 11px;
+    background: var(--c);
+    clip-path: polygon(50% 0, 100% 25%, 75% 100%, 25% 100%, 0 25%);
+}
+
+.chill-char[data-outfit="dress"] .chill-body::before {
+    top: 9px;
+    width: 100%;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.75);
+}
+
+.chill-char[data-outfit="dress"] .chill-body::after {
+    bottom: -7px;
+    width: 38px;
+    height: 13px;
+    background: var(--c);
+    filter: brightness(1.08);
+    clip-path: polygon(18% 0, 82% 0, 100% 100%, 0 100%);
+}
+
+.chill-char[data-outfit="jersey"] .chill-body {
+    box-shadow: inset 0 3px 0 rgba(255, 255, 255, 0.75);
+}
+
+.chill-char[data-outfit="jersey"] .chill-body::after {
+    content: "10";
+    top: 5px;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 900;
+    line-height: 1;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
+}
+
+/* The body is mirrored when facing left: keep the number readable */
+.chill-char.is-facing-left[data-outfit="jersey"] .chill-body::after {
+    scale: -1 1;
+}
+
+/* Accessory (chill.{userId}.acc): an emoji placed on the head */
+.chill-acc {
+    position: absolute;
+    left: 50%;
+    z-index: 2;
+    line-height: 1;
+    translate: -50% 0;
+    pointer-events: none;
+}
+
+.chill-acc:empty {
+    display: none;
+}
+
+.chill-acc[data-spot="top"] {
+    bottom: 62px;
+    font-size: 22px;
+}
+
+.chill-acc[data-spot="side"] {
+    bottom: 60px;
+    left: 72%;
+    font-size: 16px;
+    rotate: 15deg;
+}
+
+.chill-acc[data-spot="eyes"] {
+    bottom: 42px;
+    font-size: 22px;
+}
+
+/* Behind the head: the band shows above, the cups at the sides */
+.chill-acc[data-spot="around"] {
+    bottom: 44px;
+    z-index: 0;
+    font-size: 50px;
 }
 
 .chill-legs i {
@@ -9343,6 +9592,20 @@ a.profile-about-row:hover {
 .chill-skin-grid button.is-active {
     border-color: #fde68a;
     background: rgba(253, 230, 138, 0.2);
+}
+
+.chill-look-label {
+    display: block;
+    margin-top: 10px;
+    color: #d8b4fe;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+#chillSkinPop {
+    max-height: calc(100% - 20px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 /* A picked animal fills the round head */
