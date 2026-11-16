@@ -642,8 +642,11 @@
             <div class="chat-view" id="chatConvView" style="display:none">
             <div class="chat-head">
                 <button type="button" class="icon-btn chat-back" aria-label="Quay lại danh sách"><i class="fa-solid fa-chevron-left"></i></button>
-                <span class="avatar avatar-md" id="chatAvatar"></span>
-                <h2 class="chat-title" id="chatTitle"></h2>
+                <span class="chat-item-avatar" id="chatAvatarWrap"><span class="avatar avatar-md" id="chatAvatar"></span></span>
+                <div class="chat-title-wrap">
+                    <h2 class="chat-title" id="chatTitle"></h2>
+                    <span class="chat-item-presence" id="chatPresence"></span>
+                </div>
                 <button type="button" class="btn-ghost chat-event-btn" id="chatCreateEvent" style="display:none" title="Tạo kèo">
                     🏸 <span>Tạo kèo</span>
                 </button>
@@ -2052,7 +2055,7 @@
                 const state = presenceOf($(this).attr("data-presence-of"));
                 const text = !state ? "" : state.online ? "Đang hoạt động" : state.lastSeen ? `Hoạt động ${timeAgo(state.lastSeen).toLowerCase()}` : "";
                 $(this).toggleClass("is-online", !!state?.online).attr("title", text || null);
-                $(this).closest(".chat-item").find(".chat-item-presence").text(text).toggleClass("is-online", !!state?.online);
+                $(this).closest(".chat-item, .chat-head").find(".chat-item-presence").text(text).toggleClass("is-online", !!state?.online);
             });
         }
 
@@ -7340,6 +7343,10 @@
                 $("#chatAvatar").empty().removeAttr("data-avatar-of").removeClass("has-photo").text("👥");
                 $("#chatTitle").text(conv.name);
             }
+            // 1-1 chat: the partner's online dot and "Đang hoạt động" / last active under the name
+            $("#chatAvatarWrap").attr("data-presence-of", partner || null).removeClass("is-online");
+            $("#chatPresence").text("").removeClass("is-online");
+            paintPresence();
             $("#chatCreateEvent").toggle(conv.type === "group");
             $("#chatAiToggle").toggle(aiEnabled());
             $("#chatAi").hide();
